@@ -1,50 +1,29 @@
 #!/usr/bin/env node
-// Hook do Claude Code: grava o estado de cada sessão em ~/.agent-board/sessions/<id>.json
+// Hook do Claude Code e do Cursor: grava o estado de cada sessão em ~/.agent-board/sessions/<id>.json
 // Nunca deve atrapalhar o agente: qualquer erro é engolido e o processo sai com código 0.
+// Única exceção proposital: em PermissionRequest o hook espera a resposta do painel (se ele estiver aberto).
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+require('./lib/env');
+const store = require('./lib/store');
+const { apply, trim } = require('./lib/state');
+const { updateUsage } = require('./lib/transcript');
 
-const DIR = process.env.AGENT_BOARD_DIR || path.join(os.homedir(), '.agent-board', 'sessions');
 const NTFY = process.env.AGENT_BOARD_NTFY; // ex.: https://ntfy.sh/meu-topico-secreto (opcional)
-const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
-
-const trim = (s, n) => {
-  if (!s) return null;
-  const t = String(s).replace(/\s+/g, ' ').trim();
-  return t.length > n ? t.slice(0, n - 1) + '…' : t;
-};
+const APPROVAL_WAIT = Number(process.env.AGENT_BOARD_APPROVAL_WAIT || 120); // segundos; 0 desliga
 
 function gitBranch(cwd) {
   if (!cwd) return null;
   try {
     return execFileSync('git', ['branch', '--show-current'], {
-      cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500,
+      cwd, stdio: ['ignore', 'pipe', 'ignore'], timeout: 1500, windowsHide: true,
     }).toString().trim() || null;
   } catch { return null; }
 }
 
-function describeTool(ev) {
-  const i = ev.tool_input || {};
-  const name = ev.tool_name || 'ferramenta';
-  if (name === 'Bash') return `Bash: ${trim(i.command, 80)}`;
-  if (i.file_path) return `${name}: ${path.basename(i.file_path)}`;
-  if (i.pattern) return `${name}: ${trim(i.pattern, 60)}`;
-  return name;
-}
-
-function trackFiles(s, ev) {
-  if (!EDIT_TOOLS.has(ev.tool_name)) return;
-  const f = (ev.tool_input || {}).file_path || (ev.tool_input || {}).notebook_path;
-  if (!f) return;
-  const rel = s.cwd && f.startsWith(s.cwd) ? path.relative(s.cwd, f) : f;
-  const files = new Set(s.files || []);
-  files.add(rel);
-  s.files = [...files].slice(-50);
-}
-
-// Última fala do agente, lida do fim do transcript (JSONL).
+// Última fala do agente, lida do fim do transcript (versões antigas do Claude Code não mandam last_assistant_message).
 function lastAssistant(transcript) {
   if (!transcript) return null;
   try {
@@ -121,6 +100,48 @@ function normalize(ev) {
   return out;
 }
 
+// O painel está aberto em alguma aba? O servidor grava um "batimento" a cada poucos segundos.
+function boardWatching() {
+  const hb = store.readJson(path.join(store.ROOT, 'server.json'));
+  return !!hb && Date.now() - hb.at < 15000 && hb.clients > 0;
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Espera a resposta do painel. Sai sem decidir (o terminal pergunta normalmente) se:
+// o tempo acabar, o painel fechar, ou o pedido for resolvido por outro caminho.
+async function waitDecision(id, requestId) {
+  const file = store.decisionFile(id, requestId);
+  const deadline = Date.now() + APPROVAL_WAIT * 1000;
+  let checks = 0;
+  while (Date.now() < deadline) {
+    const d = store.readJson(file);
+    if (d && d.requestId === requestId) { try { fs.unlinkSync(file); } catch {} return d; }
+    const s = store.readJson(store.sessionFile(id));
+    if (!s || !(s.approvals || []).some(a => a.requestId === requestId)) return { resolved: true };
+    if (++checks % 10 === 0 && !boardWatching()) return null;
+    await sleep(400);
+  }
+  return null;
+}
+
+function save(file, s, prev) {
+  store.writeJson(file, s);
+  if (s.state !== prev) {
+    store.logEvent({ ts: s.updatedAt, id: s.id, project: s.project, cwd: s.cwd, task: s.task, taskId: s.taskId, tool: s.tool, from: prev || null, to: s.state });
+  }
+}
+
+// Relê o arquivo antes de gravar: outros eventos da sessão podem ter chegado durante a espera.
+function updateApproval(file, requestId, change) {
+  const s = store.readJson(file);
+  if (!s || !(s.approvals || []).some(a => a.requestId === requestId)) return;
+  const prev = s.state;
+  change(s);
+  s.updatedAt = Date.now();
+  save(file, s, prev);
+}
+
 async function main() {
   let raw;
   try { raw = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { return; }
@@ -129,75 +150,43 @@ async function main() {
   const ev = raw && normalize(raw);
   if (!ev || !ev.session_id) return;
 
-  fs.mkdirSync(DIR, { recursive: true });
-  const file = path.join(DIR, String(ev.session_id).replace(/[^\w-]/g, '') + '.json');
-  let s = {};
-  try { s = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { /* sessão nova */ }
+  const approval = ev.hook_event_name === 'PermissionRequest';
+  const remote = approval && APPROVAL_WAIT > 0 && boardWatching();
+  if (approval) Object.assign(ev, { requestId: crypto.randomBytes(6).toString('hex'), remote });
 
-  const now = Date.now();
+  fs.mkdirSync(store.SESSIONS, { recursive: true });
+  const file = store.sessionFile(ev.session_id);
+  const s = store.readJson(file) || {};
   const prev = s.state;
-  s.id = ev.session_id;
-  s.tool = ev.tool;
-  s.cwd = ev.cwd || s.cwd;
-  s.project = path.basename(s.cwd || '') || 'sessão';
-  s.transcript = ev.transcript_path || s.transcript;
-  s.createdAt = s.createdAt || now;
-  s.updatedAt = now;
+  if (!apply(s, ev, Date.now(), { gitBranch, lastAssistant })) return;
 
-  switch (ev.hook_event_name) {
-    case 'SessionStart':
-      s.state = 'idle';
-      s.branch = gitBranch(s.cwd);
-      break;
-    case 'UserPromptSubmit':
-      s.state = 'working';
-      s.lastPrompt = trim(ev.prompt, 300);
-      if (!s.task) s.task = trim(ev.prompt, 140);
-      s.message = null;
-      s.lastResponse = null;
-      s.startedTurnAt = now;
-      break;
-    case 'PostToolUse':
-      s.state = 'working';
-      s.lastTool = describeTool(ev);
-      // No Cursor, postToolUse já conta a ação; afterFileEdit/afterShellExecution só detalham.
-      if (ev.source !== 'afterFileEdit' && ev.source !== 'afterShellExecution') s.toolCount = (s.toolCount || 0) + 1;
-      trackFiles(s, ev);
-      break;
-    case 'Notification': {
-      // O aviso de "ocioso" depois que o agente terminou não deve tirar o card de "pronto para revisar".
-      const idleNudge = /waiting for your input/i.test(ev.message || '');
-      if (prev === 'review' && idleNudge) return;
-      s.state = 'needs_you';
-      s.message = trim(ev.message, 300);
-      break;
-    }
-    case 'AgentResponse': // só Cursor: guarda a última fala para mostrar quando terminar
-      s.lastResponse = trim(ev.message, 400);
-      s.state = s.state === 'review' ? 'review' : 'working';
-      break;
-    case 'Stop':
-      s.state = 'review';
-      s.branch = gitBranch(s.cwd) || s.branch;
-      s.message = (s.tool === 'cursor' ? s.lastResponse : lastAssistant(s.transcript)) || s.message;
-      if (ev.status === 'aborted') s.message = `Interrompido. ${s.message || ''}`.trim();
-      if (ev.status === 'error') s.message = `Terminou com erro. ${s.message || ''}`.trim();
-      break;
-    case 'SessionEnd':
-      s.state = 'ended';
-      break;
-    default:
-      return;
+  if (s.tool === 'claude' && s.transcript) {
+    try {
+      s.usage = updateUsage(s.transcript, s.usage);
+      if (s.usage.title) s.title = s.usage.title;
+    } catch { /* uso é opcional */ }
   }
-
-  if (!s.branch) s.branch = gitBranch(s.cwd);
-
-  // Escrita atômica: o painel nunca lê um JSON pela metade.
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs.writeFileSync(tmp, JSON.stringify(s, null, 2));
-  fs.renameSync(tmp, file);
-
+  save(file, s, prev);
   if (s.state !== prev && (s.state === 'needs_you' || s.state === 'review')) await notify(s);
+
+  if (!remote) return;
+  const d = await waitDecision(ev.session_id, ev.requestId);
+  if (d && d.resolved) return; // respondido no terminal
+  if (!d) {
+    // Tempo esgotado ou painel fechado: o pedido continua visível, mas só o terminal responde.
+    updateApproval(file, ev.requestId, x => { x.approvals = x.approvals.map(a => a.requestId === ev.requestId ? { ...a, remote: false } : a); });
+    return;
+  }
+  const decision = d.behavior === 'allow'
+    ? { behavior: 'allow' }
+    : { behavior: 'deny', message: d.message || 'Negado pelo painel de agentes.' };
+  updateApproval(file, ev.requestId, x => {
+    const a = x.approvals.find(r => r.requestId === ev.requestId);
+    x.approvals = x.approvals.filter(r => r.requestId !== ev.requestId);
+    if (!x.approvals.length) Object.assign(x, { state: 'working', message: null });
+    x.lastTool = `${d.behavior === 'allow' ? 'Aprovado' : 'Negado'} no painel: ${a.summary}`;
+  });
+  await new Promise(r => process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PermissionRequest', decision } }), r));
 }
 
 main().catch(() => {}).finally(() => process.exit(0));
