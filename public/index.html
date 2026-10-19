@@ -9,6 +9,8 @@
     --bg: #f5f5f2; --surface: #ffffff; --border: #e2e1dc; --text: #1c1c1a; --muted: #6b6a64;
     --needs: #c2410c; --needs-bg: #fff4ec; --review: #15803d; --review-bg: #effaf2;
     --work: #1d4ed8; --work-bg: #eef3ff; --idle: #78776f; --stale: #b45309;
+    --add: #15803d; --del: #b91c1c; --warn: #b45309;
+    --series-1: #2a78d6; --series-2: #eb6834; --grid: #ecebe6;
     --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
@@ -16,28 +18,43 @@
       --bg: #141413; --surface: #1d1d1b; --border: #2f2f2c; --text: #ecebe6; --muted: #9a998f;
       --needs: #fb923c; --needs-bg: #2a1c12; --review: #4ade80; --review-bg: #12241a;
       --work: #7aa2ff; --work-bg: #151d33; --idle: #8a897f; --stale: #fbbf24;
+      --add: #4ade80; --del: #f87171; --warn: #fbbf24;
+      --series-1: #3987e5; --series-2: #d95926; --grid: #2a2a27;
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text);
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { display: flex; align-items: center; gap: 16px; padding: 16px 24px;
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 24px;
     border-bottom: 1px solid var(--border); flex-wrap: wrap; }
   h1 { font-size: 16px; margin: 0; font-weight: 650; }
   .summary { color: var(--muted); font-size: 13px; }
   .summary b { color: var(--text); }
   .spacer { flex: 1; }
-  button { font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+  button, select, input, textarea { font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 6px;
     border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  button { cursor: pointer; }
   button:hover { border-color: var(--muted); }
+  button:disabled { opacity: .55; cursor: default; }
+  button.primary { background: var(--work); border-color: var(--work); color: #fff; }
+  button.allow { background: var(--review); border-color: var(--review); color: #fff; }
+  button.deny { color: var(--del); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 7px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button[aria-pressed="true"] { background: var(--text); color: var(--bg); }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--idle); }
   .live .dot { background: var(--review); }
   .conn { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; }
+  a { color: var(--work); }
 
-  main { display: grid; grid-template-columns: repeat(4, minmax(260px, 1fr)); gap: 16px; padding: 20px 24px;
-    align-items: start; }
-  @media (max-width: 1100px) { main { grid-template-columns: repeat(2, minmax(260px, 1fr)); } }
-  @media (max-width: 640px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 14px 16px; } }
+  main { padding: 20px 24px; }
+  .board { display: grid; grid-template-columns: repeat(4, minmax(260px, 1fr)); gap: 16px; align-items: start; }
+  .groups .group { margin-bottom: 22px; }
+  .groups .group > .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
+  .group h2 { font-size: 13px; margin: 0 0 8px; display: flex; gap: 10px; align-items: baseline; }
+  .group h2 .gmeta { color: var(--muted); font-weight: 400; font-size: 12px; }
+  @media (max-width: 1100px) { .board { grid-template-columns: repeat(2, minmax(260px, 1fr)); } }
+  @media (max-width: 640px) { .board { grid-template-columns: 1fr; } main { padding: 16px; } header { padding: 12px 16px; } }
 
   .col h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 10px;
     display: flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 650; }
@@ -48,7 +65,8 @@
   .empty { color: var(--muted); font-size: 13px; padding: 14px; border: 1px dashed var(--border); border-radius: 10px; }
 
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
-    margin-bottom: 10px; border-left-width: 3px; }
+    margin-bottom: 10px; border-left-width: 3px; min-width: 0; }
+  .groups .card { margin-bottom: 0; }
   .card.needs_you { border-left-color: var(--needs); background: var(--needs-bg); }
   .card.review { border-left-color: var(--review); background: var(--review-bg); }
   .card.working { border-left-color: var(--work); }
@@ -56,52 +74,233 @@
   .card.flash { animation: flash 1.2s ease-out; }
   @keyframes flash { from { box-shadow: 0 0 0 3px var(--needs); } to { box-shadow: 0 0 0 0 transparent; } }
 
-  .top { display: flex; align-items: baseline; gap: 8px; }
+  .top { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
   .proj { font-weight: 650; }
   .badge { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border);
-    color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    color: var(--muted); text-transform: uppercase; letter-spacing: .04em; white-space: nowrap; }
+  .badge.task-id { color: var(--work); border-color: currentColor; text-transform: none; }
+  .badge.mode-danger { color: var(--del); border-color: currentColor; }
   .ago { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .branch { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 2px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .task { margin: 8px 0 4px; font-weight: 550; }
-  .msg { color: var(--muted); font-size: 13px; margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; }
+  .task { margin: 8px 0 2px; font-weight: 550; }
+  .prompt { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg { color: var(--muted); font-size: 13px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; }
   .msg.loud { color: var(--text); }
   .tool { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 6px;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .stale { color: var(--stale); font-size: 12px; margin-top: 6px; font-weight: 600; }
+  .stale, .notice { color: var(--stale); font-size: 12px; margin-top: 6px; font-weight: 600; }
   details { margin-top: 6px; font-size: 12px; color: var(--muted); }
   details li { font-family: var(--mono); font-size: 11.5px; }
+  details ul { margin: 4px 0; padding-left: 18px; }
   .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-  .meta { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 8px; display: flex; gap: 4px 10px; flex-wrap: wrap; }
+  .warn { color: var(--warn); font-weight: 600; }
+
+  .approval { border: 1px solid var(--needs); border-radius: 8px; padding: 8px 10px; margin-top: 8px; background: var(--surface); }
+  .approval .what { font-family: var(--mono); font-size: 12px; word-break: break-all; }
+  .approval pre { max-height: 160px; overflow: auto; font-size: 11px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-all; }
+  .approval .row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+  .approval .hint { color: var(--muted); font-size: 12px; }
+
+  .progress { margin-top: 8px; }
+  .bar { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: var(--work); border-radius: 2px; }
+  .bar.ctx > span { background: var(--muted); }
+  .bar.ctx.hot > span { background: var(--warn); }
+  .progress .label { font-size: 12px; color: var(--muted); margin-bottom: 3px; display: flex; gap: 8px; }
+  .progress .label b { color: var(--text); font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .todo-done { text-decoration: line-through; opacity: .7; }
+
+  .review-box { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 8px; font-size: 12px; }
+  .review-box .files { list-style: none; padding: 0; margin: 6px 0 0; max-height: 220px; overflow: auto; }
+  .review-box .files li > span { min-width: 3.2em; text-align: right; }
+  .review-box .files li { display: flex; gap: 8px; font-family: var(--mono); font-size: 11.5px; padding: 1px 0; }
+  .review-box .files a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; color: var(--text); }
+  .num-add { color: var(--add); } .num-del { color: var(--del); }
+  .pr { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .chk-fail { color: var(--del); font-weight: 600; } .chk-pass { color: var(--add); } .chk-pend { color: var(--warn); }
+
+  dialog { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text);
+    padding: 0; width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog .dhead { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  dialog .dhead h3 { margin: 0; font-size: 14px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  dialog .dbody { padding: 14px 16px; overflow: auto; max-height: calc(100vh - 130px); }
+  .patch { font-family: var(--mono); font-size: 12px; white-space: pre; margin: 0; }
+  .patch .a { color: var(--add); } .patch .d { color: var(--del); } .patch .h { color: var(--work); } .patch .f { font-weight: 700; }
+  form.launch { display: grid; gap: 10px; }
+  form.launch label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+  form.launch .inline { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; color: var(--text); }
+  form.launch .inline label { display: flex; gap: 6px; align-items: center; color: var(--text); }
+  form.launch textarea { min-height: 120px; resize: vertical; }
+  .err { color: var(--del); font-size: 12.5px; }
+
+  .metrics .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 18px; }
+  .tile { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+  .tile .v { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .tile .s { font-size: 12px; color: var(--muted); }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
+  .panel h3 { margin: 0 0 10px; font-size: 13px; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: 220px; }
+  .chart text { fill: var(--muted); font-size: 11px; }
+  .tip { position: absolute; pointer-events: none; background: var(--text); color: var(--bg); font-size: 12px;
+    padding: 6px 8px; border-radius: 6px; white-space: nowrap; opacity: 0; transition: opacity .1s; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 600; }
+  td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .tablewrap { overflow-x: auto; }
+
   .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text);
-    color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; }
+    color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   .toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 <header>
-  <h1>Painel de agentes</h1>
+  <h1 data-t="title">Painel de agentes</h1>
   <span class="summary" id="summary"></span>
   <span class="spacer"></span>
-  <span class="conn" id="conn"><span class="dot"></span><span id="connText">conectando…</span></span>
-  <button id="notifyBtn">Ativar avisos do navegador</button>
-  <button id="clearBtn">Limpar encerradas</button>
+  <span class="seg" id="viewSeg">
+    <button data-view="board" data-t="viewBoard">Quadro</button>
+    <button data-view="tasks" data-t="viewTasks">Por tarefa</button>
+    <button data-view="metrics" data-t="viewMetrics">Métricas</button>
+  </span>
+  <button class="primary" id="newBtn" data-t="newTask">Nova tarefa</button>
+  <span class="conn" id="conn"><span class="dot"></span><span id="connText"></span></span>
+  <button id="notifyBtn" data-t="enableAlerts">Ativar avisos do navegador</button>
+  <button id="clearBtn" data-t="clearEnded">Limpar encerradas</button>
+  <select id="editorSel" title="Editor">
+    <option value="cursor">Cursor</option><option value="vscode">VS Code</option>
+  </select>
+  <button id="langBtn" title="Idioma / Language">EN</button>
 </header>
 
-<main id="board"></main>
+<main id="main"></main>
 <div class="toast" id="toast"></div>
 
+<dialog id="diffDlg">
+  <div class="dhead"><h3 id="diffTitle"></h3><button data-close data-t="close">Fechar</button></div>
+  <div class="dbody"><pre class="patch" id="diffBody"></pre></div>
+</dialog>
+
+<dialog id="launchDlg">
+  <div class="dhead"><h3 data-t="newTask">Nova tarefa</h3><button data-close data-t="close">Fechar</button></div>
+  <div class="dbody">
+    <form class="launch" id="launchForm">
+      <label><span data-t="repoLabel">Pasta do repositório</span>
+        <input name="repo" list="repoList" required placeholder="C:\Users\voce\work\my-api"><datalist id="repoList"></datalist></label>
+      <div class="inline">
+        <label><input type="checkbox" name="worktree" checked> <span data-t="useWorktree">Criar worktree novo</span></label>
+        <label><input type="radio" name="tool" value="claude" checked> Claude Code</label>
+        <label><input type="radio" name="tool" value="cursor"> Cursor</label>
+      </div>
+      <label><span data-t="branchLabel">Branch (ex.: feat/FEAT-123-login)</span><input name="branch" placeholder="feat/FEAT-123-login"></label>
+      <label><span data-t="promptLabel">Primeiro prompt (vira o título do card)</span>
+        <textarea name="prompt" data-tp="promptPh"></textarea></label>
+      <div class="err" id="launchErr"></div>
+      <div><button class="primary" type="submit" data-t="launch">Abrir agente</button></div>
+    </form>
+  </div>
+</dialog>
+
 <script>
-const COLUMNS = [
-  { state: 'needs_you', title: 'Precisa de você', empty: 'Nenhum agente esperando você.' },
-  { state: 'review', title: 'Pronto para revisar', empty: 'Nada para revisar agora.' },
-  { state: 'working', title: 'Trabalhando', empty: 'Nenhum agente trabalhando.' },
-  { state: 'idle', title: 'Ociosas e encerradas', empty: 'Nenhuma sessão ociosa.' },
-];
+// ---------- Idioma ----------
+const I18N = {
+  pt: {
+    title: 'Painel de agentes', viewBoard: 'Quadro', viewTasks: 'Por tarefa', viewMetrics: 'Métricas',
+    newTask: 'Nova tarefa', enableAlerts: 'Ativar avisos do navegador', clearEnded: 'Limpar encerradas', close: 'Fechar',
+    connecting: 'conectando…', live: 'ao vivo', reconnecting: 'reconectando…',
+    colNeeds: 'Precisa de você', colReview: 'Pronto para revisar', colWorking: 'Trabalhando', colIdle: 'Ociosas e encerradas',
+    emptyNeeds: 'Nenhum agente esperando você.', emptyReview: 'Nada para revisar agora.', emptyWorking: 'Nenhum agente trabalhando.', emptyIdle: 'Nenhuma sessão ociosa.',
+    summary: (n, r, w) => `<b>${n}</b> esperando você · <b>${r}</b> para revisar · <b>${w}</b> trabalhando`,
+    docTitle: 'Painel de agentes', stale: a => `Sem atividade há ${a}. Travou?`,
+    filesChanged: n => `${n} arquivo${n > 1 ? 's' : ''} alterado${n > 1 ? 's' : ''}`,
+    actions: n => `${n} ${n === 1 ? 'ação' : 'ações'}`, startedAgo: a => `iniciada há ${a}`, ended: 'encerrada',
+    resume: 'Copiar retomada', openCursor: 'Copiar abrir no Cursor', copyFolder: 'Copiar pasta', dismiss: 'Dispensar',
+    copied: 'Copiado', copyPrompt: 'Copie o comando:',
+    allow: 'Permitir', deny: 'Negar', denyReason: 'Motivo (opcional, o agente lê)', answerTerminal: 'Responda no terminal (o painel não estava aberto quando o pedido chegou).',
+    permAsk: 'Pedido de permissão', sent: 'Resposta enviada',
+    steps: (d, t) => `${d}/${t} passos`, ctx: p => `contexto ${p}%`, compactions: n => `${n} compactaç${n > 1 ? 'ões' : 'ão'}`,
+    subagents: n => `${n} subagente${n > 1 ? 's' : ''}`, checkpoint: 'checkpoint salvo',
+    changes: 'Ver mudanças', hideChanges: 'Ocultar mudanças', loading: 'carregando…', notGit: 'não é um repositório git',
+    vsBase: (b, c) => `vs ${b}${c ? ` · ${c} commit${c > 1 ? 's' : ''}` : ''}`, untracked: n => `${n} arquivo${n > 1 ? 's' : ''} novo${n > 1 ? 's' : ''} sem git add`,
+    fullDiff: 'Diff completo', noPr: 'Sem PR', createPr: 'Criar PR (rascunho)', creatingPr: 'Criando PR…', prCreated: 'PR criado',
+    prConfirm: 'Fazer push desta branch e abrir um PR rascunho no GitHub?', draft: 'rascunho',
+    approved: 'aprovado', changesReq: 'mudanças pedidas', reviewReq: 'revisão pendente',
+    repoLabel: 'Pasta do repositório', useWorktree: 'Criar worktree novo', branchLabel: 'Branch (ex.: feat/FEAT-123-login)',
+    promptLabel: 'Primeiro prompt (vira o título do card)', promptPh: 'Implemente X com testes. Planeje primeiro e espere minha aprovação.',
+    launch: 'Abrir agente', launched: d => `Agente aberto em ${d}`,
+    noTask: 'Sem tarefa', sessionsN: n => `${n} sessão${n > 1 ? 'ões' : ''}`,
+    range: 'Período', days: n => `${n} dia${n > 1 ? 's' : ''}`,
+    mWaiting: 'Agentes esperando você', mWaitingSub: (a, b) => `${a} pedindo · ${b} prontos p/ revisão`,
+    mWorking: 'Tempo trabalhando', mResponse: 'Resposta mediana a pedidos', mResponseSub: n => `${n} pedido${n === 1 ? '' : 's'}`,
+    mCost: 'Custo estimado', mCostSub: t => `${t} tokens`, mSessions: 'Sessões',
+    perDay: 'Por dia', lWorking: 'Trabalhando', lWaiting: 'Esperando você', byTask: 'Por tarefa',
+    thTask: 'Tarefa', thSessions: 'Sessões', thWorking: 'Trabalhando', thWaiting: 'Esperando você', thCost: 'Custo', thTokens: 'Tokens', thLast: 'Última atividade',
+    noData: 'Ainda sem dados. As métricas começam a contar a partir desta versão.', hours: 'h',
+  },
+  en: {
+    title: 'Agent board', viewBoard: 'Board', viewTasks: 'By task', viewMetrics: 'Metrics',
+    newTask: 'New task', enableAlerts: 'Enable browser alerts', clearEnded: 'Clear ended', close: 'Close',
+    connecting: 'connecting…', live: 'live', reconnecting: 'reconnecting…',
+    colNeeds: 'Needs you', colReview: 'Ready for review', colWorking: 'Working', colIdle: 'Idle and ended',
+    emptyNeeds: 'No agent is waiting on you.', emptyReview: 'Nothing to review right now.', emptyWorking: 'No agent working.', emptyIdle: 'No idle sessions.',
+    summary: (n, r, w) => `<b>${n}</b> waiting on you · <b>${r}</b> to review · <b>${w}</b> working`,
+    docTitle: 'Agent board', stale: a => `No activity for ${a}. Stuck?`,
+    filesChanged: n => `${n} file${n > 1 ? 's' : ''} changed`,
+    actions: n => `${n} action${n === 1 ? '' : 's'}`, startedAgo: a => `started ${a} ago`, ended: 'ended',
+    resume: 'Copy resume', openCursor: 'Copy open in Cursor', copyFolder: 'Copy folder', dismiss: 'Dismiss',
+    copied: 'Copied', copyPrompt: 'Copy the command:',
+    allow: 'Allow', deny: 'Deny', denyReason: 'Reason (optional, the agent reads it)', answerTerminal: 'Answer in the terminal (the board was not open when the request arrived).',
+    permAsk: 'Permission request', sent: 'Answer sent',
+    steps: (d, t) => `${d}/${t} steps`, ctx: p => `context ${p}%`, compactions: n => `${n} compaction${n > 1 ? 's' : ''}`,
+    subagents: n => `${n} subagent${n > 1 ? 's' : ''}`, checkpoint: 'checkpoint saved',
+    changes: 'Show changes', hideChanges: 'Hide changes', loading: 'loading…', notGit: 'not a git repository',
+    vsBase: (b, c) => `vs ${b}${c ? ` · ${c} commit${c > 1 ? 's' : ''}` : ''}`, untracked: n => `${n} new file${n > 1 ? 's' : ''} not added`,
+    fullDiff: 'Full diff', noPr: 'No PR', createPr: 'Create draft PR', creatingPr: 'Creating PR…', prCreated: 'PR created',
+    prConfirm: 'Push this branch and open a draft PR on GitHub?', draft: 'draft',
+    approved: 'approved', changesReq: 'changes requested', reviewReq: 'review required',
+    repoLabel: 'Repository folder', useWorktree: 'Create a new worktree', branchLabel: 'Branch (e.g. feat/FEAT-123-login)',
+    promptLabel: 'First prompt (becomes the card title)', promptPh: 'Implement X with tests. Plan first and wait for my approval.',
+    launch: 'Open agent', launched: d => `Agent opened in ${d}`,
+    noTask: 'No task', sessionsN: n => `${n} session${n > 1 ? 's' : ''}`,
+    range: 'Range', days: n => `${n} day${n > 1 ? 's' : ''}`,
+    mWaiting: 'Agents waiting on you', mWaitingSub: (a, b) => `${a} asking · ${b} ready for review`,
+    mWorking: 'Time working', mResponse: 'Median response to asks', mResponseSub: n => `${n} ask${n === 1 ? '' : 's'}`,
+    mCost: 'Estimated cost', mCostSub: t => `${t} tokens`, mSessions: 'Sessions',
+    perDay: 'Per day', lWorking: 'Working', lWaiting: 'Waiting on you', byTask: 'By task',
+    thTask: 'Task', thSessions: 'Sessions', thWorking: 'Working', thWaiting: 'Waiting on you', thCost: 'Cost', thTokens: 'Tokens', thLast: 'Last activity',
+    noData: 'No data yet. Metrics start counting from this version on.', hours: 'h',
+  },
+};
+const pref = (k, d) => { try { return localStorage.getItem(k) || d; } catch { return d; } };
+const setPref = (k, v) => { try { localStorage.setItem(k, v); } catch { /* sem storage */ } };
+let lang = pref('ab.lang', (navigator.language || '').toLowerCase().startsWith('pt') ? 'pt' : 'en');
+let view = pref('ab.view', 'board');
+let editor = pref('ab.editor', 'cursor');
+const t = (k, ...a) => { const v = (I18N[lang] || I18N.pt)[k]; return typeof v === 'function' ? v(...a) : (v ?? k); };
+
+function applyStatic() {
+  document.documentElement.lang = lang === 'pt' ? 'pt-BR' : 'en';
+  document.querySelectorAll('[data-t]').forEach(el => { el.textContent = t(el.dataset.t); });
+  document.querySelectorAll('[data-tp]').forEach(el => { el.placeholder = t(el.dataset.tp); });
+  document.getElementById('langBtn').textContent = lang === 'pt' ? 'EN' : 'PT';
+  document.querySelectorAll('#viewSeg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
+  document.getElementById('editorSel').value = editor;
+  document.getElementById('connText').textContent = t(connState);
+}
+let connState = 'connecting';
+
+// ---------- Utilidades ----------
 const STALE_MIN = 10;
 let sessions = [];
 let previous = new Map();
-
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 function ago(ts) {
   const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -110,48 +309,417 @@ function ago(ts) {
   if (s < 86400) return `${Math.floor(s / 3600)} h`;
   return `${Math.floor(s / 86400)} d`;
 }
-const columnOf = s => (s.state === 'ended' ? 'idle' : COLUMNS.some(c => c.state === s.state) ? s.state : 'idle');
+function dur(ms) {
+  const m = Math.round((ms || 0) / 60000);
+  if (m < 1) return `${Math.round((ms || 0) / 1000)} s`;
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ''}`;
+}
+const fmtTok = n => !n ? '0' : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n);
+const fmtCost = c => `$${(c || 0) < 10 ? (c || 0).toFixed(2) : Math.round(c)}`;
+const api = (url, opts = {}) => fetch(url, { ...opts, headers: { 'Content-Type': 'application/json', 'X-Agent-Board': '1', ...(opts.headers || {}) } });
+const columnOf = s => (s.state === 'ended' ? 'idle' : ['needs_you', 'review', 'working', 'idle'].includes(s.state) ? s.state : 'idle');
+const isWin = p => /^[a-z]:[\\/]/i.test(p || '');
+function absPath(cwd, rel) {
+  if (isWin(rel) || (rel || '').startsWith('/')) return rel;
+  return cwd.replace(/[\\/]+$/, '') + (isWin(cwd) ? '\\' : '/') + rel;
+}
+const editorLink = (cwd, rel) => `${editor}://file/${encodeURI(absPath(cwd, rel).replace(/\\/g, '/')).replace(/#/g, '%23')}`;
+
+function toast(text) {
+  const el = document.getElementById('toast');
+  el.textContent = text; el.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast(t('copied')); }
+  catch { prompt(t('copyPrompt'), text); }
+}
+
+// Estado de interface que precisa sobreviver aos redesenhos (cada evento redesenha o quadro).
+const openReview = new Set();
+const openDetails = new Set();
+const diffCache = new Map(); // id -> { at, data }
+const prCache = new Map();   // id -> { at, data }
+const PROTECTED = /^(main|master|develop|production.*)$/;
+
+// ---------- Cards ----------
+function approvalsHtml(s) {
+  return (s.approvals || []).map(a => `
+    <div class="approval" data-req="${esc(a.requestId)}">
+      <div class="hint">${t('permAsk')} · ${ago(a.at)}</div>
+      <div class="what">${esc(a.summary)}</div>
+      <details data-key="${esc(s.id)}:req:${esc(a.requestId)}"><summary>JSON</summary><pre>${esc(a.detail)}</pre></details>
+      ${a.remote ? `<div class="row">
+          <button class="allow" data-act="allow">${t('allow')}</button>
+          <button class="deny" data-act="deny">${t('deny')}</button>
+          <input data-reason placeholder="${esc(t('denyReason'))}" style="flex:1;min-width:140px">
+        </div>` : `<div class="hint">${t('answerTerminal')}</div>`}
+    </div>`).join('');
+}
+
+function todosHtml(s) {
+  const todos = s.todos || [];
+  if (!todos.length) return '';
+  const done = todos.filter(x => x.status === 'completed').length;
+  const current = todos.find(x => x.status === 'in_progress');
+  return `<div class="progress">
+    <div class="label"><span>${t('steps', done, todos.length)}</span>${current ? `<b>${esc(current.active || current.text)}</b>` : ''}</div>
+    <div class="bar"><span style="width:${Math.round(done / todos.length * 100)}%"></span></div>
+    <details data-key="${esc(s.id)}:todos"><summary>${t('steps', done, todos.length)}</summary><ul>
+      ${todos.map(x => `<li class="${x.status === 'completed' ? 'todo-done' : ''}">${x.status === 'in_progress' ? '▸ ' : ''}${esc(x.text)}</li>`).join('')}
+    </ul></details>
+  </div>`;
+}
+
+function usageHtml(s) {
+  const u = s.usage;
+  if (!u || !u.turns) return '';
+  const pct = u.contextMax ? Math.min(100, Math.round(u.context / u.contextMax * 100)) : 0;
+  return `<div class="progress">
+    <div class="label"><span class="${pct >= 80 ? 'warn' : ''}">${t('ctx', pct)}</span><span>${fmtTok(u.total)} tok · ${fmtCost(u.cost)}</span>${u.model ? `<span>${esc(u.model.replace(/^claude-/, ''))}</span>` : ''}</div>
+    <div class="bar ctx ${pct >= 80 ? 'hot' : ''}"><span style="width:${pct}%"></span></div>
+  </div>`;
+}
+
+function prHtml(s) {
+  const c = prCache.get(s.id);
+  if (!c) return '';
+  const pr = c.data;
+  if (pr.error) return `<div class="pr"><span class="err">gh: ${esc(pr.error)}</span></div>`;
+  if (pr.none) return `<div class="pr"><span>${t('noPr')}</span>
+    ${s.branch && !PROTECTED.test(s.branch) ? `<button data-act="create-pr">${t('createPr')}</button>` : ''}</div>`;
+  const ch = pr.checks || {};
+  const review = pr.review === 'APPROVED' ? t('approved') : pr.review === 'CHANGES_REQUESTED' ? t('changesReq') : pr.review === 'REVIEW_REQUIRED' ? t('reviewReq') : '';
+  return `<div class="pr">
+    <a href="${esc(pr.url)}" target="_blank" rel="noopener">PR #${pr.number}</a>
+    <span class="badge">${esc(pr.state)}${pr.draft ? ` · ${t('draft')}` : ''}</span>
+    ${ch.fail ? `<span class="chk-fail">✗ ${ch.fail}</span>` : ''}${ch.pending ? `<span class="chk-pend">● ${ch.pending}</span>` : ''}${ch.pass ? `<span class="chk-pass">✓ ${ch.pass}</span>` : ''}
+    ${review ? `<span>${review}</span>` : ''}
+  </div>`;
+}
+
+function reviewHtml(s) {
+  if (!openReview.has(s.id)) return '';
+  const c = diffCache.get(s.id);
+  if (!c) return `<div class="review-box">${t('loading')}</div>`;
+  const d = c.data;
+  if (d.error) return `<div class="review-box">${prHtml(s)}<span class="err">${esc(d.error === 'não é um repositório git' ? t('notGit') : d.error)}</span></div>`;
+  return `<div class="review-box">
+    ${prHtml(s)}
+    <div style="margin-top:6px"><span class="num-add">+${d.add}</span> <span class="num-del">−${d.del}</span> · ${esc(t('vsBase', d.base, d.commits))}
+      ${d.files.length ? ` · <a href="#" data-act="patch">${t('fullDiff')}</a>` : ''}</div>
+    <ul class="files">${d.files.map(f => `<li>
+      <span class="num-add">${f.add == null ? 'bin' : `+${f.add}`}</span><span class="num-del">${f.del == null ? '' : `−${f.del}`}</span>
+      <a href="#" data-act="patch" data-file="${esc(f.path)}" title="${esc(f.path)}">${esc(f.path)}</a>
+      <a href="${esc(editorLink(s.cwd, f.path))}" title="${esc(editor)}" style="flex:0">↗</a></li>`).join('')}</ul>
+    ${d.untracked.length ? `<details data-key="${esc(s.id)}:untracked"><summary>${t('untracked', d.untracked.length)}</summary><ul>${d.untracked.map(f => `<li><a href="${esc(editorLink(s.cwd, f))}">${esc(f)}</a></li>`).join('')}</ul></details>` : ''}
+  </div>`;
+}
 
 function card(s) {
   const stale = s.state === 'working' && Date.now() - s.updatedAt > STALE_MIN * 60000;
   const files = s.files || [];
   const loud = s.state === 'needs_you' || s.state === 'review';
+  const title = s.title || s.task;
+  const mode = s.mode && s.mode !== 'default' ? s.mode : null;
+  const meta = [
+    t('actions', s.toolCount || 0), t('startedAgo', ago(s.createdAt)),
+    s.subagents ? t('subagents', s.subagents) : null,
+    s.compactions ? t('compactions', s.compactions) : null,
+    s.checkpoint ? `<span class="warn" title="${esc(s.checkpoint)}">${t('checkpoint')}</span>` : null,
+    s.state === 'ended' ? t('ended') : null,
+  ].filter(Boolean);
   return `<article class="card ${esc(s.state)}" data-id="${esc(s.id)}">
-    <div class="top"><span class="proj">${esc(s.project)}</span><span class="badge">${s.tool === 'cursor' ? 'Cursor' : 'Claude Code'}</span><span class="ago" data-ts="${s.updatedAt}">${ago(s.updatedAt)}</span></div>
+    <div class="top"><span class="proj">${esc(s.project)}</span>
+      ${s.taskId ? `<span class="badge task-id">${esc(s.taskId)}</span>` : ''}
+      <span class="badge">${s.tool === 'cursor' ? 'Cursor' : 'Claude Code'}</span>
+      ${mode ? `<span class="badge ${mode === 'bypassPermissions' ? 'mode-danger' : ''}">${esc(mode)}</span>` : ''}
+      <span class="ago" data-ts="${s.updatedAt}">${ago(s.updatedAt)}</span></div>
     ${s.branch ? `<div class="branch">${esc(s.branch)}</div>` : ''}
-    ${s.task ? `<div class="task">${esc(s.task)}</div>` : ''}
+    ${title ? `<div class="task">${esc(title)}</div>` : ''}
+    ${s.title && s.task ? `<div class="prompt" title="${esc(s.task)}">${esc(s.task)}</div>` : ''}
     ${s.message ? `<p class="msg ${loud ? 'loud' : ''}">${esc(s.message)}</p>` : ''}
+    ${approvalsHtml(s)}
     ${s.state === 'working' && s.lastTool ? `<div class="tool">${esc(s.lastTool)}</div>` : ''}
-    ${stale ? `<div class="stale">Sem atividade há ${ago(s.updatedAt)}. Travou?</div>` : ''}
-    ${files.length ? `<details><summary>${files.length} arquivo${files.length > 1 ? 's' : ''} alterado${files.length > 1 ? 's' : ''}</summary><ul>${files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></details>` : ''}
-    <div class="meta">${s.toolCount || 0} ${s.toolCount === 1 ? 'ação' : 'ações'} · iniciada há ${ago(s.createdAt)}${s.state === 'ended' ? ' · encerrada' : ''}</div>
+    ${stale ? `<div class="stale">${t('stale', ago(s.updatedAt))}</div>` : ''}
+    ${s.notice ? `<div class="notice">${esc(s.notice)}</div>` : ''}
+    ${todosHtml(s)}
+    ${usageHtml(s)}
+    ${files.length && !openReview.has(s.id) ? `<details data-key="${esc(s.id)}:files"><summary>${t('filesChanged', files.length)}</summary><ul>${files.map(f => `<li><a href="${esc(editorLink(s.cwd || '', f))}">${esc(f)}</a></li>`).join('')}</ul></details>` : ''}
+    ${reviewHtml(s)}
+    <div class="meta">${meta.map(m => `<span>${m}</span>`).join('')}</div>
     <div class="actions">
+      ${s.cwd ? `<button data-act="review">${openReview.has(s.id) ? t('hideChanges') : t('changes')}</button>` : ''}
       ${s.tool === 'cursor'
-        ? `<button data-act="resume" title="Copia: cursor pasta">Copiar abrir no Cursor</button>`
-        : `<button data-act="resume" title="Copia: cd pasta && claude --resume id">Copiar retomada</button>`}
-      <button data-act="cd">Copiar pasta</button>
-      <button data-act="dismiss">Dispensar</button>
+        ? `<button data-act="resume" title="cursor <folder>">${t('openCursor')}</button>`
+        : `<button data-act="resume" title="cd <folder> && claude --resume <id>">${t('resume')}</button>`}
+      <button data-act="cd">${t('copyFolder')}</button>
+      <button data-act="dismiss">${t('dismiss')}</button>
     </div>
   </article>`;
 }
 
-function render() {
-  const groups = Object.fromEntries(COLUMNS.map(c => [c.state, []]));
+// ---------- Visões ----------
+const COLUMNS = () => [
+  { state: 'needs_you', title: t('colNeeds'), empty: t('emptyNeeds') },
+  { state: 'review', title: t('colReview'), empty: t('emptyReview') },
+  { state: 'working', title: t('colWorking'), empty: t('emptyWorking') },
+  { state: 'idle', title: t('colIdle'), empty: t('emptyIdle') },
+];
+const STATE_ORDER = { needs_you: 0, review: 1, working: 2, idle: 3, ended: 4 };
+
+function renderBoard() {
+  const cols = COLUMNS();
+  const groups = Object.fromEntries(cols.map(c => [c.state, []]));
   for (const s of sessions) groups[columnOf(s)].push(s);
   // Quem espera há mais tempo aparece primeiro nas colunas que pedem ação.
   for (const k of ['needs_you', 'review']) groups[k].sort((a, b) => a.updatedAt - b.updatedAt);
-
-  document.getElementById('board').innerHTML = COLUMNS.map(c => `
+  return `<div class="board">${cols.map(c => `
     <section class="col" data-state="${c.state}">
       <h2>${c.title}<span class="count">${groups[c.state].length}</span></h2>
       ${groups[c.state].length ? groups[c.state].map(card).join('') : `<div class="empty">${c.empty}</div>`}
-    </section>`).join('');
-
-  const n = groups.needs_you.length, r = groups.review.length, w = groups.working.length;
-  document.getElementById('summary').innerHTML = `<b>${n}</b> esperando você · <b>${r}</b> para revisar · <b>${w}</b> trabalhando`;
-  document.title = n + r ? `(${n + r}) Painel de agentes` : 'Painel de agentes';
+    </section>`).join('')}</div>`;
 }
 
+function renderTasks() {
+  const groups = new Map();
+  for (const s of sessions) {
+    const key = s.taskId || s.project || t('noTask');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+  const rank = list => Math.min(...list.map(s => STATE_ORDER[s.state] ?? 5));
+  const sorted = [...groups.entries()].sort((a, b) => rank(a[1]) - rank(b[1]) || Math.max(...b[1].map(s => s.updatedAt)) - Math.max(...a[1].map(s => s.updatedAt)));
+  if (!sorted.length) return `<div class="empty">${t('emptyWorking')}</div>`;
+  return `<div class="groups">${sorted.map(([key, list]) => {
+    list.sort((a, b) => (STATE_ORDER[a.state] ?? 5) - (STATE_ORDER[b.state] ?? 5) || b.updatedAt - a.updatedAt);
+    const cost = list.reduce((n, s) => n + ((s.usage && s.usage.cost) || 0), 0);
+    const tools = [...new Set(list.map(s => (s.tool === 'cursor' ? 'Cursor' : 'Claude')))].join(' + ');
+    return `<section class="group"><h2>${esc(key)}<span class="gmeta">${t('sessionsN', list.length)} · ${tools}${cost ? ` · ${fmtCost(cost)}` : ''}</span></h2>
+      <div class="cards">${list.map(card).join('')}</div></section>`;
+  }).join('')}</div>`;
+}
+
+let metrics = null, metricsDays = Number(pref('ab.days', '7'));
+function stackedChart(perDay) {
+  const W = 760, H = 220, L = 34, B = 22, T = 10;
+  const maxH = Math.max(1, ...perDay.map(d => (d.working + d.waiting) / 3600000));
+  const step = maxH <= 4 ? 1 : maxH <= 12 ? 2 : maxH <= 24 ? 4 : Math.ceil(maxH / 6);
+  const top = Math.ceil(maxH / step) * step;
+  const y = h => T + (H - T - B) * (1 - h / top);
+  const n = perDay.length, bw = Math.min(42, (W - L) / n * 0.62), gx = (W - L) / n;
+  const grid = [];
+  for (let v = 0; v <= top; v += step) grid.push(`<line x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}${t('hours')}</text>`);
+  // Barra arredondada só no topo (4px), ancorada na base.
+  const rect = (x, y0, y1, r, color) => {
+    const h = y0 - y1;
+    if (h <= 0.5) return '';
+    const rr = Math.min(r, h, bw / 2);
+    return r ? `<path d="M${x},${y0} V${y1 + rr} Q${x},${y1} ${x + rr},${y1} H${x + bw - rr} Q${x + bw},${y1} ${x + bw},${y1 + rr} V${y0} Z" fill="${color}"/>`
+      : `<rect x="${x}" y="${y1}" width="${bw}" height="${h}" fill="${color}"/>`;
+  };
+  const bars = perDay.map((d, i) => {
+    const x = L + gx * i + (gx - bw) / 2;
+    const w = d.working / 3600000, a = d.waiting / 3600000;
+    const yW = y(w), yA = y(w + a);
+    const gap = w > 0 && a > 0 ? 2 : 0;
+    const label = n <= 14 || i % Math.ceil(n / 10) === 0 ? `<text x="${x + bw / 2}" y="${H - 6}" text-anchor="middle">${d.date.slice(5)}</text>` : '';
+    return `<g>${rect(x, y(0), yW, a > 0 ? 0 : 4, 'var(--series-1)')}${rect(x, yW - gap, yA, 4, 'var(--series-2)')}${label}
+      <rect class="hit" data-i="${i}" x="${L + gx * i}" y="${T}" width="${gx}" height="${H - T - B}" fill="transparent"/></g>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(t('perDay'))}">${grid.join('')}${bars}</svg>`;
+}
+
+function renderMetrics() {
+  const ranges = [1, 7, 30, 90];
+  const head = `<div style="display:flex;gap:10px;align-items:center;margin-bottom:14px"><span class="summary">${t('range')}</span>
+    <span class="seg" id="rangeSeg">${ranges.map(d => `<button data-days="${d}" aria-pressed="${d === metricsDays}">${t('days', d)}</button>`).join('')}</span></div>`;
+  if (!metrics) return `<div class="metrics">${head}<div class="empty">${t('loading')}</div></div>`;
+  const m = metrics;
+  if (!m.sessions) return `<div class="metrics">${head}<div class="empty">${t('noData')}</div></div>`;
+  return `<div class="metrics">${head}
+    <div class="tiles">
+      <div class="tile"><div class="k">${t('mWaiting')}</div><div class="v">${dur(m.waitingOnYou)}</div><div class="s">${t('mWaitingSub', dur(m.needsYou), dur(m.review))}</div></div>
+      <div class="tile"><div class="k">${t('mWorking')}</div><div class="v">${dur(m.working)}</div></div>
+      <div class="tile"><div class="k">${t('mResponse')}</div><div class="v">${dur(m.medianResponse)}</div><div class="s">${t('mResponseSub', m.asks)}</div></div>
+      <div class="tile"><div class="k">${t('mCost')}</div><div class="v">${fmtCost(m.cost)}</div><div class="s">${t('mCostSub', fmtTok(m.tokens))}</div></div>
+      <div class="tile"><div class="k">${t('mSessions')}</div><div class="v">${m.sessions}</div></div>
+    </div>
+    <div class="panel"><h3>${t('perDay')}</h3>
+      <div class="legend"><span><i style="background:var(--series-1)"></i>${t('lWorking')}</span><span><i style="background:var(--series-2)"></i>${t('lWaiting')}</span></div>
+      <div class="chart" id="chart">${stackedChart(m.perDay)}<div class="tip" id="tip"></div></div>
+    </div>
+    <div class="panel"><h3>${t('byTask')}</h3><div class="tablewrap"><table>
+      <thead><tr><th>${t('thTask')}</th><th class="n">${t('thSessions')}</th><th class="n">${t('thWorking')}</th><th class="n">${t('thWaiting')}</th><th class="n">${t('thCost')}</th><th class="n">${t('thTokens')}</th><th class="n">${t('thLast')}</th></tr></thead>
+      <tbody>${m.tasks.map(r => `<tr><td>${esc(r.key)}${r.project && r.project !== r.key ? ` <span class="summary">${esc(r.project)}</span>` : ''}</td>
+        <td class="n">${r.sessions}</td><td class="n">${dur(r.working)}</td><td class="n">${dur(r.waiting)}</td>
+        <td class="n">${fmtCost(r.cost)}</td><td class="n">${fmtTok(r.tokens)}</td><td class="n">${ago(r.lastTs)}</td></tr>`).join('')}</tbody>
+    </table></div></div>
+  </div>`;
+}
+
+async function loadMetrics() {
+  try { metrics = await (await api(`/api/metrics?days=${metricsDays}`)).json(); } catch { metrics = null; }
+  if (view === 'metrics') render();
+}
+
+function bindChart() {
+  const chart = document.getElementById('chart'), tip = document.getElementById('tip');
+  if (!chart || !metrics) return;
+  chart.querySelectorAll('.hit').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      const d = metrics.perDay[Number(el.dataset.i)];
+      tip.innerHTML = `<b>${esc(d.date)}</b><br>${esc(t('lWorking'))}: ${dur(d.working)}<br>${esc(t('lWaiting'))}: ${dur(d.waiting)}`;
+      const r = chart.getBoundingClientRect();
+      const x = Math.min(e.clientX - r.left + 12, r.width - tip.offsetWidth - 4);
+      tip.style.left = `${Math.max(0, x)}px`; tip.style.top = `${e.clientY - r.top - 10}px`; tip.style.opacity = 1;
+    });
+    el.addEventListener('mouseleave', () => { tip.style.opacity = 0; });
+  });
+}
+
+function render() {
+  const main = document.getElementById('main');
+  // Guarda o que está aberto/digitado para restaurar depois do redesenho.
+  main.querySelectorAll('details[data-key]').forEach(d => { if (d.open) openDetails.add(d.dataset.key); else openDetails.delete(d.dataset.key); });
+  const reasons = {};
+  main.querySelectorAll('.approval').forEach(a => { const i = a.querySelector('[data-reason]'); if (i && i.value) reasons[a.dataset.req] = i.value; });
+  const focused = document.activeElement && document.activeElement.matches('[data-reason]') ? document.activeElement.closest('.approval').dataset.req : null;
+
+  main.innerHTML = view === 'metrics' ? renderMetrics() : view === 'tasks' ? renderTasks() : renderBoard();
+
+  main.querySelectorAll('details[data-key]').forEach(d => { if (openDetails.has(d.dataset.key)) d.open = true; });
+  main.querySelectorAll('.approval').forEach(a => {
+    const i = a.querySelector('[data-reason]');
+    if (i && reasons[a.dataset.req]) i.value = reasons[a.dataset.req];
+    if (i && focused === a.dataset.req) i.focus();
+  });
+  if (view === 'metrics') bindChart();
+
+  const n = sessions.filter(s => s.state === 'needs_you').length, r = sessions.filter(s => s.state === 'review').length, w = sessions.filter(s => s.state === 'working').length;
+  document.getElementById('summary').innerHTML = t('summary', n, r, w);
+  document.title = n + r ? `(${n + r}) ${t('docTitle')}` : t('docTitle');
+}
+
+// ---------- Dados sob demanda: diff e PR ----------
+async function loadReview(id, force = false) {
+  const now = Date.now();
+  const d = diffCache.get(id);
+  const jobs = [];
+  if (force || !d || now - d.at > 15000) jobs.push(api(`/api/sessions/${encodeURIComponent(id)}/diff`).then(r => r.json()).then(data => diffCache.set(id, { at: Date.now(), data })).catch(() => {}));
+  const p = prCache.get(id);
+  if (force || !p || now - p.at > 60000) jobs.push(api(`/api/sessions/${encodeURIComponent(id)}/pr${force ? '?fresh=1' : ''}`).then(r => r.json()).then(data => prCache.set(id, { at: Date.now(), data })).catch(() => {}));
+  if (!jobs.length) return;
+  await Promise.all(jobs);
+  render();
+}
+
+function colorPatch(text) {
+  return text.split('\n').map(l => {
+    const cls = l.startsWith('diff --git') ? 'f' : l.startsWith('@@') ? 'h' : l.startsWith('+') && !l.startsWith('+++') ? 'a' : l.startsWith('-') && !l.startsWith('---') ? 'd' : '';
+    return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l);
+  }).join('\n');
+}
+
+async function showPatch(s, file) {
+  const dlg = document.getElementById('diffDlg');
+  document.getElementById('diffTitle').textContent = `${s.project} · ${file || t('fullDiff')}`;
+  document.getElementById('diffBody').textContent = t('loading');
+  dlg.showModal();
+  try {
+    const r = await api(`/api/sessions/${encodeURIComponent(s.id)}/patch${file ? `?file=${encodeURIComponent(file)}` : ''}`);
+    document.getElementById('diffBody').innerHTML = colorPatch(await r.text());
+  } catch (e) { document.getElementById('diffBody').textContent = String(e); }
+}
+
+// ---------- Ações ----------
+document.getElementById('main').addEventListener('click', async e => {
+  const btn = e.target.closest('[data-act]');
+  if (!btn) {
+    const r = e.target.closest('#rangeSeg button');
+    if (r) { metricsDays = Number(r.dataset.days); setPref('ab.days', String(metricsDays)); metrics = null; render(); loadMetrics(); }
+    return;
+  }
+  const el = btn.closest('.card');
+  if (!el) return;
+  const id = el.dataset.id;
+  const s = sessions.find(x => x.id === id);
+  if (!s) return;
+  const act = btn.dataset.act;
+  if (act === 'patch') { e.preventDefault(); return showPatch(s, btn.dataset.file); }
+  if (act === 'resume') copy(s.tool === 'cursor' ? `cursor "${s.cwd}"` : `cd "${s.cwd}" && claude --resume ${s.id}`);
+  if (act === 'cd') copy(s.cwd);
+  if (act === 'dismiss') { openReview.delete(id); await api(`/api/sessions/${encodeURIComponent(id)}/dismiss`, { method: 'POST' }); }
+  if (act === 'review') {
+    if (openReview.has(id)) openReview.delete(id); else { openReview.add(id); loadReview(id, true); }
+    render();
+  }
+  if (act === 'create-pr') {
+    if (!confirm(t('prConfirm'))) return;
+    btn.disabled = true; btn.textContent = t('creatingPr');
+    const r = await api(`/api/sessions/${encodeURIComponent(id)}/pr`, { method: 'POST' });
+    const body = await r.json().catch(() => ({}));
+    if (r.ok) { toast(t('prCreated')); if (body.url) window.open(body.url, '_blank', 'noopener'); }
+    else toast(body.error || 'erro');
+    loadReview(id, true);
+  }
+  if (act === 'allow' || act === 'deny') {
+    const box = btn.closest('.approval');
+    const reason = (box.querySelector('[data-reason]') || {}).value || '';
+    box.querySelectorAll('button').forEach(b => { b.disabled = true; });
+    const r = await api(`/api/sessions/${encodeURIComponent(id)}/decision`, {
+      method: 'POST', body: JSON.stringify({ requestId: box.dataset.req, behavior: act, message: act === 'deny' ? reason : undefined }),
+    });
+    const body = await r.json().catch(() => ({}));
+    toast(r.ok ? t('sent') : (body.error || 'erro'));
+  }
+});
+
+document.getElementById('viewSeg').addEventListener('click', e => {
+  const b = e.target.closest('button[data-view]');
+  if (!b) return;
+  view = b.dataset.view; setPref('ab.view', view); applyStatic(); render();
+  if (view === 'metrics') loadMetrics();
+});
+document.getElementById('langBtn').onclick = () => { lang = lang === 'pt' ? 'en' : 'pt'; setPref('ab.lang', lang); applyStatic(); render(); };
+document.getElementById('editorSel').onchange = e => { editor = e.target.value; setPref('ab.editor', editor); render(); };
+document.getElementById('clearBtn').onclick = () => api('/api/clear-ended', { method: 'POST' });
+document.querySelectorAll('dialog [data-close]').forEach(b => { b.onclick = () => b.closest('dialog').close(); });
+
+// Nova tarefa
+const launchDlg = document.getElementById('launchDlg'), launchForm = document.getElementById('launchForm');
+document.getElementById('newBtn').onclick = async () => {
+  document.getElementById('launchErr').textContent = '';
+  try {
+    const repos = await (await api('/api/repos')).json();
+    document.getElementById('repoList').innerHTML = repos.map(r => `<option value="${esc(r)}">`).join('');
+    if (!launchForm.repo.value && repos[0]) launchForm.repo.value = repos[0];
+  } catch { /* sem sugestões */ }
+  launchDlg.showModal();
+};
+launchForm.worktree.onchange = () => { launchForm.branch.required = launchForm.worktree.checked; };
+launchForm.branch.required = true;
+launchForm.onsubmit = async e => {
+  e.preventDefault();
+  const f = launchForm, err = document.getElementById('launchErr');
+  err.textContent = '';
+  const submit = f.querySelector('button[type=submit]');
+  submit.disabled = true;
+  try {
+    const r = await api('/api/launch', { method: 'POST', body: JSON.stringify({
+      repo: f.repo.value, branch: f.branch.value, prompt: f.prompt.value, worktree: f.worktree.checked, tool: f.tool.value,
+    }) });
+    const body = await r.json();
+    if (!r.ok) throw new Error(body.error || 'erro');
+    toast(t('launched', body.dir));
+    f.prompt.value = ''; f.branch.value = '';
+    launchDlg.close();
+  } catch (x) { err.textContent = x.message; }
+  finally { submit.disabled = false; }
+};
+
+// ---------- Avisos ----------
 function detectChanges() {
   for (const s of sessions) {
     const before = previous.get(s.id);
@@ -159,37 +727,15 @@ function detectChanges() {
     if (becameLoud) {
       document.querySelector(`.card[data-id="${CSS.escape(s.id)}"]`)?.classList.add('flash');
       if ('Notification' in window && Notification.permission === 'granted') {
-        new Notification(`${s.project}: ${s.state === 'needs_you' ? 'precisa de você' : 'pronto para revisar'}`,
-          { body: s.message || s.task || '', tag: s.id });
+        new Notification(`${s.project}: ${s.state === 'needs_you' ? t('colNeeds') : t('colReview')}`,
+          { body: s.message || s.title || s.task || '', tag: s.id });
       }
+      // Card pronto para revisar: já busca diff e PR para quem abrir.
+      if (s.state === 'review' && openReview.has(s.id)) loadReview(s.id, true);
     }
   }
   previous = new Map(sessions.map(s => [s.id, s.state]));
 }
-
-function toast(text) {
-  const t = document.getElementById('toast');
-  t.textContent = text; t.classList.add('show');
-  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1600);
-}
-
-async function copy(text) {
-  try { await navigator.clipboard.writeText(text); toast('Copiado'); }
-  catch { prompt('Copie o comando:', text); }
-}
-
-document.getElementById('board').addEventListener('click', async e => {
-  const btn = e.target.closest('button[data-act]');
-  if (!btn) return;
-  const id = btn.closest('.card').dataset.id;
-  const s = sessions.find(x => x.id === id);
-  if (!s) return;
-  if (btn.dataset.act === 'resume') copy(s.tool === 'cursor' ? `cursor "${s.cwd}"` : `cd "${s.cwd}" && claude --resume ${s.id}`);
-  if (btn.dataset.act === 'cd') copy(s.cwd);
-  if (btn.dataset.act === 'dismiss') await fetch(`/api/sessions/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
-});
-
-document.getElementById('clearBtn').onclick = () => fetch('/api/clear-ended', { method: 'POST' });
 
 const notifyBtn = document.getElementById('notifyBtn');
 function syncNotifyBtn() {
@@ -197,16 +743,26 @@ function syncNotifyBtn() {
   notifyBtn.hidden = Notification.permission === 'granted';
 }
 notifyBtn.onclick = async () => { await Notification.requestPermission(); syncNotifyBtn(); };
-syncNotifyBtn();
 
 function connect() {
   const es = new EventSource('/events');
   const conn = document.getElementById('conn'), txt = document.getElementById('connText');
-  es.onopen = () => { conn.classList.add('live'); txt.textContent = 'ao vivo'; };
-  es.onmessage = e => { sessions = JSON.parse(e.data); render(); detectChanges(); };
-  es.onerror = () => { conn.classList.remove('live'); txt.textContent = 'reconectando…'; };
+  const setConn = k => { connState = k; txt.textContent = t(k); };
+  setConn('connecting');
+  es.onopen = () => { conn.classList.add('live'); setConn('live'); };
+  es.onmessage = e => {
+    sessions = JSON.parse(e.data);
+    if (view !== 'metrics') render();
+    detectChanges();
+  };
+  es.onerror = () => { conn.classList.remove('live'); setConn('reconnecting'); };
 }
+
+applyStatic();
+syncNotifyBtn();
+render();
 connect();
+if (view === 'metrics') loadMetrics();
 
 // Atualiza os "há X min" sem redesenhar (para não fechar listas abertas);
 // redesenha só quando algum card cruza o limite de "travou?".
@@ -214,8 +770,9 @@ let staleIds = '';
 setInterval(() => {
   document.querySelectorAll('.ago[data-ts]').forEach(el => { el.textContent = ago(Number(el.dataset.ts)); });
   const now = sessions.filter(s => s.state === 'working' && Date.now() - s.updatedAt > STALE_MIN * 60000).map(s => s.id).join();
-  if (now !== staleIds) { staleIds = now; render(); }
+  if (now !== staleIds) { staleIds = now; if (view !== 'metrics') render(); }
 }, 15000);
+setInterval(() => { if (view === 'metrics') loadMetrics(); }, 60000);
 </script>
 </body>
 </html>
