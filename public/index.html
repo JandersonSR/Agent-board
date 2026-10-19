@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de agentes</title>
+<style>
+  :root {
+    --bg: #f5f5f2; --surface: #ffffff; --border: #e2e1dc; --text: #1c1c1a; --muted: #6b6a64;
+    --needs: #c2410c; --needs-bg: #fff4ec; --review: #15803d; --review-bg: #effaf2;
+    --work: #1d4ed8; --work-bg: #eef3ff; --idle: #78776f; --stale: #b45309;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413; --surface: #1d1d1b; --border: #2f2f2c; --text: #ecebe6; --muted: #9a998f;
+      --needs: #fb923c; --needs-bg: #2a1c12; --review: #4ade80; --review-bg: #12241a;
+      --work: #7aa2ff; --work-bg: #151d33; --idle: #8a897f; --stale: #fbbf24;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 16px 24px;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  h1 { font-size: 16px; margin: 0; font-weight: 650; }
+  .summary { color: var(--muted); font-size: 13px; }
+  .summary b { color: var(--text); }
+  .spacer { flex: 1; }
+  button { font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text); }
+  button:hover { border-color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--idle); }
+  .live .dot { background: var(--review); }
+  .conn { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12.5px; }
+
+  main { display: grid; grid-template-columns: repeat(4, minmax(260px, 1fr)); gap: 16px; padding: 20px 24px;
+    align-items: start; }
+  @media (max-width: 1100px) { main { grid-template-columns: repeat(2, minmax(260px, 1fr)); } }
+  @media (max-width: 640px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 14px 16px; } }
+
+  .col h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 10px;
+    display: flex; align-items: center; gap: 8px; color: var(--muted); font-weight: 650; }
+  .col h2 .count { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .col[data-state="needs_you"] h2 { color: var(--needs); }
+  .col[data-state="review"] h2 { color: var(--review); }
+  .col[data-state="working"] h2 { color: var(--work); }
+  .empty { color: var(--muted); font-size: 13px; padding: 14px; border: 1px dashed var(--border); border-radius: 10px; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+    margin-bottom: 10px; border-left-width: 3px; }
+  .card.needs_you { border-left-color: var(--needs); background: var(--needs-bg); }
+  .card.review { border-left-color: var(--review); background: var(--review-bg); }
+  .card.working { border-left-color: var(--work); }
+  .card.idle, .card.ended { border-left-color: var(--idle); opacity: .85; }
+  .card.flash { animation: flash 1.2s ease-out; }
+  @keyframes flash { from { box-shadow: 0 0 0 3px var(--needs); } to { box-shadow: 0 0 0 0 transparent; } }
+
+  .top { display: flex; align-items: baseline; gap: 8px; }
+  .proj { font-weight: 650; }
+  .badge { font-size: 10.5px; font-weight: 600; padding: 1px 6px; border-radius: 4px; border: 1px solid var(--border);
+    color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  .ago { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .branch { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .task { margin: 8px 0 4px; font-weight: 550; }
+  .msg { color: var(--muted); font-size: 13px; margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; }
+  .msg.loud { color: var(--text); }
+  .tool { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 6px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .stale { color: var(--stale); font-size: 12px; margin-top: 6px; font-weight: 600; }
+  details { margin-top: 6px; font-size: 12px; color: var(--muted); }
+  details li { font-family: var(--mono); font-size: 11.5px; }
+  .actions { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .meta { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  .toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--text);
+    color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; opacity: 0; transition: opacity .2s; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Painel de agentes</h1>
+  <span class="summary" id="summary"></span>
+  <span class="spacer"></span>
+  <span class="conn" id="conn"><span class="dot"></span><span id="connText">conectando…</span></span>
+  <button id="notifyBtn">Ativar avisos do navegador</button>
+  <button id="clearBtn">Limpar encerradas</button>
+</header>
+
+<main id="board"></main>
+<div class="toast" id="toast"></div>
+
+<script>
+const COLUMNS = [
+  { state: 'needs_you', title: 'Precisa de você', empty: 'Nenhum agente esperando você.' },
+  { state: 'review', title: 'Pronto para revisar', empty: 'Nada para revisar agora.' },
+  { state: 'working', title: 'Trabalhando', empty: 'Nenhum agente trabalhando.' },
+  { state: 'idle', title: 'Ociosas e encerradas', empty: 'Nenhuma sessão ociosa.' },
+];
+const STALE_MIN = 10;
+let sessions = [];
+let previous = new Map();
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function ago(ts) {
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h`;
+  return `${Math.floor(s / 86400)} d`;
+}
+const columnOf = s => (s.state === 'ended' ? 'idle' : COLUMNS.some(c => c.state === s.state) ? s.state : 'idle');
+
+function card(s) {
+  const stale = s.state === 'working' && Date.now() - s.updatedAt > STALE_MIN * 60000;
+  const files = s.files || [];
+  const loud = s.state === 'needs_you' || s.state === 'review';
+  return `<article class="card ${esc(s.state)}" data-id="${esc(s.id)}">
+    <div class="top"><span class="proj">${esc(s.project)}</span><span class="badge">${s.tool === 'cursor' ? 'Cursor' : 'Claude Code'}</span><span class="ago" data-ts="${s.updatedAt}">${ago(s.updatedAt)}</span></div>
+    ${s.branch ? `<div class="branch">${esc(s.branch)}</div>` : ''}
+    ${s.task ? `<div class="task">${esc(s.task)}</div>` : ''}
+    ${s.message ? `<p class="msg ${loud ? 'loud' : ''}">${esc(s.message)}</p>` : ''}
+    ${s.state === 'working' && s.lastTool ? `<div class="tool">${esc(s.lastTool)}</div>` : ''}
+    ${stale ? `<div class="stale">Sem atividade há ${ago(s.updatedAt)}. Travou?</div>` : ''}
+    ${files.length ? `<details><summary>${files.length} arquivo${files.length > 1 ? 's' : ''} alterado${files.length > 1 ? 's' : ''}</summary><ul>${files.map(f => `<li>${esc(f)}</li>`).join('')}</ul></details>` : ''}
+    <div class="meta">${s.toolCount || 0} ${s.toolCount === 1 ? 'ação' : 'ações'} · iniciada há ${ago(s.createdAt)}${s.state === 'ended' ? ' · encerrada' : ''}</div>
+    <div class="actions">
+      ${s.tool === 'cursor'
+        ? `<button data-act="resume" title="Copia: cursor pasta">Copiar abrir no Cursor</button>`
+        : `<button data-act="resume" title="Copia: cd pasta && claude --resume id">Copiar retomada</button>`}
+      <button data-act="cd">Copiar pasta</button>
+      <button data-act="dismiss">Dispensar</button>
+    </div>
+  </article>`;
+}
+
+function render() {
+  const groups = Object.fromEntries(COLUMNS.map(c => [c.state, []]));
+  for (const s of sessions) groups[columnOf(s)].push(s);
+  // Quem espera há mais tempo aparece primeiro nas colunas que pedem ação.
+  for (const k of ['needs_you', 'review']) groups[k].sort((a, b) => a.updatedAt - b.updatedAt);
+
+  document.getElementById('board').innerHTML = COLUMNS.map(c => `
+    <section class="col" data-state="${c.state}">
+      <h2>${c.title}<span class="count">${groups[c.state].length}</span></h2>
+      ${groups[c.state].length ? groups[c.state].map(card).join('') : `<div class="empty">${c.empty}</div>`}
+    </section>`).join('');
+
+  const n = groups.needs_you.length, r = groups.review.length, w = groups.working.length;
+  document.getElementById('summary').innerHTML = `<b>${n}</b> esperando você · <b>${r}</b> para revisar · <b>${w}</b> trabalhando`;
+  document.title = n + r ? `(${n + r}) Painel de agentes` : 'Painel de agentes';
+}
+
+function detectChanges() {
+  for (const s of sessions) {
+    const before = previous.get(s.id);
+    const becameLoud = (s.state === 'needs_you' || s.state === 'review') && before && before !== s.state;
+    if (becameLoud) {
+      document.querySelector(`.card[data-id="${CSS.escape(s.id)}"]`)?.classList.add('flash');
+      if ('Notification' in window && Notification.permission === 'granted') {
+        new Notification(`${s.project}: ${s.state === 'needs_you' ? 'precisa de você' : 'pronto para revisar'}`,
+          { body: s.message || s.task || '', tag: s.id });
+      }
+    }
+  }
+  previous = new Map(sessions.map(s => [s.id, s.state]));
+}
+
+function toast(text) {
+  const t = document.getElementById('toast');
+  t.textContent = text; t.classList.add('show');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast('Copiado'); }
+  catch { prompt('Copie o comando:', text); }
+}
+
+document.getElementById('board').addEventListener('click', async e => {
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = btn.closest('.card').dataset.id;
+  const s = sessions.find(x => x.id === id);
+  if (!s) return;
+  if (btn.dataset.act === 'resume') copy(s.tool === 'cursor' ? `cursor "${s.cwd}"` : `cd "${s.cwd}" && claude --resume ${s.id}`);
+  if (btn.dataset.act === 'cd') copy(s.cwd);
+  if (btn.dataset.act === 'dismiss') await fetch(`/api/sessions/${encodeURIComponent(id)}/dismiss`, { method: 'POST' });
+});
+
+document.getElementById('clearBtn').onclick = () => fetch('/api/clear-ended', { method: 'POST' });
+
+const notifyBtn = document.getElementById('notifyBtn');
+function syncNotifyBtn() {
+  if (!('Notification' in window)) { notifyBtn.hidden = true; return; }
+  notifyBtn.hidden = Notification.permission === 'granted';
+}
+notifyBtn.onclick = async () => { await Notification.requestPermission(); syncNotifyBtn(); };
+syncNotifyBtn();
+
+function connect() {
+  const es = new EventSource('/events');
+  const conn = document.getElementById('conn'), txt = document.getElementById('connText');
+  es.onopen = () => { conn.classList.add('live'); txt.textContent = 'ao vivo'; };
+  es.onmessage = e => { sessions = JSON.parse(e.data); render(); detectChanges(); };
+  es.onerror = () => { conn.classList.remove('live'); txt.textContent = 'reconectando…'; };
+}
+connect();
+
+// Atualiza os "há X min" sem redesenhar (para não fechar listas abertas);
+// redesenha só quando algum card cruza o limite de "travou?".
+let staleIds = '';
+setInterval(() => {
+  document.querySelectorAll('.ago[data-ts]').forEach(el => { el.textContent = ago(Number(el.dataset.ts)); });
+  const now = sessions.filter(s => s.state === 'working' && Date.now() - s.updatedAt > STALE_MIN * 60000).map(s => s.id).join();
+  if (now !== staleIds) { staleIds = now; render(); }
+}, 15000);
+</script>
+</body>
+</html>

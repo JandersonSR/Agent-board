@@ -1,0 +1,8 @@
+{
+  "name": "agent-board",
+  "version": "0.1.0",
+  "description": "Painel local para acompanhar várias sessões do Claude Code em paralelo",
+  "license": "MIT",
+  "scripts": { "start": "node server.js", "install-hooks": "node install.js", "uninstall-hooks": "node install.js --uninstall", "install-cursor": "node install.js --cursor", "uninstall-cursor": "node install.js --cursor --uninstall" },
+  "engines": { "node": ">=18" }
+}
