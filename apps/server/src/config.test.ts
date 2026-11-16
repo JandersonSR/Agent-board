@@ -51,6 +51,11 @@ describe('parseConfig', () => {
     expect(c.featContextTokens).toBe(6000);
   });
 
+  it('lê as branches de deploy', () => {
+    expect(parseConfig({ DEPLOY_BASE_BRANCHES: 'production, jobs' }).deploy.baseBranches).toEqual(['production', 'jobs']);
+    expect(parseConfig({}).deploy.baseBranches).toEqual([]);
+  });
+
   it('recusa limites fora da faixa', () => {
     expect(() => parseConfig({ MAX_CONCURRENT_SESSIONS: '99' })).toThrow();
   });
