@@ -5,8 +5,36 @@ import { BlockCard, Dot, Pill } from '@/components/common';
 import { useAgentSessionsContext } from '@/hooks/use-agent-sessions';
 import { ago } from '@/lib/format';
 import { BlockersBlock, DailyBlock, PrsBlock, QueueBlock, ReviewsBlock } from '../board/blocks';
+import { useRuns } from '@/hooks/use-runs';
+import { RunStatusPill } from '../runs/runs-view';
+import { fmtCost } from '@/lib/format';
 
-export type OverviewTarget = 'agents' | 'settings' | 'deploy';
+function RunsBlock({ goTo }: { goTo: (v: OverviewTarget, id?: string) => void }) {
+  const q = useRuns();
+  const items = (q.data?.items ?? []).slice(0, 6);
+  return (
+    <BlockCard icon={PlayCircle} title="Execuções de agentes" className="lg:col-span-2 2xl:col-span-3 !min-h-0"
+      count={q.data?.running || undefined} countTone="info"
+      actions={<Button size="xs" variant="ghost" onClick={() => goTo('runs')}>Abrir execuções</Button>}
+      status={q.isLoading ? { kind: 'loading' } : items.length ? { kind: 'ready' } : { kind: 'coming', phase: 'primeira execução', description: 'Use ✨ num PR em Reviews pendentes para pedir uma review ao Claude. Tarefas (até o PR) chegam na sequência.' }}>
+      <ul className="divide-y">
+        {items.map(r => (
+          <li key={r._id}>
+            <button type="button" onClick={() => goTo('runs', r._id)} className="flex w-full items-center gap-2.5 px-3.5 py-[calc(var(--row-py)+0.25rem)] text-left hover:bg-muted/60">
+              <RunStatusPill status={r.status} />
+              <span className="min-w-0 flex-1 truncate text-[13px]">{r.title}</span>
+              {r.result?.review && <span className="shrink-0 text-[11px] text-muted-foreground">{r.result.review.findings.length} achados · prod {r.result.review.readyForProd ? 'SIM' : 'NÃO'}</span>}
+              <span className="w-16 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">{r.usage ? fmtCost(r.usage.costUsd) : ''}</span>
+              <span className="w-12 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">{ago(Date.parse(r.startedAt))}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </BlockCard>
+  );
+}
+
+export type OverviewTarget = 'agents' | 'settings' | 'deploy' | 'runs';
 
 function AgentsBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
   const { sessions } = useAgentSessionsContext();
@@ -43,7 +71,7 @@ function AgentsBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
   );
 }
 
-export function OverviewView({ goTo }: { goTo: (view: OverviewTarget) => void }) {
+export function OverviewView({ goTo }: { goTo: (view: OverviewTarget, id?: string) => void }) {
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3 [&>*]:max-h-[28rem] [&>*]:min-h-64">
       <DailyBlock goTo={goTo} />
@@ -52,8 +80,7 @@ export function OverviewView({ goTo }: { goTo: (view: OverviewTarget) => void })
       <QueueBlock goTo={goTo} className="2xl:col-span-2" />
       <ReviewsBlock goTo={goTo} />
       <PrsBlock goTo={goTo} className="lg:col-span-2 2xl:col-span-3" />
-      <BlockCard icon={PlayCircle} title="Sessões de resolução" className="lg:col-span-2 2xl:col-span-3 !min-h-0"
-        status={{ kind: 'coming', phase: 'Fase 3', description: '“Iniciar sessão de resolução” em qualquer item: prompt editável e mascarado, worktree isolada, log ao vivo, diff e PR rascunho só com o seu clique.' }} />
+      <RunsBlock goTo={goTo} />
     </div>
   );
 }

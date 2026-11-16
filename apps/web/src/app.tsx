@@ -2,7 +2,7 @@ import { useState, type ComponentType } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import {
-  BarChart3, Bot, Command as CommandIcon, Keyboard, LayoutDashboard, Loader2, Monitor, Moon, Plus, RefreshCw, Rocket, Settings, Sun,
+  BarChart3, Bot, Sparkles, Command as CommandIcon, Keyboard, LayoutDashboard, Loader2, Monitor, Moon, Plus, RefreshCw, Rocket, Settings, Sun,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -20,24 +20,26 @@ import { usePref } from '@/lib/prefs';
 import { cn } from '@/lib/utils';
 import { AgentsView } from '@/features/agents/agents-view';
 import { DeployView } from '@/features/board/deploy-view';
+import { RunsView } from '@/features/runs/runs-view';
 import { ago } from '@/lib/format';
 import { LaunchDialog } from '@/features/agents/launch-dialog';
 import { MetricsView } from '@/features/metrics/metrics-view';
 import { OverviewView } from '@/features/overview/overview-view';
 import { SettingsView } from '@/features/settings/settings-view';
 
-type View = 'overview' | 'agents' | 'deploy' | 'metrics' | 'settings';
+type View = 'overview' | 'agents' | 'deploy' | 'runs' | 'metrics' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: string }>; keys: string; subtitle: string }> = [
   { id: 'overview', label: 'Hoje', icon: LayoutDashboard, keys: 'G H', subtitle: 'Time, fila, reviews e bloqueios num só lugar' },
   { id: 'agents', label: 'Agentes', icon: Bot, keys: 'G A', subtitle: 'Sessões do Claude Code e do Cursor ao vivo' },
   { id: 'deploy', label: 'PRs e deploy', icon: Rocket, keys: 'G D', subtitle: 'Do review ao merge, por issue, sem cadastro manual' },
+  { id: 'runs', label: 'Execuções', icon: Sparkles, keys: 'G E', subtitle: 'Reviews e tarefas feitas por agentes, com log e resultado' },
   { id: 'metrics', label: 'Métricas', icon: BarChart3, keys: 'G M', subtitle: 'Tempo, espera e custo dos agentes' },
   { id: 'settings', label: 'Configuração', icon: Settings, keys: 'G C', subtitle: 'Integrações, limites e preferências' },
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
-  ['Ctrl K', 'Paleta de comandos'], ['G H', 'Ir para Hoje'], ['G A', 'Ir para Agentes'], ['G D', 'Ir para PRs e deploy'], ['G M', 'Ir para Métricas'],
+  ['Ctrl K', 'Paleta de comandos'], ['G H', 'Ir para Hoje'], ['G A', 'Ir para Agentes'], ['G D', 'Ir para PRs e deploy'], ['G E', 'Ir para Execuções'], ['G M', 'Ir para Métricas'],
   ['G C', 'Ir para Configuração'], ['N', 'Nova tarefa de agente'], ['R', 'Sincronizar agora (GitHub/Discord)'], ['T', 'Alternar tema'], ['?', 'Mostrar atalhos'],
 ];
 
@@ -53,6 +55,8 @@ export function App() {
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
   const [launch, setLaunch] = useState(false);
+  const [runId, setRunId] = useState<string | null>(null);
+  const goTo = (v: View, id?: string) => { if (id) setRunId(id); setView(v); };
 
   const live = useAgentSessionsStream(notifyPref === 'on');
   const needs = live.sessions.filter(s => s.state === 'needs_you').length;
@@ -68,7 +72,7 @@ export function App() {
 
   useHotkeys({
     'mod+k': () => setPalette(v => !v),
-    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g d': () => setView('deploy'), 'g m': () => setView('metrics'), 'g c': () => setView('settings'),
+    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g d': () => setView('deploy'), 'g e': () => setView('runs'), 'g m': () => setView('metrics'), 'g c': () => setView('settings'),
     n: () => setLaunch(true), r: refresh, t: cycleTheme, '?': () => setHelp(true),
   });
 
@@ -144,7 +148,8 @@ export function App() {
           </header>
 
           <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
-            {view === 'overview' && <OverviewView goTo={setView} />}
+            {view === 'overview' && <OverviewView goTo={goTo} />}
+            {view === 'runs' && <RunsView selected={runId} onSelect={setRunId} />}
             {view === 'agents' && <AgentsView editor={editor} onNewTask={() => setLaunch(true)} />}
             {view === 'deploy' && <DeployView />}
             {view === 'metrics' && <MetricsView />}
