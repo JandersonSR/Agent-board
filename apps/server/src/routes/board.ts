@@ -22,7 +22,7 @@ export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncServic
   const { sync, store } = opts;
   const repo = new PrsRepo(store);
 
-  app.get('/api/board/status', async () => ({ sources: sync.state }));
+  app.get('/api/board/status', async () => ({ sources: sync.state, demo: sync.demo }));
 
   app.post('/api/sync', async () => { await sync.run(); return { sources: sync.state }; });
 

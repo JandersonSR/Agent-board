@@ -77,15 +77,28 @@ Design decisions are recorded in [`docs/adr/`](docs/adr/).
 
 | Requirement | Needed for | How to check |
 | --- | --- | --- |
-| Node.js 20.12 or newer | Everything | `node --version` |
+| Node.js 22.13 or newer | Everything (includes the built-in SQLite) | `node --version` |
 | Claude Code and/or Cursor | Agent sessions and background runs | `claude --version` |
 | GitHub CLI, logged in | Queue, reviews, PRs, draft PRs | `gh auth status` |
-| MongoDB | PRs and deploys, runs, summaries | A database just for the board |
+| MongoDB (optional) | Only if you want a shared database; the default is a local SQLite file | A database just for the board |
 | A Discord bot (read-only) | Daily, blockers, Discord mentions | See [Discord](#discord) |
 
 ---
 
 ## Quick start
+
+**Try it in one minute, nothing to configure:**
+
+```bash
+git clone https://github.com/JandersonSR/agent-board.git
+cd agent-board
+npm install
+npm run demo              # http://127.0.0.1:9999 with fictitious data (add -- --en or -- --pt)
+```
+
+The demo uses no real integration, even if you have a `.env`, and keeps its data in a temporary folder.
+
+**Use it for real:**
 
 ```bash
 git clone https://github.com/JandersonSR/agent-board.git
@@ -99,7 +112,7 @@ npm start                 # http://localhost:9999
 
 The hooks point to this folder's absolute path. Keep the project in a permanent place, and run `npm run install-hooks` again if you move it.
 
-To check the board without real sessions, run `npm run demo` in a second terminal. Four sample cards appear in **Agents**. Remove them with `npm run demo -- --clear`.
+To add sample agent cards to a real board, run `npm run demo:sessions` in a second terminal. Remove them with `npm run demo:sessions -- --clear`.
 
 ---
 
@@ -121,9 +134,11 @@ The board reads Discord through a private bot with **read-only** permissions. It
 4. A server admin opens the URL and adds the bot.
 5. With Developer Mode on, copy the server, channel and user IDs into `.env` (`DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS`).
 
-### MongoDB
+### Data: local SQLite or MongoDB
 
-The board only writes to its own collections, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` and `painel_avaliacoes`, enforced by an allowlist in code. Use a database and a user just for the board (`MONGO_URI`, or `MONGO_DATABASE_*`). The board starts without MongoDB; the blocks that need it say so.
+By default the board keeps its data in a local SQLite file (`~/.agent-board/data.db`, or `AGENT_BOARD_DB`). No server, nothing to install. Set `MONGO_URI` (or `MONGO_DATABASE_*`) to use MongoDB instead, for example to share the data across machines.
+
+The board only writes to its own collections, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` and `painel_avaliacoes`, enforced by an allowlist in code. With MongoDB, use a database and a user just for the board.
 
 ### Feature RAGs and skills
 
@@ -213,7 +228,7 @@ All settings live in `.env`. [`.env.example`](.env.example) lists every variable
 | Group | Main variables |
 | --- | --- |
 | Server | `AGENT_BOARD_PORT` (default 9999), `AGENT_BOARD_DIR`, `AGENT_BOARD_APPROVAL_WAIT`, `AGENT_BOARD_TASK_RE`, `AGENT_BOARD_NTFY` |
-| MongoDB | `MONGO_URI` or `MONGO_DATABASE_NAME/USER/PASS/CLUSTERNAME` |
+| Data | `STORAGE`, `AGENT_BOARD_DB`, `MONGO_URI` or `MONGO_DATABASE_NAME/USER/PASS/CLUSTERNAME` |
 | GitHub | `GITHUB_TOKEN`, `GITHUB_ORG`, `GITHUB_LOGIN`, `TEAM_GITHUB_LOGINS`, `GITHUB_PROJECTS`, `DEPLOY_*` |
 | Discord | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS` |
 | Team and queue | `TEAM_TZ_OFFSET_MIN`, `HOLIDAYS`, `QUEUE_TYPE_ORDER` |

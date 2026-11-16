@@ -37,6 +37,8 @@ const EnvSchema = z.object({
   AGENT_BOARD_APPROVAL_WAIT: intWithDefault(120, 0, 3600),
 
   MONGO_URI: optStr,
+  STORAGE: z.enum(['auto', 'sqlite', 'mongo', 'none']).default('auto'),
+  AGENT_BOARD_DB: optStr,
   MONGO_DATABASE_NAME: optStr,
   MONGO_DATABASE_USER: optStr,
   MONGO_DATABASE_PASS: optStr,
@@ -88,6 +90,8 @@ const EnvSchema = z.object({
   TASK_TEST_COMMANDS: optStr,
   TASK_VERIFY: optStr,
   DORA_FAILURE_RE: optStr,
+  DEMO: optStr,
+  DEMO_LANG: optStr,
 });
 
 export const SKILL_ROLES = ['review', 'reviewInbox', 'daily', 'dailyDigest'] as const;
@@ -99,7 +103,11 @@ export interface Config {
   port: number;
   webDevPort: number;
   approvalWait: number;
-  mongo: { uri: string | undefined; dbName: string | undefined; legacyPr: { db: string; collection: string } | undefined };
+  mongo: {
+    uri: string | undefined; dbName: string | undefined; legacyPr: { db: string; collection: string } | undefined;
+    /** Onde o painel guarda os dados: arquivo SQLite local (padrão), MongoDB (com MONGO_URI) ou nada. */
+    storage?: 'sqlite' | 'mongo' | 'none'; sqliteFile?: string;
+  };
   github: { token: string | undefined; org: string | undefined; login: string | undefined; boardRepo: string | undefined; team: Array<{ login: string; name: string }> };
   discord: {
     token: string | undefined; guildId: string | undefined; dailyChannelId: string | undefined;
@@ -131,6 +139,8 @@ export interface Config {
   tasks: { testCommands: string[]; verify: Array<{ repo: string; command: string }> };
   /** Regex que marca uma entrega como correção de falha (hotfix, rollback, revert…) nas métricas DORA. */
   dora: { failureRe: string };
+  /** Modo demonstração: dados fictícios, nenhuma integração real, banco local temporário. */
+  demo: { on: boolean; lang: 'pt-BR' | 'en' };
 }
 
 /** Comandos de teste/build que o agente pode rodar na worktree (prefixos; o resto é negado). */
@@ -148,7 +158,9 @@ export function buildMongoUri(e: RawEnv): string | undefined {
   return `mongodb+srv://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${cluster}.mongodb.net/${db}?retryWrites=true&w=majority`;
 }
 
-export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
+export const parseConfig = (env: NodeJS.ProcessEnv = process.env): Config => demoConfig(parseConfigRaw(env));
+
+function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
   const e = EnvSchema.parse(env);
   const legacyDb = e.MONGO_LEGACY_PR_DATABASE;
   const legacyCol = e.MONGO_LEGACY_PR_COLLECTION;
@@ -164,6 +176,8 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       uri: buildMongoUri(e),
       dbName: e.MONGO_DATABASE_NAME,
       legacyPr: legacyDb && legacyCol ? { db: legacyDb, collection: legacyCol } : undefined,
+      storage: e.STORAGE === 'auto' ? (buildMongoUri(e) ? 'mongo' : 'sqlite') : e.STORAGE,
+      sqliteFile: e.AGENT_BOARD_DB ?? path.join(os.homedir(), '.agent-board', 'data.db'),
     },
     github: {
       token: e.GITHUB_TOKEN, org: e.GITHUB_ORG, login: e.GITHUB_LOGIN, boardRepo: e.GITHUB_BOARD_REPO,
@@ -208,6 +222,19 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       verify: pairs(e.TASK_VERIFY, ';', '=').map(p => ({ repo: p.key, command: p.value })),
     },
     dora: { failureRe: validRegex(e.DORA_FAILURE_RE) ?? DEFAULT_FAILURE_RE },
+    demo: { on: e.DEMO === '1' || e.DEMO === 'true', lang: (e.DEMO_LANG ?? '').toLowerCase().startsWith('en') ? 'en' : 'pt-BR' },
+  };
+}
+
+/** No modo demo nenhuma integração real é usada, mesmo que o .env tenha tokens. */
+export function demoConfig(c: Config): Config {
+  if (!c.demo.on) return c;
+  return {
+    ...c,
+    mongo: { ...c.mongo, uri: undefined, legacyPr: undefined, storage: 'sqlite', sqliteFile: process.env.AGENT_BOARD_DB ?? path.join(os.tmpdir(), 'agent-board-demo', 'data.db') },
+    github: { ...c.github, token: undefined, org: undefined },
+    discord: { ...c.discord, token: undefined },
+    paths: { ...c.paths, featMaps: [] },
   };
 }
 

@@ -16,6 +16,7 @@ import {
 } from '../sources/github.js';
 import { deployDateFrom } from '../domain/deploy-date.js';
 import type { PainelStore } from '../store/mongo.js';
+import { demoData, seedDemo } from '../demo/seed.js';
 import { PrsRepo, type SyncedGroup, type SyncedPr } from '../store/prs-repo.js';
 
 export type SourceId = 'github' | 'discord' | 'prs';
@@ -83,7 +84,19 @@ export class SyncService {
 
   private m = (s: string) => this.mask(s).text;
 
+  /** Modo demonstração: fontes fictícias, banco semeado uma vez, nada sai da máquina. */
+  get demo(): boolean { return this.cfg.demo.on; }
+
+  private async loadDemo(): Promise<void> {
+    const d = demoData(this.cfg.demo.lang);
+    this.daily = d.daily; this.blockers = d.blockers; this.queue = d.queue; this.reviews = d.reviews;
+    const at = new Date().toISOString();
+    for (const id of Object.keys(this.state) as SourceId[]) this.state[id] = { configured: true, running: false, lastSync: at };
+    await seedDemo(this.store, this.cfg.demo.lang).catch(e => this.log.warn({ err: (e as Error).message }, 'falha ao semear o modo demo'));
+  }
+
   start(): void {
+    if (this.demo) { void this.loadDemo(); return; }
     void this.run();
     this.timer = setInterval(() => void this.run(), this.cfg.limits.pollIntervalMin * 60_000);
   }
@@ -91,6 +104,7 @@ export class SyncService {
 
   /** Executa uma sincronização (ou espera a que já está rodando). */
   run(): Promise<void> {
+    if (this.demo) return this.loadDemo();
     this.running ??= (async () => {
       try {
         await Promise.all([

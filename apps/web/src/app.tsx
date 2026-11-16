@@ -76,7 +76,8 @@ export function App() {
   document.title = needs + review ? `(${needs + review}) Agent Board` : 'Agent Board';
 
   const syncNow = useSyncNow();
-  const status = useBoardStatus().data?.sources;
+  const boardStatus = useBoardStatus().data;
+  const status = boardStatus?.sources;
   const syncing = syncNow.isPending || !!(status && Object.values(status).some(s => s.running));
   const lastSync = status ? Object.values(status).map(s => s.lastSync).filter((x): x is string => !!x).sort().pop() : undefined;
   const refresh = () => { if (!syncNow.isPending) syncNow.mutate(); void qc.invalidateQueries({ queryKey: ['metrics'] }); };
@@ -137,6 +138,10 @@ export function App() {
               <h1 className="truncate text-[15px] font-semibold tracking-tight">{t(current.label)}</h1>
               <p className="hidden truncate text-xs text-muted-foreground sm:block">{t(current.subtitle)}</p>
             </div>
+            {boardStatus?.demo && (
+              <Tooltip><TooltipTrigger asChild><span><Pill tone="info">{t('modo demonstração')}</Pill></span></TooltipTrigger>
+                <TooltipContent>{t('Dados fictícios. Nenhuma integração real está ligada e nada sai da sua máquina.')}</TooltipContent></Tooltip>
+            )}
             <nav className="ml-2 flex gap-1 md:hidden" aria-label={t('Navegação')}>
               {NAV.map(n => (
                 <Button key={n.id} size="icon-sm" variant={view === n.id ? 'secondary' : 'ghost'} onClick={() => setView(n.id)} aria-label={t(n.label)}><n.icon /></Button>

@@ -5,13 +5,13 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState, Mono, Pill } from '@/components/common';
 import { useDora } from '@/hooks/use-staff';
 import { fmtDay } from '@/lib/format';
-import { t } from '@/lib/i18n';
+import { locale, t } from '@/lib/i18n';
 import { usePref } from '@/lib/prefs';
 import { durDays, durOrDash, pct, Tile } from './shared';
 
 const RANGES = ['30', '90', '180'] as const;
 type Range = (typeof RANGES)[number];
-const num = (x: number) => (x >= 10 ? x.toFixed(0) : x.toFixed(1).replace(/\.0$/, ''));
+const num = (x: number) => x.toLocaleString(locale(), { maximumFractionDigits: x >= 10 ? 0 : 1 });
 
 export function DoraView() {
   const [range, setRange] = usePref<Range>('metrics.dora.range', '90');
