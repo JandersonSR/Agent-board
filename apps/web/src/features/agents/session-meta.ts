@@ -1,13 +1,15 @@
 import type { Tone } from '@/components/common';
+import { k } from '@/lib/i18n';
 import type { AgentSession } from '@/lib/types';
 
 export type Column = 'needs_you' | 'review' | 'working' | 'idle';
 
+// title e empty são chaves de tradução (texto em português).
 export const COLUMNS: Array<{ id: Column; title: string; empty: string; tone: Tone }> = [
-  { id: 'needs_you', title: 'Precisa de você', empty: 'Nenhum agente esperando você.', tone: 'danger' },
-  { id: 'review', title: 'Pronto para revisar', empty: 'Nada para revisar agora.', tone: 'warning' },
-  { id: 'working', title: 'Trabalhando', empty: 'Nenhum agente trabalhando.', tone: 'info' },
-  { id: 'idle', title: 'Ociosas e encerradas', empty: 'Nenhuma sessão ociosa.', tone: 'neutral' },
+  { id: 'needs_you', title: k('Precisa de você'), empty: k('Nenhum agente esperando você.'), tone: 'danger' },
+  { id: 'review', title: k('Pronto para revisar'), empty: k('Nada para revisar agora.'), tone: 'warning' },
+  { id: 'working', title: k('Trabalhando'), empty: k('Nenhum agente trabalhando.'), tone: 'info' },
+  { id: 'idle', title: k('Ociosas e encerradas'), empty: k('Nenhuma sessão ociosa.'), tone: 'neutral' },
 ];
 
 export const STALE_MIN = 10;

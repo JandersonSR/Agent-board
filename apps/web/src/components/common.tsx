@@ -3,6 +3,7 @@ import type { ComponentType, ReactNode } from 'react';
 import { AlertTriangle, Clock3, PlugZap, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 export type Tone = 'danger' | 'warning' | 'success' | 'info' | 'neutral';
@@ -90,15 +91,15 @@ export function BlockCard({ icon: Icon, title, count, countTone = 'neutral', act
           </div>
         )}
         {status.kind === 'error' && (
-          <EmptyState icon={AlertTriangle} title="Não foi possível carregar" description={status.message}
-            action={status.retry && <Button size="sm" variant="outline" onClick={status.retry}><RefreshCw /> Tentar de novo</Button>} />
+          <EmptyState icon={AlertTriangle} title={t('Não foi possível carregar')} description={status.message}
+            action={status.retry && <Button size="sm" variant="outline" onClick={status.retry}><RefreshCw /> {t('Tentar de novo')}</Button>} />
         )}
         {status.kind === 'not_configured' && (
-          <EmptyState icon={PlugZap} title={`${status.what} não configurado`} description="Preencha as variáveis no .env e reinicie o servidor. O passo a passo está em Configuração."
-            action={status.onConfigure && <Button size="sm" variant="outline" onClick={status.onConfigure}>Abrir Configuração</Button>} />
+          <EmptyState icon={PlugZap} title={t('{what} não configurado', { what: status.what })} description={t('Preencha as variáveis no .env e reinicie o servidor. O passo a passo está em Configuração.')}
+            action={status.onConfigure && <Button size="sm" variant="outline" onClick={status.onConfigure}>{t('Abrir Configuração')}</Button>} />
         )}
         {status.kind === 'coming' && (
-          <EmptyState icon={Clock3} title={`Chega na ${status.phase}`} description={status.description} />
+          <EmptyState icon={Clock3} title={t('Chega na {phase}', { phase: status.phase })} description={status.description} />
         )}
       </div>
     </section>
