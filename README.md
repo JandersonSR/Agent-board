@@ -129,7 +129,7 @@ Claude Code loads hooks when a session starts. **Close and reopen** any session 
 npm start
 ```
 
-Open **http://localhost:9999**.
+Open **<http://localhost:9999>**.
 
 ---
 
@@ -481,7 +481,7 @@ agent-board/
 
 | Command | What it does |
 | --- | --- |
-| `npm start` | Start the board at http://localhost:9999 |
+| `npm start` | Start the board at <http://localhost:9999> |
 | `npm run demo` | Create four sample cards |
 | `npm run demo -- --clear` | Remove the sample cards |
 | `npm test` | Run the tests |
@@ -489,6 +489,14 @@ agent-board/
 | `npm run uninstall-hooks` | Remove hooks from Claude Code |
 | `npm run install-cursor` | Install hooks for Cursor |
 | `npm run uninstall-cursor` | Remove hooks from Cursor |
+
+```
+npm install
+cp .env.example .env     # preencha só o que usar
+npm run dev              # API + web em 127.0.0.1
+npm test                 # 61 testes: 21 do hook + 31 do servidor + 9 do front, todos passando
+npm run build && npm start
+```
 
 ---
 
