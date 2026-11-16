@@ -12,8 +12,9 @@ import type { PrSize, QueueItem, SourceState } from '@/lib/board-types';
 import { STATUS_META } from '@/lib/board-types';
 import { ago, dur, plural } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { ReviewActions } from '../runs/review-actions';
 
-type GoTo = (view: 'settings' | 'deploy') => void;
+type GoTo = (view: 'settings' | 'deploy' | 'runs', runId?: string) => void;
 
 /** Estado do bloco a partir da fonte e da consulta. */
 function statusOf(q: { isLoading: boolean; error: unknown; refetch: () => unknown }, source: SourceState | undefined, what: string, goTo: GoTo): BlockStatus {
@@ -37,14 +38,15 @@ function SourceFooter({ source }: { source: SourceState | undefined }) {
 const rankTone = (rank: number): Tone => (rank === 0 ? 'danger' : rank === 1 ? 'danger' : rank === 2 ? 'warning' : rank === 3 ? 'info' : 'neutral');
 const sizeTone: Record<PrSize, Tone> = { XS: 'neutral', S: 'neutral', M: 'info', L: 'warning', XL: 'danger' };
 
-function Row({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
+function Row({ href, children, className, trailing }: { href: string; children: React.ReactNode; className?: string; trailing?: React.ReactNode }) {
   return (
-    <li>
+    <li className="group flex items-center hover:bg-muted/60">
       <a href={href} target="_blank" rel="noopener"
-        className={cn('group flex items-center gap-2.5 px-3.5 py-[calc(var(--row-py)+0.25rem)] text-left outline-none hover:bg-muted/60 focus-visible:bg-muted/60', className)}>
+        className={cn('flex min-w-0 flex-1 items-center gap-2.5 py-[calc(var(--row-py)+0.25rem)] pl-3.5 text-left outline-none focus-visible:bg-muted/60', trailing ? 'pr-1' : 'pr-3.5', className)}>
         {children}
         <ArrowUpRight className="size-3.5 shrink-0 text-muted-foreground opacity-0 transition group-hover:opacity-100 group-focus-visible:opacity-100" />
       </a>
+      {trailing && <div className="shrink-0 pr-2">{trailing}</div>}
     </li>
   );
 }
@@ -128,7 +130,7 @@ export function ReviewsBlock({ goTo, className }: { goTo: GoTo; className?: stri
       ) : (
         <ul className="divide-y">
           {items.map(r => (
-            <Row key={r.key} href={r.url}>
+            <Row key={r.key} href={r.url} trailing={<ReviewActions url={r.url} title={`${r.repo.split('/')[1]}#${r.number} ${r.title}`} onStarted={id => goTo('runs', id)} />}>
               <Pill tone={sizeTone[r.size]} className="w-8 justify-center" title={`${r.lines} linhas alteradas`}>{r.size}</Pill>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px]">{r.isDraft && <span className="mr-1 text-muted-foreground">[rascunho]</span>}{r.title}</p>
