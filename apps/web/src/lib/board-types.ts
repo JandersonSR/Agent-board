@@ -1,3 +1,5 @@
+import { k } from './i18n';
+
 // Formatos dos blocos do Tech Lead (espelham apps/server/src/sync/service.ts e domain/*).
 export interface SourceState { configured: boolean; lastSync?: string; error?: string; running: boolean }
 export type Sources = Record<'github' | 'discord' | 'prs', SourceState>;
@@ -50,11 +52,12 @@ export interface TrackedIssue {
   statusHistory?: Array<{ status: DeployStatus; enteredAt: string; leftAt: string | null }>;
 }
 
+// label é chave de tradução: a tela mostra t(label).
 export const STATUS_META: Record<DeployStatus, { label: string; tone: 'neutral' | 'info' | 'danger' | 'warning' | 'success' }> = {
-  review_queue: { label: 'Fila de review', tone: 'neutral' },
-  reviewing: { label: 'Em review', tone: 'info' },
-  rcs: { label: 'RCs', tone: 'danger' },
-  re_review: { label: 'Re-review', tone: 'warning' },
-  waiting_approves: { label: 'Aguardando aprovações', tone: 'info' },
-  merged: { label: 'Merged', tone: 'success' },
+  review_queue: { label: k('Fila de review'), tone: 'neutral' },
+  reviewing: { label: k('Em review'), tone: 'info' },
+  rcs: { label: k('RCs'), tone: 'danger' },
+  re_review: { label: k('Re-review'), tone: 'warning' },
+  waiting_approves: { label: k('Aguardando aprovações'), tone: 'info' },
+  merged: { label: k('Merged'), tone: 'success' },
 };

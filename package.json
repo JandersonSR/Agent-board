@@ -14,7 +14,7 @@
     "start": "node apps/server/dist/index.js",
     "typecheck": "npm run typecheck -w apps/server && npm run typecheck -w apps/web",
     "test": "npm run test:hooks && npm run test -w apps/server && npm run test -w apps/web",
-    "test:hooks": "node --test test/",
+    "test:hooks": "node --test test/hook.test.js test/launch.test.js test/state.test.js test/usage.test.js",
     "start:legacy": "node server.js",
     "demo": "node demo.js",
     "install-hooks": "node install.js",

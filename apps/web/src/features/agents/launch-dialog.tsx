@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { t } from '@/lib/i18n';
 
 export function LaunchDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const repos = useQuery({ queryKey: ['repos'], queryFn: () => api.get<string[]>('/api/repos'), enabled: open });
@@ -25,7 +26,7 @@ export function LaunchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
   const launch = useMutation({
     mutationFn: () => api.post<{ dir: string }>('/api/launch', { repo, branch, prompt, worktree, tool }),
     onSuccess: (r) => {
-      toast.success('Agente aberto', { description: r.dir });
+      toast.success(t('Agente aberto'), { description: r.dir });
       setPrompt(''); setBranch('');
       onOpenChange(false);
     },
@@ -35,34 +36,34 @@ export function LaunchDialog({ open, onOpenChange }: { open: boolean; onOpenChan
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nova tarefa</DialogTitle>
-          <DialogDescription>Abre o agente num terminal novo. O card aparece no quadro quando a sessão começar.</DialogDescription>
+          <DialogTitle>{t('Nova tarefa')}</DialogTitle>
+          <DialogDescription>{t('Abre o agente num terminal novo. O card aparece no quadro quando a sessão começar.')}</DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); launch.mutate(); }}>
           <div className="space-y-1.5">
-            <Label htmlFor="repo">Pasta do repositório</Label>
-            <Input id="repo" list="repo-suggestions" required value={repo} onChange={e => setRepo(e.target.value)} placeholder="C:\caminho\do\repo" className="font-mono text-xs" />
+            <Label htmlFor="repo">{t('Pasta do repositório')}</Label>
+            <Input id="repo" list="repo-suggestions" required value={repo} onChange={e => setRepo(e.target.value)} placeholder={t('C:\\caminho\\do\\repo')} className="font-mono text-xs" />
             <datalist id="repo-suggestions">{repos.data?.map(r => <option key={r} value={r} />)}</datalist>
           </div>
           <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-            <label className="flex items-center gap-2 text-sm"><Checkbox checked={worktree} onCheckedChange={v => setWorktree(v === true)} /> Criar worktree novo</label>
+            <label className="flex items-center gap-2 text-sm"><Checkbox checked={worktree} onCheckedChange={v => setWorktree(v === true)} /> {t('Criar worktree novo')}</label>
             <RadioGroup value={tool} onValueChange={v => setTool(v as 'claude' | 'cursor')} className="flex gap-4">
               <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="claude" /> Claude Code</label>
               <label className="flex items-center gap-2 text-sm"><RadioGroupItem value="cursor" /> Cursor</label>
             </RadioGroup>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="branch">Branch {worktree && <span className="text-muted-foreground">(obrigatória com worktree)</span>}</Label>
-            <Input id="branch" required={worktree} value={branch} onChange={e => setBranch(e.target.value)} placeholder="feat/ID-123-descricao" className="font-mono text-xs" />
+            <Label htmlFor="branch">Branch {worktree && <span className="text-muted-foreground">({t('obrigatória com worktree')})</span>}</Label>
+            <Input id="branch" required={worktree} value={branch} onChange={e => setBranch(e.target.value)} placeholder={t('feat/ID-123-descricao')} className="font-mono text-xs" />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="prompt">Primeiro prompt <span className="text-muted-foreground">(vira o título do card)</span></Label>
-            <Textarea id="prompt" rows={4} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder="Implemente X com testes. Planeje primeiro e espere minha aprovação." />
+            <Label htmlFor="prompt">{t('Primeiro prompt')} <span className="text-muted-foreground">({t('vira o título do card')})</span></Label>
+            <Textarea id="prompt" rows={4} value={prompt} onChange={e => setPrompt(e.target.value)} placeholder={t('Implemente X com testes. Planeje primeiro e espere minha aprovação.')} />
           </div>
           {launch.error && <p className="text-sm text-danger" role="alert">{(launch.error as Error).message}</p>}
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={launch.isPending}>{launch.isPending ? <Loader2 className="animate-spin" /> : <Rocket />} Abrir agente</Button>
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancelar')}</Button>
+            <Button type="submit" disabled={launch.isPending}>{launch.isPending ? <Loader2 className="animate-spin" /> : <Rocket />} {t('Abrir agente')}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

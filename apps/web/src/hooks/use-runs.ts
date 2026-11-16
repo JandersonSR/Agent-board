@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { t } from '@/lib/i18n';
 
 export type Severity = 'blocker' | 'high' | 'medium' | 'low' | 'note';
 export interface ReviewResult {
@@ -41,16 +42,16 @@ export function useStartReview(onStarted?: (id: string) => void) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (b: { url: string; title?: string; prompt?: string }) => api.post<{ id: string }>('/api/review/run', b),
-    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success('Review iniciada em segundo plano'); onStarted?.(r.id); },
-    onError: (e: Error) => toast.error('Não foi possível iniciar', { description: e.message }),
+    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success(t('Review iniciada em segundo plano')); onStarted?.(r.id); },
+    onError: (e: Error) => toast.error(t('Não foi possível iniciar'), { description: e.message }),
   });
 }
 
 export function useOpenReviewTerminal() {
   return useMutation({
     mutationFn: (url: string) => api.post<{ dir: string }>('/api/review/terminal', { url }),
-    onSuccess: (r) => toast.success('Terminal aberto com o Claude', { description: r.dir }),
-    onError: (e: Error) => toast.error('Não foi possível abrir o terminal', { description: e.message }),
+    onSuccess: (r) => toast.success(t('Terminal aberto com o Claude'), { description: r.dir }),
+    onError: (e: Error) => toast.error(t('Não foi possível abrir o terminal'), { description: e.message }),
   });
 }
 
@@ -60,9 +61,9 @@ export function useOpenReviewCursor() {
     onSuccess: async (r) => {
       let copied = false;
       try { await navigator.clipboard.writeText(r.command); copied = true; } catch { /* sem clipboard */ }
-      toast.success('Cursor aberto', { description: copied ? `Comando copiado — cole no chat: ${r.command}` : `Cole no chat: ${r.command}`, duration: 8000 });
+      toast.success(t('Cursor aberto'), { description: t(copied ? 'Comando copiado — cole no chat: {cmd}' : 'Cole no chat: {cmd}', { cmd: r.command }), duration: 8000 });
     },
-    onError: (e: Error) => toast.error('Não foi possível abrir o Cursor', { description: e.message }),
+    onError: (e: Error) => toast.error(t('Não foi possível abrir o Cursor'), { description: e.message }),
   });
 }
 
@@ -71,7 +72,7 @@ export function useCancelRun() {
   return useMutation({
     mutationFn: (id: string) => api.post(`/api/runs/${id}/cancel`),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['runs'] }); void qc.invalidateQueries({ queryKey: ['run'] }); },
-    onError: (e: Error) => toast.error('Não foi possível cancelar', { description: e.message }),
+    onError: (e: Error) => toast.error(t('Não foi possível cancelar'), { description: e.message }),
   });
 }
 
@@ -81,11 +82,11 @@ export function usePendingReview() {
     mutationFn: (id: string) => api.post<{ url: string; comments: number; unanchored: number }>(`/api/runs/${id}/pending-review`),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['run'] });
-      toast.success('Review PENDING criada no GitHub', {
-        description: `${r.comments} comentário(s) nas linhas · ${r.unanchored} no corpo. Confira e submeta no GitHub.`,
-        action: { label: 'Abrir PR', onClick: () => window.open(r.url, '_blank', 'noopener') }, duration: 10_000,
+      toast.success(t('Review PENDING criada no GitHub'), {
+        description: t('{lines} comentário(s) nas linhas · {body} no corpo. Confira e submeta no GitHub.', { lines: r.comments, body: r.unanchored }),
+        action: { label: t('Abrir PR'), onClick: () => window.open(r.url, '_blank', 'noopener') }, duration: 10_000,
       });
     },
-    onError: (e: Error) => toast.error('Não foi possível criar a review', { description: e.message }),
+    onError: (e: Error) => toast.error(t('Não foi possível criar a review'), { description: e.message }),
   });
 }
