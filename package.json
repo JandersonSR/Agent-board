@@ -1,16 +1,28 @@
 {
   "name": "agent-board",
-  "version": "0.2.0",
-  "description": "Painel local para acompanhar várias sessões do Claude Code em paralelo",
+  "version": "0.3.0",
+  "private": true,
+  "description": "Painel local do Tech Lead: acompanha o time, a fila, reviews, PRs e sessões de agentes de IA",
   "license": "MIT",
+  "workspaces": [
+    "apps/server",
+    "apps/web"
+  ],
   "scripts": {
-    "start": "node server.js",
+    "dev": "node scripts/dev.mjs",
+    "build": "npm run build -w apps/web && npm run build -w apps/server",
+    "start": "node apps/server/dist/index.js",
+    "typecheck": "npm run typecheck -w apps/server && npm run typecheck -w apps/web",
+    "test": "npm run test:hooks && npm run test -w apps/server && npm run test -w apps/web",
+    "test:hooks": "node --test test/",
+    "start:legacy": "node server.js",
     "demo": "node demo.js",
-    "test": "node --test",
     "install-hooks": "node install.js",
     "uninstall-hooks": "node install.js --uninstall",
     "install-cursor": "node install.js --cursor",
     "uninstall-cursor": "node install.js --cursor --uninstall"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=20.12"
+  }
 }
