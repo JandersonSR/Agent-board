@@ -381,3 +381,26 @@ export function boardIssueOf(pr: TeamPrNodeT, org: string, boardRepo: string | u
   const n = pr.body.match(urlRe)?.[1] ?? pr.body.match(refRe)?.[1] ?? pr.title.match(urlRe)?.[1];
   return n ? { url: `https://github.com/${org}/${boardRepo}/issues/${n}`, number: Number(n) } : undefined;
 }
+
+// ---------- Pessoas: times da org (filtro por time na tela) ----------
+const TeamsPage = z.object({ organization: z.object({ teams: z.object({
+  pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
+  nodes: z.array(z.object({ slug: z.string(), name: z.string(), members: z.object({ nodes: z.array(z.object({ login: z.string() })) }) })),
+}) }).nullable() });
+
+/** Times da org com membros (até 100 por time). Exige read:org (já presente no token do gh). */
+export async function fetchOrgTeams(gh: GitHubClient, org: string): Promise<Array<{ slug: string; name: string; members: string[] }>> {
+  const query = `query($org: String!, $after: String) { organization(login: $org) { teams(first: 50, after: $after) {
+    pageInfo { hasNextPage endCursor } nodes { slug name members(first: 100) { nodes { login } } } } } }`;
+  const out: Array<{ slug: string; name: string; members: string[] }> = [];
+  let after: string | null = null;
+  for (let page = 0; page < 4; page++) {
+    const d: z.infer<typeof TeamsPage> = await gh.graphql(query, { org, after }, TeamsPage);
+    const teams = d.organization?.teams;
+    if (!teams) break;
+    for (const t of teams.nodes) out.push({ slug: t.slug, name: t.name, members: t.members.nodes.map(m => m.login) });
+    if (!teams.pageInfo.hasNextPage) break;
+    after = teams.pageInfo.endCursor;
+  }
+  return out;
+}

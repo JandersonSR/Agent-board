@@ -200,7 +200,7 @@ export class SyncService {
     const status = deriveStatus({ state: pr.state, reviewDecision: pr.reviewDecision, reviewCount: pr.reviews.totalCount, ...reviewTimes(pr) });
     const owner = names.get(pr.author?.login?.toLowerCase() ?? '') ?? pr.author?.login ?? '?';
     return {
-      url: pr.url, title: this.m(pr.title), owner, status: status ?? 'review_queue',
+      url: pr.url, title: this.m(pr.title), owner, ...(pr.author?.login ? { author: pr.author.login } : {}), status: status ?? 'review_queue',
       state: pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : 'open',
       repo: pr.repository.nameWithOwner, number: pr.number, base: pr.baseRefName, isDraft: pr.isDraft,
       additions: pr.additions, deletions: pr.deletions, mergedAt: pr.mergedAt ? new Date(pr.mergedAt) : null,

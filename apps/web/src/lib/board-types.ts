@@ -38,7 +38,7 @@ export interface OpenBlocker {
 export type DeployStatus = 'review_queue' | 'reviewing' | 'rcs' | 're_review' | 'waiting_approves' | 'merged';
 export const DEPLOY_STATUSES: DeployStatus[] = ['review_queue', 'reviewing', 'rcs', 're_review', 'waiting_approves', 'merged'];
 export interface TrackedPr {
-  url: string; title: string; owner: string; status: DeployStatus; state: 'open' | 'closed' | 'merged';
+  url: string; title: string; owner: string; author?: string; status: DeployStatus; state: 'open' | 'closed' | 'merged';
   derivedStatus?: DeployStatus; statusOverride?: { status: DeployStatus; at: string; basis: DeployStatus } | null;
   repo?: string; number?: number; base?: string; isDraft?: boolean; additions?: number; deletions?: number;
   source: 'auto' | 'manual' | 'legacy';
