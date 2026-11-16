@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveStatus, enterStatus, groupStatus, type DeployStatus } from './pr-status.js';
+import { deriveStatus, enterStatus, groupStatus, type DeployStatus, type Tracked } from './pr-status.js';
 
 describe('status de deploy derivado do GitHub', () => {
   it('mapeia estados do PR', () => {
@@ -36,7 +36,7 @@ describe('histórico de status', () => {
   });
 
   it('documento sem histórico ganha a primeira entrada', () => {
-    const doc = enterStatus({ status: 'review_queue' as DeployStatus }, 'review_queue', new Date('2026-11-16T00:00:00Z'));
+    const doc = enterStatus<Tracked>({ status: 'review_queue' }, 'review_queue', new Date('2026-11-16T00:00:00Z'));
     expect(doc.statusHistory).toHaveLength(1);
   });
 });

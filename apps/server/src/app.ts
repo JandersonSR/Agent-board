@@ -7,12 +7,14 @@ import { REPO_ROOT, type Config } from './config.js';
 import { makeGuard } from './http/security.js';
 import { createMasker } from './privacy/mask.js';
 import { agentsRoutes } from './routes/agents.js';
+import { boardRoutes } from './routes/board.js';
+import { SyncService } from './sync/service.js';
 import { healthRoutes } from './routes/health.js';
 import { PainelStore } from './store/mongo.js';
 
-export interface AppDeps { config: Config; store?: PainelStore; serveWeb?: boolean }
+export interface AppDeps { config: Config; store?: PainelStore; serveWeb?: boolean; startSync?: boolean }
 
-export async function buildApp({ config, store = new PainelStore(config.mongo), serveWeb = true }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({ config, store = new PainelStore(config.mongo), serveWeb = true, startSync = false }: AppDeps): Promise<FastifyInstance> {
   const mask = createMasker(config.maskExtraPatterns);
   const app = Fastify({
     bodyLimit: 256 * 1024,
@@ -51,6 +53,13 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
 
   await app.register(healthRoutes, { config, store });
   await app.register(agentsRoutes, { port: config.port, approvalWait: config.approvalWait });
+
+  const sync = new SyncService(config, store, mask, app.log);
+  await app.register(boardRoutes, { sync, store });
+  if (startSync) {
+    app.addHook('onReady', async () => sync.start());
+    app.addHook('onClose', async () => sync.stop());
+  }
 
   const webDist = path.join(REPO_ROOT, 'apps', 'web', 'dist');
   if (serveWeb && fs.existsSync(webDist)) {

@@ -8,7 +8,7 @@ const { PainelStore } = await import('./store/mongo.js');
 
 const config = parseConfig();
 const store = new PainelStore(config.mongo);
-const app = await buildApp({ config, store });
+const app = await buildApp({ config, store, startSync: true });
 
 // Mongo é opcional para subir: os blocos que dependem dele mostram o estado na tela.
 store.connect().catch(() => app.log.warn({ mongo: store.status }, 'MongoDB indisponível'));

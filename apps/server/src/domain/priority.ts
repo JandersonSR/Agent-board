@@ -2,7 +2,7 @@
 // Ordem padrão: Ticket > Bug > Ajuste > Tarefa > demais. Configurável por QUEUE_TYPE_ORDER
 // (grupos separados por ";", sinônimos por "|", sem diferenciar maiúsculas).
 
-export const DEFAULT_TYPE_ORDER = 'ticket|suporte|support;bug|defeito;ajuste|ajustes|minor fix|fix;tarefa|task';
+export const DEFAULT_TYPE_ORDER = 'ticket|suporte|support;bug|defeito|production error|problem|erro;ajuste|ajustes|minor fix|fix;tarefa|task';
 
 export interface TypeRule { label: string; patterns: string[] }
 

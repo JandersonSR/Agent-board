@@ -70,6 +70,11 @@ const EnvSchema = z.object({
   POLL_INTERVAL_MIN: intWithDefault(5, 1, 120),
 
   MASK_EXTRA_PATTERNS: optStr,
+
+  TEAM_TZ_OFFSET_MIN: z.preprocess(empty, z.coerce.number().int().min(-720).max(840).default(-180)),
+  QUEUE_TYPE_ORDER: optStr,
+  HOLIDAYS: optStr,
+  PRS_LOOKBACK_DAYS: intWithDefault(14, 1, 90),
 });
 
 export const SKILL_ROLES = ['review', 'reviewInbox', 'daily', 'dailyDigest'] as const;
@@ -96,6 +101,9 @@ export interface Config {
   skills: Partial<Record<SkillRole, string>>;
   limits: { maxConcurrent: number; timeoutMin: number; maxDailyRuns: number; pollIntervalMin: number };
   maskExtraPatterns: string[];
+  team: { tzOffsetMin: number; holidays: Set<string> };
+  queueTypeOrder: string | undefined;
+  prsLookbackDays: number;
 }
 
 /** Monta a connection string no formato mongodb+srv (MONGO_URI tem prioridade). */
@@ -149,5 +157,8 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     skills,
     maskExtraPatterns: list(e.MASK_EXTRA_PATTERNS, ';;'),
+    team: { tzOffsetMin: e.TEAM_TZ_OFFSET_MIN, holidays: new Set(list(e.HOLIDAYS)) },
+    queueTypeOrder: e.QUEUE_TYPE_ORDER,
+    prsLookbackDays: e.PRS_LOOKBACK_DAYS,
   };
 }
