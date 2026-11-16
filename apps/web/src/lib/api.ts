@@ -4,9 +4,10 @@ export class ApiError extends Error {
 }
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
+  // Content-Type só com corpo: o Fastify recusa JSON vazio (POST sem body daria 400).
   const res = await fetch(url, {
     ...init,
-    headers: { 'Content-Type': 'application/json', 'X-Agent-Board': '1', ...(init.headers ?? {}) },
+    headers: { ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}), 'X-Agent-Board': '1', ...(init.headers ?? {}) },
   });
   const type = res.headers.get('content-type') ?? '';
   const body: unknown = type.includes('application/json') ? await res.json().catch(() => ({})) : await res.text();
@@ -21,4 +22,5 @@ export const api = {
   get: <T>(url: string) => request<T>(url),
   post: <T>(url: string, body?: unknown) =>
     request<T>(url, { method: 'POST', ...(body === undefined ? {} : { body: JSON.stringify(body) }) }),
+  patch: <T>(url: string, body: unknown) => request<T>(url, { method: 'PATCH', body: JSON.stringify(body) }),
 };

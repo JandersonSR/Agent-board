@@ -2,7 +2,7 @@ import { useState, type ComponentType } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import {
-  BarChart3, Bot, Command as CommandIcon, Keyboard, LayoutDashboard, Monitor, Moon, Plus, RefreshCw, Settings, Sun,
+  BarChart3, Bot, Command as CommandIcon, Keyboard, LayoutDashboard, Loader2, Monitor, Moon, Plus, RefreshCw, Rocket, Settings, Sun,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,28 +13,32 @@ import { Kbd } from '@/components/ui/kbd';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Dot, Pill } from '@/components/common';
 import { AgentSessionsContext, useAgentSessionsStream } from '@/hooks/use-agent-sessions';
+import { useBoardStatus, useSyncNow } from '@/hooks/use-board';
 import { useHotkeys } from '@/hooks/use-hotkeys';
 import { useThemeAndDensity, type ThemePref } from '@/hooks/use-theme';
 import { usePref } from '@/lib/prefs';
 import { cn } from '@/lib/utils';
 import { AgentsView } from '@/features/agents/agents-view';
+import { DeployView } from '@/features/board/deploy-view';
+import { ago } from '@/lib/format';
 import { LaunchDialog } from '@/features/agents/launch-dialog';
 import { MetricsView } from '@/features/metrics/metrics-view';
 import { OverviewView } from '@/features/overview/overview-view';
 import { SettingsView } from '@/features/settings/settings-view';
 
-type View = 'overview' | 'agents' | 'metrics' | 'settings';
+type View = 'overview' | 'agents' | 'deploy' | 'metrics' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: string }>; keys: string; subtitle: string }> = [
   { id: 'overview', label: 'Hoje', icon: LayoutDashboard, keys: 'G H', subtitle: 'Time, fila, reviews e bloqueios num só lugar' },
   { id: 'agents', label: 'Agentes', icon: Bot, keys: 'G A', subtitle: 'Sessões do Claude Code e do Cursor ao vivo' },
+  { id: 'deploy', label: 'PRs e deploy', icon: Rocket, keys: 'G D', subtitle: 'Do review ao merge, por issue, sem cadastro manual' },
   { id: 'metrics', label: 'Métricas', icon: BarChart3, keys: 'G M', subtitle: 'Tempo, espera e custo dos agentes' },
   { id: 'settings', label: 'Configuração', icon: Settings, keys: 'G C', subtitle: 'Integrações, limites e preferências' },
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
-  ['Ctrl K', 'Paleta de comandos'], ['G H', 'Ir para Hoje'], ['G A', 'Ir para Agentes'], ['G M', 'Ir para Métricas'],
-  ['G C', 'Ir para Configuração'], ['N', 'Nova tarefa de agente'], ['R', 'Atualizar dados'], ['T', 'Alternar tema'], ['?', 'Mostrar atalhos'],
+  ['Ctrl K', 'Paleta de comandos'], ['G H', 'Ir para Hoje'], ['G A', 'Ir para Agentes'], ['G D', 'Ir para PRs e deploy'], ['G M', 'Ir para Métricas'],
+  ['G C', 'Ir para Configuração'], ['N', 'Nova tarefa de agente'], ['R', 'Sincronizar agora (GitHub/Discord)'], ['T', 'Alternar tema'], ['?', 'Mostrar atalhos'],
 ];
 
 const THEME_NEXT: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' };
@@ -55,12 +59,16 @@ export function App() {
   const review = live.sessions.filter(s => s.state === 'review').length;
   document.title = needs + review ? `(${needs + review}) Agent Board` : 'Agent Board';
 
-  const refresh = () => void qc.invalidateQueries();
+  const syncNow = useSyncNow();
+  const status = useBoardStatus().data?.sources;
+  const syncing = syncNow.isPending || !!(status && Object.values(status).some(s => s.running));
+  const lastSync = status ? Object.values(status).map(s => s.lastSync).filter((x): x is string => !!x).sort().pop() : undefined;
+  const refresh = () => { if (!syncNow.isPending) syncNow.mutate(); void qc.invalidateQueries({ queryKey: ['metrics'] }); };
   const cycleTheme = () => setTheme(THEME_NEXT[theme]);
 
   useHotkeys({
     'mod+k': () => setPalette(v => !v),
-    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g m': () => setView('metrics'), 'g c': () => setView('settings'),
+    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g d': () => setView('deploy'), 'g m': () => setView('metrics'), 'g c': () => setView('settings'),
     n: () => setLaunch(true), r: refresh, t: cycleTheme, '?': () => setHelp(true),
   });
 
@@ -120,8 +128,11 @@ export function App() {
             </nav>
             <div className="ml-auto flex items-center gap-1">
               <Tooltip><TooltipTrigger asChild>
-                <Button size="icon-sm" variant="ghost" onClick={refresh} aria-label="Atualizar"><RefreshCw /></Button>
-              </TooltipTrigger><TooltipContent>Atualizar <Kbd>R</Kbd></TooltipContent></Tooltip>
+                <Button size="sm" variant="ghost" onClick={refresh} disabled={syncNow.isPending} aria-label="Sincronizar agora" className="text-muted-foreground">
+                  {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
+                  <span className="hidden text-xs lg:inline">{syncing ? 'sincronizando…' : lastSync ? `há ${ago(Date.parse(lastSync))}` : 'sincronizar'}</span>
+                </Button>
+              </TooltipTrigger><TooltipContent>Sincronizar GitHub e Discord agora <Kbd>R</Kbd></TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger asChild>
                 <Button size="icon-sm" variant="ghost" onClick={cycleTheme} aria-label={`Tema: ${theme}`}><ThemeIcon /></Button>
               </TooltipTrigger><TooltipContent>Tema: {theme === 'system' ? 'sistema' : theme === 'light' ? 'claro' : 'escuro'} <Kbd>T</Kbd></TooltipContent></Tooltip>
@@ -135,6 +146,7 @@ export function App() {
           <main className="min-h-0 flex-1 overflow-auto p-4 md:p-6">
             {view === 'overview' && <OverviewView goTo={setView} />}
             {view === 'agents' && <AgentsView editor={editor} onNewTask={() => setLaunch(true)} />}
+            {view === 'deploy' && <DeployView />}
             {view === 'metrics' && <MetricsView />}
             {view === 'settings' && (
               <SettingsView theme={theme} setTheme={setTheme} density={density} setDensity={setDensity}
@@ -150,7 +162,7 @@ export function App() {
           <CommandEmpty>Nada encontrado.</CommandEmpty>
           <CommandGroup heading="Ações">
             <CommandItem onSelect={run(() => setLaunch(true))}><Plus /> Nova tarefa de agente<CommandShortcut>N</CommandShortcut></CommandItem>
-            <CommandItem onSelect={run(refresh)}><RefreshCw /> Atualizar dados<CommandShortcut>R</CommandShortcut></CommandItem>
+            <CommandItem onSelect={run(refresh)}><RefreshCw /> Sincronizar agora<CommandShortcut>R</CommandShortcut></CommandItem>
             <CommandItem onSelect={run(cycleTheme)}><ThemeIcon /> Alternar tema<CommandShortcut>T</CommandShortcut></CommandItem>
           </CommandGroup>
           <CommandSeparator />

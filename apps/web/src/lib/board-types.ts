@@ -1,0 +1,56 @@
+// Formatos dos blocos do Tech Lead (espelham apps/server/src/sync/service.ts e domain/*).
+export interface SourceState { configured: boolean; lastSync?: string; error?: string; running: boolean }
+export type Sources = Record<'github' | 'discord' | 'prs', SourceState>;
+
+export interface QueueItem {
+  key: string; source: 'github' | 'discord'; kind: 'issue' | 'pr' | 'message';
+  type: string; rank: number; title: string; url: string; repo?: string; number?: number;
+  labels: string[]; author?: string; createdAt: string; updatedAt: string; reasons: string[]; answered: boolean;
+}
+
+export type PrSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
+export interface ReviewItem {
+  key: string; title: string; url: string; repo: string; number: number; author?: string;
+  isDraft: boolean; additions: number; deletions: number; changedFiles: number; base: string;
+  createdAt: string; requestedAt?: string; size: PrSize; lines: number; waitingSince: string; waitingBusinessDays: number;
+}
+
+export interface TeamMember { id: string; name: string }
+export interface DailyBlocker { text: string; issue?: string; since?: string; dependsOn?: string; inferred: boolean }
+export interface PersonDaily {
+  member: TeamMember; posted: boolean; postedAt?: string; messageUrl?: string;
+  parsed?: { yesterday: string[]; today: string[]; blockers: DailyBlocker[]; confidence?: number };
+  lowConfidence: boolean;
+  changes: { newBlockers: DailyBlocker[]; resolvedBlockers: DailyBlocker[]; confidenceDelta?: number };
+}
+export interface DailySummary {
+  day: string; people: PersonDaily[]; missing: TeamMember[]; lowConfidence: PersonDaily[];
+  blockers: Array<{ member: TeamMember; blocker: DailyBlocker; messageUrl?: string }>; postedCount: number;
+}
+
+export interface OpenBlocker {
+  key: string; member: TeamMember; text: string; issue?: string; dependsOn?: string;
+  since: string; ageMs: number; source: 'daily' | 'channel'; inferred: boolean; messageUrl?: string; channel?: string;
+}
+
+export type DeployStatus = 'review_queue' | 'reviewing' | 'rcs' | 'waiting_approves' | 'merged';
+export interface TrackedPr {
+  url: string; title: string; owner: string; status: DeployStatus; state: 'open' | 'closed' | 'merged';
+  repo?: string; number?: number; base?: string; isDraft?: boolean; additions?: number; deletions?: number;
+  source: 'auto' | 'manual' | 'legacy';
+}
+export interface TrackedIssue {
+  _id: string; key: string; title: string; reference?: string; owner: string; team?: string; deployDate?: string;
+  status: DeployStatus; prs: TrackedPr[]; source: 'auto' | 'manual' | 'legacy'; overdue: boolean;
+  syncedAt?: string; updatedAt: string; createdAt: string; mergedAt?: string | null;
+  statusStats?: Partial<Record<DeployStatus, { count: number; totalMs: number }>>;
+  statusHistory?: Array<{ status: DeployStatus; enteredAt: string; leftAt: string | null }>;
+}
+
+export const STATUS_META: Record<DeployStatus, { label: string; tone: 'neutral' | 'info' | 'danger' | 'warning' | 'success' }> = {
+  review_queue: { label: 'Fila de review', tone: 'neutral' },
+  reviewing: { label: 'Em review', tone: 'info' },
+  rcs: { label: 'RCs', tone: 'danger' },
+  waiting_approves: { label: 'Aguardando aprovações', tone: 'warning' },
+  merged: { label: 'Merged', tone: 'success' },
+};
