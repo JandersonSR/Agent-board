@@ -13,20 +13,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState, Mono, Pill, type Tone } from '@/components/common';
 import { useCancelRun, usePendingReview, useRun, useRuns, type Run, type Severity } from '@/hooks/use-runs';
 import { ago, dur, fmtCost, fmtTok } from '@/lib/format';
+import { k, locale, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
+// label é chave de tradução (texto em português).
 const STATUS: Record<Run['status'], { label: string; tone: Tone; icon: typeof CheckCircle2 }> = {
-  running: { label: 'rodando', tone: 'info', icon: Loader2 },
-  done: { label: 'concluída', tone: 'success', icon: CheckCircle2 },
-  failed: { label: 'falhou', tone: 'danger', icon: XCircle },
-  timeout: { label: 'tempo esgotado', tone: 'warning', icon: Clock },
-  cancelled: { label: 'cancelada', tone: 'neutral', icon: Square },
+  running: { label: k('rodando'), tone: 'info', icon: Loader2 },
+  done: { label: k('concluída'), tone: 'success', icon: CheckCircle2 },
+  failed: { label: k('falhou'), tone: 'danger', icon: XCircle },
+  timeout: { label: k('tempo esgotado'), tone: 'warning', icon: Clock },
+  cancelled: { label: k('cancelada'), tone: 'neutral', icon: Square },
 };
 const SEV: Record<Severity, Tone> = { blocker: 'danger', high: 'danger', medium: 'warning', low: 'info', note: 'neutral' };
 
 export function RunStatusPill({ status }: { status: Run['status'] }) {
   const s = STATUS[status];
-  return <Pill tone={s.tone}><s.icon className={cn('size-3', status === 'running' && 'animate-spin')} />{s.label}</Pill>;
+  return <Pill tone={s.tone}><s.icon className={cn('size-3', status === 'running' && 'animate-spin')} />{t(s.label)}</Pill>;
 }
 
 function RunDetail({ id }: { id: string }) {
@@ -50,27 +52,27 @@ function RunDetail({ id }: { id: string }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{r.title}</p>
             <p className="text-xs text-muted-foreground">
-              {r.kind === 'review' ? 'Review' : 'Tarefa'} · {r.model} · iniciada há {ago(Date.parse(r.startedAt))} · {dur(elapsed)}
+              {r.kind === 'review' ? 'Review' : t('Tarefa')} · {r.model} · {t('iniciada há {time}', { time: ago(Date.parse(r.startedAt)) })} · {dur(elapsed)}
               {r.usage && <> · {fmtTok(r.usage.inputTokens + r.usage.cacheReadTokens + r.usage.cacheWriteTokens)} in / {fmtTok(r.usage.outputTokens)} out · {fmtCost(r.usage.costUsd)}</>}
             </p>
           </div>
           <RunStatusPill status={r.status} />
         </div>
         <div className="flex flex-wrap gap-2">
-          {r.target.prUrl && <Button size="xs" variant="outline" onClick={() => window.open(r.target.prUrl, '_blank', 'noopener')}><ExternalLink /> Abrir PR</Button>}
-          {r.status === 'running' && <Button size="xs" variant="outline" onClick={() => cancel.mutate(r._id)} disabled={cancel.isPending}><Square /> Cancelar</Button>}
+          {r.target.prUrl && <Button size="xs" variant="outline" onClick={() => window.open(r.target.prUrl, '_blank', 'noopener')}><ExternalLink /> {t('Abrir PR')}</Button>}
+          {r.status === 'running' && <Button size="xs" variant="outline" onClick={() => cancel.mutate(r._id)} disabled={cancel.isPending}><Square /> {t('Cancelar')}</Button>}
           {review && (posted
-            ? <Pill tone="success"><CheckCircle2 className="size-3" />review PENDING criada {ago(Date.parse(posted.at))} atrás</Pill>
+            ? <Pill tone="success"><CheckCircle2 className="size-3" />{t('review PENDING criada há {time}', { time: ago(Date.parse(posted.at)) })}</Pill>
             : <Button size="xs" onClick={() => setConfirm(true)} disabled={pending.isPending}>
-                {pending.isPending ? <Loader2 className="animate-spin" /> : <GitPullRequestDraft />} Criar review PENDING no GitHub
+                {pending.isPending ? <Loader2 className="animate-spin" /> : <GitPullRequestDraft />} {t('Criar review PENDING no GitHub')}
               </Button>)}
         </div>
       </header>
 
       <Tabs defaultValue={review ? 'result' : 'log'} key={`${r._id}-${!!review}`} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="mx-4 mt-3 w-fit">
-          <TabsTrigger value="result" disabled={!review && !r.result?.error}>Resultado</TabsTrigger>
-          <TabsTrigger value="log">Log ({r.log.length})</TabsTrigger>
+          <TabsTrigger value="result" disabled={!review && !r.result?.error}>{t('Resultado')}</TabsTrigger>
+          <TabsTrigger value="log">{t('Log ({n})', { n: r.log.length })}</TabsTrigger>
           <TabsTrigger value="prompt">Prompt</TabsTrigger>
         </TabsList>
 
@@ -79,22 +81,22 @@ function RunDetail({ id }: { id: string }) {
           {review && (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2">
-                <Pill tone={review.readyForProd ? 'success' : 'danger'}>Pronto para produção: {review.readyForProd ? 'SIM' : 'NÃO'}</Pill>
+                <Pill tone={review.readyForProd ? 'success' : 'danger'}>{t('Pronto para produção: {ready}', { ready: t(review.readyForProd ? 'SIM' : 'NÃO') })}</Pill>
                 <Pill tone={review.verdict === 'approve' ? 'success' : review.verdict === 'request_changes' ? 'danger' : 'warning'}>
-                  {review.verdict === 'approve' ? 'aprovaria' : review.verdict === 'request_changes' ? 'pediria mudanças' : 'comentários'}
+                  {t(review.verdict === 'approve' ? 'aprovaria' : review.verdict === 'request_changes' ? 'pediria mudanças' : 'comentários')}
                 </Pill>
-                <Pill>confiança {review.confidence}%</Pill>
+                <Pill>{t('confiança {pct}%', { pct: review.confidence })}</Pill>
               </div>
               <p className="text-sm leading-relaxed">{review.summary}</p>
               {review.blockers.length > 0 && (
-                <section><h3 className="mb-1 text-xs font-semibold text-danger">Bloqueadores</h3><ul className="list-disc space-y-0.5 pl-5 text-xs">{review.blockers.map((b, i) => <li key={i}>{b}</li>)}</ul></section>
+                <section><h3 className="mb-1 text-xs font-semibold text-danger">{t('Bloqueadores')}</h3><ul className="list-disc space-y-0.5 pl-5 text-xs">{review.blockers.map((b, i) => <li key={i}>{b}</li>)}</ul></section>
               )}
               {review.risks.length > 0 && (
-                <section><h3 className="mb-1 text-xs font-semibold">Riscos</h3><ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">{review.risks.map((b, i) => <li key={i}>{b}</li>)}</ul></section>
+                <section><h3 className="mb-1 text-xs font-semibold">{t('Riscos')}</h3><ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">{review.risks.map((b, i) => <li key={i}>{b}</li>)}</ul></section>
               )}
               <section className="space-y-2">
-                <h3 className="text-xs font-semibold">Achados ({review.findings.length})</h3>
-                {review.findings.length === 0 && <p className="text-xs text-muted-foreground">Nenhum achado.</p>}
+                <h3 className="text-xs font-semibold">{t('Achados ({n})', { n: review.findings.length })}</h3>
+                {review.findings.length === 0 && <p className="text-xs text-muted-foreground">{t('Nenhum achado.')}</p>}
                 {review.findings.map((f, i) => (
                   <article key={i} className="rounded-lg border p-3">
                     <div className="flex flex-wrap items-center gap-2">
@@ -115,18 +117,18 @@ function RunDetail({ id }: { id: string }) {
           <ol className="space-y-1 font-mono text-[11px]">
             {r.log.map((l, i) => (
               <li key={i} className={cn('flex gap-2', l.type === 'denied' && 'text-warning', l.type === 'stderr' && 'text-danger')}>
-                <span className="shrink-0 text-muted-foreground tabular-nums">{new Date(l.at).toLocaleTimeString('pt-BR')}</span>
+                <span className="shrink-0 text-muted-foreground tabular-nums">{new Date(l.at).toLocaleTimeString(locale())}</span>
                 <span className="w-16 shrink-0 text-muted-foreground">{l.type}</span>
                 <span className="min-w-0 whitespace-pre-wrap break-words">{l.text}</span>
               </li>
             ))}
-            {r.status === 'running' && <li className="flex items-center gap-2 text-muted-foreground"><CircleDot className="size-3 animate-pulse" /> trabalhando…</li>}
+            {r.status === 'running' && <li className="flex items-center gap-2 text-muted-foreground"><CircleDot className="size-3 animate-pulse" /> {t('trabalhando…')}</li>}
           </ol>
           <div ref={logEnd} />
         </TabsContent>
 
         <TabsContent value="prompt" className="min-h-0 flex-1 overflow-auto px-4 pb-4">
-          <p className="mb-2 text-[11px] text-muted-foreground">{r.maskedCount ? `${r.maskedCount} dado(s) mascarado(s) antes do envio.` : 'Nenhum dado pessoal detectado.'}</p>
+          <p className="mb-2 text-[11px] text-muted-foreground">{r.maskedCount ? t('{n} dado(s) mascarado(s) antes do envio.', { n: r.maskedCount }) : t('Nenhum dado pessoal detectado.')}</p>
           <pre className="whitespace-pre-wrap rounded-lg bg-muted/50 p-3 font-mono text-[11px] leading-relaxed">{r.promptMasked}</pre>
         </TabsContent>
       </Tabs>
@@ -134,15 +136,15 @@ function RunDetail({ id }: { id: string }) {
       <AlertDialog open={confirm} onOpenChange={setConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Criar review PENDING no GitHub?</AlertDialogTitle>
+            <AlertDialogTitle>{t('Criar review PENDING no GitHub?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              Os {review?.findings.length ?? 0} achados viram uma review <b>pendente</b> no seu nome: comentários nas linhas do diff e o resto no corpo.
-              Ela só fica visível para o autor depois que você a submeter no GitHub. Nada é aprovado.
+              {t('Os {n} achados viram uma review pendente no seu nome: comentários nas linhas do diff e o resto no corpo.', { n: review?.findings.length ?? 0 })}
+              {' '}{t('Ela só fica visível para o autor depois que você a submeter no GitHub. Nada é aprovado.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => pending.mutate(r._id)}>Criar review pendente</AlertDialogAction>
+            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => pending.mutate(r._id)}>{t('Criar review pendente')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -158,11 +160,11 @@ export function RunsView({ selected, onSelect }: { selected: string | null; onSe
     <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[22rem_1fr]">
       <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-xs">
         <header className="flex items-center gap-2 border-b px-3.5 py-2.5 text-[13px] font-semibold">
-          <Bot className="size-4 text-muted-foreground" /> Execuções
-          {q.data && <Pill className="ml-auto">{q.data.running} rodando</Pill>}
+          <Bot className="size-4 text-muted-foreground" /> {t('Execuções')}
+          {q.data && <Pill className="ml-auto">{t('{n} rodando', { n: q.data.running })}</Pill>}
         </header>
         {q.isLoading ? <div className="space-y-2 p-3">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-12" />)}</div>
-          : items.length === 0 ? <EmptyState icon={Bot} title="Nenhuma execução ainda" description="Use o botão ✨ num PR em Reviews pendentes para pedir uma review ao Claude." />
+          : items.length === 0 ? <EmptyState icon={Bot} title={t('Nenhuma execução ainda')} description={t('Use o botão ✨ num PR em Reviews pendentes para pedir uma review ao Claude.')} />
           : (
             <ul className="min-h-0 flex-1 divide-y overflow-auto">
               {items.map(r => (
@@ -174,9 +176,9 @@ export function RunsView({ selected, onSelect }: { selected: string | null; onSe
                       <RunStatusPill status={r.status} />
                     </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {r.kind === 'review' ? 'review' : 'tarefa'} · {ago(Date.parse(r.startedAt))}
+                      {r.kind === 'review' ? 'review' : t('tarefa')} · {ago(Date.parse(r.startedAt))}
                       {r.usage && ` · ${fmtCost(r.usage.costUsd)}`}
-                      {r.result?.review && ` · ${r.result.review.findings.length} achados`}
+                      {r.result?.review && ` · ${t('{n} achados', { n: r.result.review.findings.length })}`}
                     </p>
                   </button>
                 </li>
@@ -185,7 +187,7 @@ export function RunsView({ selected, onSelect }: { selected: string | null; onSe
           )}
       </section>
       <section className="min-h-[24rem] overflow-hidden rounded-xl border bg-card shadow-xs">
-        {current ? <RunDetail id={current} /> : <EmptyState icon={Bot} title="Selecione uma execução" />}
+        {current ? <RunDetail id={current} /> : <EmptyState icon={Bot} title={t('Selecione uma execução')} />}
       </section>
     </div>
   );

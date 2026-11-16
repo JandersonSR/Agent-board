@@ -9,7 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/common';
 import { api } from '@/lib/api';
-import { ago, dur, fmtCost, fmtTok, plural } from '@/lib/format';
+import { ago, dur, fmtCost, fmtDay, fmtTok, plural } from '@/lib/format';
+import { k, t } from '@/lib/i18n';
 import { usePref } from '@/lib/prefs';
 import type { Metrics } from '@/lib/types';
 
@@ -53,7 +54,7 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-56 w-full" role="img" aria-label="Horas por dia: trabalhando e esperando você" preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-56 w-full" role="img" aria-label={t('Horas por dia: trabalhando e esperando você')} preserveAspectRatio="none">
         {ticks.map(v => (
           <g key={v}>
             <line x1={L} x2={W} y1={y(v)} y2={y(v)} className="stroke-border" strokeWidth={1} />
@@ -70,7 +71,7 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
             <g key={d.date} opacity={hover === null || hover === i ? 1 : 0.45}>
               {seg(x, y(0), yW, a <= 0, 'var(--series-1)')}
               {seg(x, yW - gap, yA, true, 'var(--series-2)')}
-              {showLabel && <text x={x + bw / 2} y={H - 6} textAnchor="middle" className="fill-muted-foreground text-[10px]">{d.date.slice(5).replace('-', '/')}</text>}
+              {showLabel && <text x={x + bw / 2} y={H - 6} textAnchor="middle" className="fill-muted-foreground text-[10px]">{fmtDay(d.date)}</text>}
               <rect x={L + gx * i} y={T} width={gx} height={H - T - B} fill="transparent"
                 onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)} />
             </g>
@@ -80,9 +81,9 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
       {hd && hover !== null && (
         <div className="pointer-events-none absolute top-2 rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md"
           style={{ left: `clamp(0px, calc(${((L + gx * hover + gx / 2) / W) * 100}% - 60px), calc(100% - 140px))` }}>
-          <p className="font-medium">{hd.date.split('-').reverse().join('/')}</p>
-          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-1" /> Trabalhando: <span className="text-foreground tabular-nums">{dur(hd.working)}</span></p>
-          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-2" /> Esperando você: <span className="text-foreground tabular-nums">{dur(hd.waiting)}</span></p>
+          <p className="font-medium">{fmtDay(hd.date, true)}</p>
+          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-1" /> {t('Trabalhando')}: <span className="text-foreground tabular-nums">{dur(hd.working)}</span></p>
+          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-2" /> {t('Esperando você')}: <span className="text-foreground tabular-nums">{dur(hd.waiting)}</span></p>
         </div>
       )}
     </div>
@@ -102,7 +103,7 @@ export function MetricsView() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Período</span>
+        <span className="text-xs text-muted-foreground">{t('Período')}</span>
         <Tabs value={range} onValueChange={v => setRange(v as Range)}>
           <TabsList>{RANGES.map(r => <TabsTrigger key={r} value={r}>{plural(Number(r), 'dia', 'dias')}</TabsTrigger>)}</TabsList>
         </Tabs>
@@ -111,47 +112,47 @@ export function MetricsView() {
       {q.isLoading && <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-24" />)}</div>}
       {q.error && <p className="text-sm text-danger">{(q.error as Error).message}</p>}
       {m && !m.sessions && (
-        <div className="rounded-xl border border-dashed"><EmptyState icon={BarChart3} title="Ainda sem dados" description="As métricas contam a partir das sessões registradas pelos hooks." /></div>
+        <div className="rounded-xl border border-dashed"><EmptyState icon={BarChart3} title={t('Ainda sem dados')} description={t('As métricas contam a partir das sessões registradas pelos hooks.')} /></div>
       )}
       {m && m.sessions > 0 && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Tile label="Agentes esperando você" value={dur(m.waitingOnYou)} sub={`${dur(m.needsYou)} pedindo · ${dur(m.review)} prontos p/ revisão`} />
-            <Tile label="Tempo trabalhando" value={dur(m.working)} />
-            <Tile label="Resposta mediana a pedidos" value={dur(m.medianResponse)} sub={plural(m.asks, 'pedido', 'pedidos')} />
-            <Tile label="Custo estimado" value={fmtCost(m.cost)} sub={`${fmtTok(m.tokens)} tokens`} />
-            <Tile label="Sessões" value={String(m.sessions)} />
+            <Tile label={t('Agentes esperando você')} value={dur(m.waitingOnYou)} sub={t('{asking} pedindo · {review} prontos p/ revisão', { asking: dur(m.needsYou), review: dur(m.review) })} />
+            <Tile label={t('Tempo trabalhando')} value={dur(m.working)} />
+            <Tile label={t('Resposta mediana a pedidos')} value={dur(m.medianResponse)} sub={plural(m.asks, 'pedido', 'pedidos')} />
+            <Tile label={t('Custo estimado')} value={fmtCost(m.cost)} sub={`${fmtTok(m.tokens)} tokens`} />
+            <Tile label={t('Sessões')} value={String(m.sessions)} />
           </div>
 
           <section className="rounded-xl border bg-card p-4 shadow-xs">
             <div className="mb-3 flex items-center gap-3">
-              <h3 className="text-sm font-semibold">Por dia</h3>
+              <h3 className="text-sm font-semibold">{t('Por dia')}</h3>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-1" /> Trabalhando</span>
-                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-2" /> Esperando você</span>
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-1" /> {t('Trabalhando')}</span>
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-2" /> {t('Esperando você')}</span>
               </div>
               <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setAsTable(v => !v)} aria-pressed={asTable}>
-                {asTable ? <BarChart3 /> : <Table2 />} {asTable ? 'Ver gráfico' : 'Ver tabela'}
+                {asTable ? <BarChart3 /> : <Table2 />} {t(asTable ? 'Ver gráfico' : 'Ver tabela')}
               </Button>
             </div>
             {asTable ? (
               <table className="w-full text-xs">
-                <thead className="text-muted-foreground"><tr className="border-b text-left"><th className="py-1.5 font-medium">Dia</th><th className="text-right font-medium">Trabalhando</th><th className="text-right font-medium">Esperando você</th></tr></thead>
+                <thead className="text-muted-foreground"><tr className="border-b text-left"><th className="py-1.5 font-medium">{t('Dia')}</th><th className="text-right font-medium">{t('Trabalhando')}</th><th className="text-right font-medium">{t('Esperando você')}</th></tr></thead>
                 <tbody>{m.perDay.map(d => (
-                  <tr key={d.date} className="border-b last:border-0"><td className="py-1.5">{d.date.split('-').reverse().join('/')}</td><td className="text-right tabular-nums">{dur(d.working)}</td><td className="text-right tabular-nums">{dur(d.waiting)}</td></tr>
+                  <tr key={d.date} className="border-b last:border-0"><td className="py-1.5">{fmtDay(d.date, true)}</td><td className="text-right tabular-nums">{dur(d.working)}</td><td className="text-right tabular-nums">{dur(d.waiting)}</td></tr>
                 ))}</tbody>
               </table>
             ) : <StackedBars perDay={m.perDay} />}
           </section>
 
           <section className="overflow-hidden rounded-xl border bg-card shadow-xs">
-            <h3 className="border-b px-4 py-3 text-sm font-semibold">Por tarefa</h3>
+            <h3 className="border-b px-4 py-3 text-sm font-semibold">{t('Por tarefa')}</h3>
             <div className="overflow-auto">
               <table className="w-full text-xs">
                 <thead className="text-muted-foreground">
                   <tr className="border-b text-left">
-                    {['Tarefa', 'Sessões', 'Trabalhando', 'Esperando você', 'Custo', 'Tokens', 'Última atividade'].map((h, i) => (
-                      <th key={h} className={`px-4 py-2 font-medium ${i ? 'text-right' : ''}`}>{h}</th>
+                    {[k('Tarefa'), k('Sessões'), k('Trabalhando'), k('Esperando você'), k('Custo'), k('Tokens'), k('Última atividade')].map((h, i) => (
+                      <th key={h} className={`px-4 py-2 font-medium ${i ? 'text-right' : ''}`}>{t(h)}</th>
                     ))}
                   </tr>
                 </thead>

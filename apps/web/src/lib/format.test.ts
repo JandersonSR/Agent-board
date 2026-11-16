@@ -1,7 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ago, dur, editorLink, fmtCost, fmtTok, plural } from './format';
+import { applyLang } from './i18n';
 
 describe('format', () => {
+  beforeEach(() => applyLang('pt-BR'));
+
   it('ago', () => {
     const now = 1_000_000_000;
     expect(ago(now, now)).toBe('agora');
@@ -36,5 +39,14 @@ describe('format', () => {
   it('editorLink (Windows e POSIX)', () => {
     expect(editorLink('cursor', 'C:\\r\\app', 'src/a#b.ts')).toBe('cursor://file/C:/r/app/src/a%23b.ts');
     expect(editorLink('vscode', '/home/x/app/', 'b.ts')).toBe('vscode://file//home/x/app/b.ts');
+  });
+
+  it('em inglês', () => {
+    applyLang('en');
+    const now = 1_000_000_000;
+    expect(ago(now, now)).toBe('now');
+    expect(fmtTok(1_250_000)).toBe('1.3M');
+    expect(fmtCost(1.5)).toBe('$1.50');
+    expect(plural(3, 'sessão', 'sessões')).toBe('3 sessions');
   });
 });

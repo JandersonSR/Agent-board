@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { t } from '@/lib/i18n';
 import type { DailySummary, OpenBlocker, QueueItem, ReviewItem, Sources, SourceState, TrackedIssue } from '@/lib/board-types';
 
 const every = 60_000;
@@ -31,8 +32,8 @@ export function useTrackIssue() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { issue: string; deployDate?: string }) => api.post<{ key: string; title: string; prs: number }>('/api/prs', body),
-    onSuccess: (r) => { invalidatePrs(qc); toast.success('Issue acompanhada', { description: `${r.title} · ${r.prs} PR(s) encontrados` }); },
-    onError: (e: Error) => toast.error('Não foi possível acompanhar', { description: e.message }),
+    onSuccess: (r) => { invalidatePrs(qc); toast.success(t('Issue acompanhada'), { description: t('{title} · {n} PR(s) encontrados', { title: r.title, n: r.prs }) }); },
+    onError: (e: Error) => toast.error(t('Não foi possível acompanhar'), { description: e.message }),
   });
 }
 
@@ -40,8 +41,8 @@ export function useArchiveIssue() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) => api.post(`/api/prs/${id}/archive`, { archived }),
-    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(v.archived ? 'Parou de acompanhar' : 'Voltou a acompanhar'); },
-    onError: (e: Error) => toast.error('Falhou', { description: e.message }),
+    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(t(v.archived ? 'Parou de acompanhar' : 'Voltou a acompanhar')); },
+    onError: (e: Error) => toast.error(t('Falhou'), { description: e.message }),
   });
 }
 
@@ -49,8 +50,8 @@ export function useSetPrStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, url, status }: { id: string; url: string; status: string | null }) => api.patch(`/api/prs/${id}/pr`, { url, status }),
-    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(v.status ? 'Status ajustado' : 'Voltou ao automático'); },
-    onError: (e: Error) => toast.error('Não foi possível ajustar', { description: e.message }),
+    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(t(v.status ? 'Status ajustado' : 'Voltou ao automático')); },
+    onError: (e: Error) => toast.error(t('Não foi possível ajustar'), { description: e.message }),
   });
 }
 
@@ -62,10 +63,10 @@ export function useSyncNow() {
     onSuccess: (r) => {
       void qc.invalidateQueries();
       const errors = Object.entries(r.sources).filter(([, s]) => s.error);
-      if (errors.length) toast.warning('Sincronizado com falhas', { description: errors.map(([k, s]) => `${k}: ${s.error}`).join(' · ') });
-      else toast.success('Dados atualizados');
+      if (errors.length) toast.warning(t('Sincronizado com falhas'), { description: errors.map(([k, s]) => `${k}: ${s.error}`).join(' · ') });
+      else toast.success(t('Dados atualizados'));
     },
-    onError: (e: Error) => toast.error('Falha ao sincronizar', { description: e.message }),
+    onError: (e: Error) => toast.error(t('Falha ao sincronizar'), { description: e.message }),
   });
 }
 
@@ -73,7 +74,7 @@ export function usePatchPr() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; deployDate?: string; team?: string; owner?: string }) => api.patch<TrackedIssue>(`/api/prs/${id}`, body),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['prs'] }); toast.success('Salvo'); },
-    onError: (e: Error) => toast.error('Não foi possível salvar', { description: e.message }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['prs'] }); toast.success(t('Salvo')); },
+    onError: (e: Error) => toast.error(t('Não foi possível salvar'), { description: e.message }),
   });
 }
