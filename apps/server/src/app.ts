@@ -15,6 +15,8 @@ import { FeatMapRegistry } from './featmap/registry.js';
 import { AgentService } from './agents/service.js';
 import { runsRoutes } from './routes/runs.js';
 import { staffRoutes } from './routes/staff.js';
+import { claudeAgentsRoutes } from './routes/claude-agents.js';
+import { ClaudeAgents, DemoClaudeAgents } from './sources/claude-agents.js';
 import { peopleRoutes } from './routes/people.js';
 import { GitHubClient } from './sources/github.js';
 import { PainelStore } from './store/mongo.js';
@@ -66,6 +68,7 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
   const sync = new SyncService(config, store, mask, app.log);
   await app.register(boardRoutes, { sync, store });
   await app.register(staffRoutes, { config, store, mask });
+  await app.register(claudeAgentsRoutes, { port: config.demo.on ? new DemoClaudeAgents() : new ClaudeAgents(), mask });
 
   const gh = config.github.org ? new GitHubClient({ token: config.github.token, login: config.github.login }) : undefined;
   const agents = new AgentService(config, store, gh, featMaps, mask, app.log);
