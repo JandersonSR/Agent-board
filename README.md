@@ -1,5 +1,7 @@
 # Agent Board
 
+[![CI](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml)
+
 **English** · [Português](README.pt-BR.md)
 
 **A local cockpit for Tech Leads.** One screen with your team's daily, your queue, pending reviews, PR and deploy tracking, and the Claude Code and Cursor agents you run in parallel. It runs on your machine only.
@@ -35,8 +37,8 @@
 | **Today** | Team daily (who posted, low confidence, new blockers), team blockers with how long each one has been open, your queue (bugs, tickets, tasks, mentions you haven't answered), pending reviews by size and wait time, PRs and deploys, live agents and recent agent runs |
 | **Agents** | One card per Claude Code or Cursor session, in columns: *Needs you*, *Ready for review*, *Working*, *Idle and ended*. Approve permission requests, see progress, context use and cost, review the diff and open a draft PR |
 | **PRs and deploys** | Delivery tracking per issue. The PRs linked to each issue are found and updated automatically, from any author and repository, with status from review queue to merge and the deploy date |
-| **Runs** | Reviews done by Claude in the background, with live log, result (verdict, risks, findings by file and line) and the masked prompt |
-| **Metrics** | Time agents spent working and waiting on you, median response to asks, estimated cost, per day and per task |
+| **Runs** | Background reviews and tasks, with live log, result and the masked prompt. Mark each review finding as kept or discarded; tasks show plan, implementation, verification and diff |
+| **Metrics** | Three tabs: **Agents** (time working and waiting on you, cost), **Team** (flow from PR status history: time to merge, wait for first review, changes requested, PR size, by week, team and person) and **AI quality** (precision of AI reviews by prompt version, severity and repository, cost per kept finding) |
 | **Settings** | Status of every integration, feature RAGs, cost limits and preferences (language, theme, density, editor, desktop notifications) |
 
 Other details:
@@ -162,6 +164,24 @@ The ✨ button on a pending review asks Claude to review the PR in the backgroun
 
 Limits: `MAX_CONCURRENT_SESSIONS`, `SESSION_TIMEOUT_MIN` and `MAX_DAILY_RUNS`. `ANTHROPIC_API_KEY` is removed from the run environment so it never bills the API by mistake.
 
+### Measuring AI review quality
+
+Each finding in a review run has **Keep** and **Discard** buttons. Discarded findings never reach GitHub. Your calls feed **Metrics → AI quality**: precision (kept ÷ judged) by prompt version, severity and repository, judging coverage and cost per kept finding. The prompt version is a hash of the review skill, so changing the skill shows up as a new version and you can compare them. Precision is flagged as unreliable while fewer than half of the findings are judged.
+
+### Tasks from issue to draft PR
+
+The wand on a GitHub issue in **My queue** runs a task in three gated steps:
+
+1. **Plan (read-only).** You see and can edit the masked prompt. The agent reads the code and returns a plan: steps, files, tests, risks and questions.
+2. **Approval.** You answer the questions in the notes and click **Approve plan and implement**. The agent works in an isolated git worktree on `agent/<number>-<slug>`. It can only run the allowed test commands and local git (`status`, `diff`, `add`, `commit`). Push, `gh`, network and destructive commands are blocked.
+3. **Independent verification.** The board itself runs `TASK_VERIFY` for the repository, so the result does not depend on what the agent reports. You see the diff by file and the full patch.
+
+**Create draft PR** pushes the branch and opens a draft PR that closes the issue. It always asks for confirmation. **Discard** stops the agent and deletes the worktree and the local branch; the history stays in Runs.
+
+### AI pre-review in the team's CI (opt-in)
+
+`.github/workflows/ai-review.yml` is a reusable workflow that team repositories can call. It posts one comment per PR (updated on each push) and never approves, requests changes or pushes. The agent gets the PR and the diff in the prompt and can only read the checkout. See [docs/ci-ai-review.md](docs/ci-ai-review.md). **It sends code to the model provider, so it needs company approval** and an `ANTHROPIC_API_KEY` secret.
+
 ---
 
 ## Configuration
@@ -176,6 +196,7 @@ All settings live in `.env`. [`.env.example`](.env.example) lists every variable
 | Discord | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS` |
 | Team and queue | `TEAM_TZ_OFFSET_MIN`, `HOLIDAYS`, `QUEUE_TYPE_ORDER` |
 | Agent context | `FEAT_MAPS`, `FEAT_MAP_ROUTES`, `FEAT_CONTEXT_TOKENS`, `SKILLS_KIT_PATH`, `SKILL_NAMES`, `REPOS`, `WORKTREES_DIR`, `AGENT_MODEL_*` |
+| Tasks | `TASK_TEST_COMMANDS`, `TASK_VERIFY` |
 | Cost limits | `MAX_CONCURRENT_SESSIONS`, `SESSION_TIMEOUT_MIN`, `MAX_DAILY_RUNS`, `POLL_INTERVAL_MIN` |
 | Privacy | `MASK_EXTRA_PATTERNS` |
 
@@ -223,6 +244,8 @@ agent-board/
 ├── demo.js            # Sample agent sessions
 ├── lib/               # Hook libraries: session state, transcript usage, pricing
 ├── docs/adr/          # Architecture decision records
+├── ci/                # AI pre-review script for the reusable workflow
+├── .github/workflows/ # CI and the reusable AI review
 └── .env.example
 ```
 

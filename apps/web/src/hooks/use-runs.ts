@@ -2,7 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { t } from '@/lib/i18n';
+import { k, t } from '@/lib/i18n';
 
 export type Severity = 'blocker' | 'high' | 'medium' | 'low' | 'note';
 export interface ReviewResult {
@@ -19,6 +19,42 @@ export interface Run {
   result?: { review?: ReviewResult; text?: string; error?: string };
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd: number; durationMs: number; turns: number };
   actions: Array<{ type: string; at: string; ok: boolean; detail?: string }>;
+  promptVersion?: string; promptEdited?: boolean;
+  findingDecisions?: FindingDecision[];
+  task?: TaskState;
+}
+
+export type FindingDecision = 'accepted' | 'rejected' | null;
+
+export type TaskPhase = 'planning' | 'awaiting_approval' | 'implementing' | 'verifying' | 'ready' | 'pr_opened' | 'discarded' | 'failed';
+export interface TaskState {
+  phase: TaskPhase; issueUrl: string; issueTitle: string; repo: string; repoPath: string; worktree: string; branch: string; base: string;
+  plan?: { summary: string; steps: string[]; files: string[]; tests: string[]; risks: string[]; questions: string[] };
+  notes?: string; approvedAt?: string;
+  implementation?: { summary: string; changes: string[]; testsRun: string[]; testsPassed: boolean | null; followUps: string[] };
+  verify?: { command: string; ok: boolean; code: number | null; output: string; durationMs: number };
+  prUrl?: string; error?: string;
+}
+
+export interface QualityBucket {
+  key: string; runs: number; findings: number; judged: number; accepted: number; rejected: number;
+  precision: number | null; coverage: number | null; costUsd: number; costPerAccepted: number | null; medianDurationMs: number | null;
+}
+export interface ReviewQuality { days: number; overall: QualityBucket; bySeverity: QualityBucket[]; byVersion: QualityBucket[]; byRepo: QualityBucket[] }
+
+export const useQuality = (days: string) => useQuery({
+  queryKey: ['quality', days],
+  queryFn: () => api.get<ReviewQuality>(`/api/quality?days=${days}`),
+  refetchInterval: 60_000,
+});
+
+export function useSetFeedback(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (decisions: FindingDecision[]) => api.post<{ decisions: FindingDecision[] }>(`/api/runs/${id}/feedback`, { decisions }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['run', id] }); void qc.invalidateQueries({ queryKey: ['quality'] }); },
+    onError: (e: Error) => toast.error(t('Não foi possível salvar'), { description: e.message }),
+  });
 }
 
 export const useRuns = () => useQuery({
@@ -90,3 +126,44 @@ export function usePendingReview() {
     onError: (e: Error) => toast.error(t('Não foi possível criar a review'), { description: e.message }),
   });
 }
+
+// ---------- Tarefas de ponta a ponta ----------
+export interface TaskPreview { prompt: string; masked: number; features: string[]; repo: string; repoPath: string; branch: string; verify: string | null; title: string }
+
+export function useTaskPreview() {
+  return useMutation({ mutationFn: (url: string) => api.post<TaskPreview>('/api/task/preview', { url }) });
+}
+
+export function useStartTask(onStarted?: (id: string) => void) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (b: { url: string; prompt?: string }) => api.post<{ id: string }>('/api/task/start', b),
+    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success(t('Tarefa iniciada: o agente está planejando')); onStarted?.(r.id); },
+    onError: (e: Error) => toast.error(t('Não foi possível iniciar'), { description: e.message }),
+  });
+}
+
+function useTaskAction<B>(path: string, ok: string, fail: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: string; body?: B }) => api.post<{ ok?: boolean; url?: string }>(`/api/runs/${id}/${path}`, body ?? {}),
+    onSuccess: (_r, v) => { void qc.invalidateQueries({ queryKey: ['run', v.id] }); void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success(t(ok)); },
+    onError: (e: Error) => toast.error(t(fail), { description: e.message }),
+  });
+}
+
+export const useApproveTask = () => useTaskAction<{ notes?: string }>('approve', k('Plano aprovado: o agente está implementando'), k('Não foi possível aprovar'));
+export const useDiscardTask = () => useTaskAction<never>('discard', k('Tarefa descartada'), k('Não foi possível descartar'));
+export const useTaskPr = () => useTaskAction<never>('task-pr', k('PR em rascunho criado'), k('Não foi possível criar o PR'));
+
+export const useTaskDiff = (id: string, enabled: boolean) => useQuery({
+  queryKey: ['task-diff', id],
+  queryFn: () => api.get<{ base: string; commits: number; add: number; del: number; files: Array<{ path: string; add: number | null; del: number | null }>; untracked: string[] } | { error: string }>(`/api/runs/${id}/diff`),
+  enabled,
+});
+
+export const useTaskPatch = (id: string, file: string | null | undefined) => useQuery({
+  queryKey: ['task-patch', id, file],
+  queryFn: () => api.get<string>(`/api/runs/${id}/patch${file ? `?file=${encodeURIComponent(file)}` : ''}`),
+  enabled: file !== undefined,
+});

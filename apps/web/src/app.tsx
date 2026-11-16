@@ -36,7 +36,7 @@ const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: st
   { id: 'agents', label: k('Agentes'), icon: Bot, keys: 'G A', subtitle: k('Sessões do Claude Code e do Cursor ao vivo') },
   { id: 'deploy', label: k('PRs e deploy'), icon: Rocket, keys: 'G D', subtitle: k('Do review ao merge, por issue, sem cadastro manual') },
   { id: 'runs', label: k('Execuções'), icon: Sparkles, keys: 'G E', subtitle: k('Reviews e tarefas feitas por agentes, com log e resultado') },
-  { id: 'metrics', label: k('Métricas'), icon: BarChart3, keys: 'G M', subtitle: k('Tempo, espera e custo dos agentes') },
+  { id: 'metrics', label: k('Métricas'), icon: BarChart3, keys: 'G M', subtitle: k('Agentes, fluxo do time e qualidade da IA') },
   { id: 'settings', label: k('Configuração'), icon: Settings, keys: 'G C', subtitle: k('Integrações, limites e preferências') },
 ];
 
