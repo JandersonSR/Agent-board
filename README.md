@@ -21,12 +21,13 @@
 5. [Connecting your tools](#connecting-your-tools)
 6. [Agent sessions (hooks)](#agent-sessions-hooks)
 7. [Background agent runs](#background-agent-runs)
-8. [Configuration](#configuration)
-9. [Privacy and security](#privacy-and-security)
-10. [Language](#language)
-11. [Development](#development)
-12. [Troubleshooting](#troubleshooting)
-13. [Uninstalling](#uninstalling)
+8. [Staff view](#staff-view)
+9. [Configuration](#configuration)
+10. [Privacy and security](#privacy-and-security)
+11. [Language](#language)
+12. [Development](#development)
+13. [Troubleshooting](#troubleshooting)
+14. [Uninstalling](#uninstalling)
 
 ---
 
@@ -34,11 +35,14 @@
 
 | Screen | What you get |
 | --- | --- |
-| **Today** | Team daily (who posted, low confidence, new blockers), team blockers with how long each one has been open, your queue (bugs, tickets, tasks, mentions you haven't answered), pending reviews by size and wait time, PRs and deploys, live agents and recent agent runs |
+| **Today** | Team daily (who posted, low confidence, new blockers), team blockers with how long each one has been open, your queue (bugs, tickets, tasks, mentions you haven't answered), pending reviews by size and wait time, PRs and deploys, live agents, recent agent runs and an **Attention** block (open incidents, late actions, pending postmortems, stalled decisions, late or blocked product stages) |
 | **Agents** | One card per Claude Code or Cursor session, in columns: *Needs you*, *Ready for review*, *Working*, *Idle and ended*. Approve permission requests, see progress, context use and cost, review the diff and open a draft PR |
 | **PRs and deploys** | Delivery tracking per issue. The PRs linked to each issue are found and updated automatically, from any author and repository, with status from review queue to merge and the deploy date |
 | **Runs** | Background reviews and tasks, with live log, result and the masked prompt. Mark each review finding as kept or discarded; tasks show plan, implementation, verification and diff |
-| **Metrics** | Three tabs: **Agents** (time working and waiting on you, cost), **Team** (flow from PR status history: time to merge, wait for first review, changes requested, PR size, by week, team and person) and **AI quality** (precision of AI reviews by prompt version, severity and repository, cost per kept finding) |
+| **Product** | The initiative split into stages with owners (pairs), dependencies, target dates and risks. Progress comes from the linked issues in PRs and deploys; the critical path shows what holds the delivery |
+| **Incidents** | Incident log with severity, timeline, impact, the changes that caused it, actions with owner and deadline, and a blameless postmortem exported as Markdown |
+| **Decisions** | The team's design docs, RFCs and ADRs with status, owner and decide-by date. ADRs in your local clones are imported in one click |
+| **Metrics** | **Agents** (time working and waiting on you, cost), **Team** (flow from PR status history), **DORA** (deploy frequency, lead time, change failure rate, time to restore), **Knowledge** (bus factor per repository, who writes and who reviews) and **AI quality** (precision by prompt version plus a fixed evaluation set that measures what the AI misses) |
 | **Settings** | Status of every integration, feature RAGs, cost limits and preferences (language, theme, density, editor, desktop notifications) |
 
 Other details:
@@ -119,7 +123,7 @@ The board reads Discord through a private bot with **read-only** permissions. It
 
 ### MongoDB
 
-The board only writes to its own collections, `painel_resumos`, `painel_sessoes` and `painel_prs`, enforced by an allowlist in code. Use a database and a user just for the board (`MONGO_URI`, or `MONGO_DATABASE_*`). The board starts without MongoDB; the blocks that need it say so.
+The board only writes to its own collections, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` and `painel_avaliacoes`, enforced by an allowlist in code. Use a database and a user just for the board (`MONGO_URI`, or `MONGO_DATABASE_*`). The board starts without MongoDB; the blocks that need it say so.
 
 ### Feature RAGs and skills
 
@@ -182,6 +186,24 @@ The wand on a GitHub issue in **My queue** runs a task in three gated steps:
 
 `.github/workflows/ai-review.yml` is a reusable workflow that team repositories can call. It posts one comment per PR (updated on each push) and never approves, requests changes or pushes. The agent gets the PR and the diff in the prompt and can only read the checkout. See [docs/ci-ai-review.md](docs/ci-ai-review.md). **It sends code to the model provider, so it needs company approval** and an `ANTHROPIC_API_KEY` secret.
 
+### Measuring what the AI misses
+
+Precision only shows what the AI flagged for nothing. **Metrics → AI quality → Fixed set** measures recall: register 5 to 10 PRs (old ones are fine) with problems you already know, giving for each one the file and the words a good review would use. **Run all** reviews each case with the current prompt version, one at a time and within the cost limits. A problem counts as found when a finding is in the same file and has one of the words, or is within 10 lines. Evaluation runs never become a GitHub review. The cases live in the board's MongoDB, not in the repository.
+
+---
+
+## Staff view
+
+| Where | What it measures | Source |
+| --- | --- | --- |
+| **Metrics → DORA** | Deploy frequency, lead time (median and p90), change failure rate and time to restore, by week, plus the list of failed deliveries | Deploy dates of merged issues; fixes matched by `DORA_FAILURE_RE` (hotfix, rollback, revert…); incidents that name a change as the cause |
+| **Metrics → Knowledge** | Bus factor per repository, share of the top author and reviewer, PRs merged without review, people who review 80%+ of a repository | Authors and reviewers of merged PRs (reviewers are recorded from this version on) |
+| **Incidents** | Open incidents, late actions, % of actions done, pending postmortems (SEV1/SEV2) | Your incident log |
+| **Decisions** | Open decisions past deadline, due in 7 days, or stalled for 3+ weeks without a deadline | Manual entries and ADRs imported from `docs/adr`, `docs/decisions` and similar folders |
+| **Product** | Progress per stage, stages waiting on a dependency, late stages, open high risks, critical path | Issues tracked in PRs and deploys, linked by URL, `repo#123` or text in the title |
+
+These numbers measure the process, not people. Use them in retros and planning to find bottlenecks and risks, and to show before-and-after when you change something.
+
 ---
 
 ## Configuration
@@ -197,6 +219,7 @@ All settings live in `.env`. [`.env.example`](.env.example) lists every variable
 | Team and queue | `TEAM_TZ_OFFSET_MIN`, `HOLIDAYS`, `QUEUE_TYPE_ORDER` |
 | Agent context | `FEAT_MAPS`, `FEAT_MAP_ROUTES`, `FEAT_CONTEXT_TOKENS`, `SKILLS_KIT_PATH`, `SKILL_NAMES`, `REPOS`, `WORKTREES_DIR`, `AGENT_MODEL_*` |
 | Tasks | `TASK_TEST_COMMANDS`, `TASK_VERIFY` |
+| DORA | `DORA_FAILURE_RE` |
 | Cost limits | `MAX_CONCURRENT_SESSIONS`, `SESSION_TIMEOUT_MIN`, `MAX_DAILY_RUNS`, `POLL_INTERVAL_MIN` |
 | Privacy | `MASK_EXTRA_PATTERNS` |
 

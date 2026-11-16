@@ -167,7 +167,8 @@ export async function fetchReviewRequests(gh: GitHubClient, org: string) {
 export const PR_FRAGMENT = `fragment DeployPr on PullRequest {
   id number title url body state isDraft createdAt updatedAt mergedAt baseRefName headRefName reviewDecision
   additions deletions author { login } repository { nameWithOwner }
-  reviews(last: 30) { totalCount nodes { state submittedAt } }
+  reviews(last: 30) { totalCount nodes { state submittedAt author { login } } }
+  labels(first: 10) { nodes { name } }
   commits(last: 1) { nodes { commit { committedDate } } }
   timelineItems(itemTypes: [REVIEW_REQUESTED_EVENT], last: 1) { nodes { ... on ReviewRequestedEvent { createdAt } } }
   closingIssuesReferences(first: 5) { nodes { number title url repository { nameWithOwner } } }
@@ -181,7 +182,8 @@ export const DeployPrNode = z.object({
   reviewDecision: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']).nullable(),
   additions: z.number(), deletions: z.number(),
   author: Actor, repository: Repo,
-  reviews: z.object({ totalCount: z.number(), nodes: z.array(z.object({ state: z.string(), submittedAt: z.string().nullable() })) }),
+  reviews: z.object({ totalCount: z.number(), nodes: z.array(z.object({ state: z.string(), submittedAt: z.string().nullable(), author: Actor.optional() })) }),
+  labels: Labels.optional(),
   commits: z.object({ nodes: z.array(z.object({ commit: z.object({ committedDate: z.string() }) })) }),
   timelineItems: z.object({ nodes: z.array(z.object({ createdAt: z.string().optional() })) }),
   closingIssuesReferences: z.object({ nodes: z.array(z.object({ number: z.number(), title: z.string(), url: z.string(), repository: Repo })) }),

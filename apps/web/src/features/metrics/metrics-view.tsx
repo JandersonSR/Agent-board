@@ -16,6 +16,8 @@ import type { Metrics } from '@/lib/types';
 import { QualityView } from './quality-view';
 import { Tile } from './shared';
 import { TeamMetricsView } from './team-metrics-view';
+import { DoraView } from './dora-view';
+import { KnowledgeView } from './knowledge-view';
 
 const RANGES = ['1', '7', '30', '90'] as const;
 type Range = (typeof RANGES)[number];
@@ -84,9 +86,9 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
   );
 }
 
-type MetricsTab = 'agents' | 'team' | 'quality';
+type MetricsTab = 'agents' | 'team' | 'dora' | 'knowledge' | 'quality';
 
-/** Métricas em três visões: agentes (hooks), fluxo de entrega do time e qualidade da review por IA. */
+/** Métricas: agentes (hooks), fluxo do time, DORA, concentração de conhecimento e qualidade da review por IA. */
 export function MetricsView() {
   const [tab, setTab] = usePref<MetricsTab>('metrics.tab', 'agents');
   return (
@@ -95,11 +97,15 @@ export function MetricsView() {
         <TabsList>
           <TabsTrigger value="agents">{t('Agentes')}</TabsTrigger>
           <TabsTrigger value="team">{t('Time')}</TabsTrigger>
+          <TabsTrigger value="dora">DORA</TabsTrigger>
+          <TabsTrigger value="knowledge">{t('Conhecimento')}</TabsTrigger>
           <TabsTrigger value="quality">{t('Qualidade da IA')}</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === 'agents' && <AgentMetrics />}
       {tab === 'team' && <TeamMetricsView />}
+      {tab === 'dora' && <DoraView />}
+      {tab === 'knowledge' && <KnowledgeView />}
       {tab === 'quality' && <QualityView />}
     </div>
   );

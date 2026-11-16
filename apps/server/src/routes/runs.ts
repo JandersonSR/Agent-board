@@ -7,8 +7,27 @@ import type { AgentService } from '../agents/service.js';
 const Id = z.object({ id: z.string().refine(ObjectId.isValid, 'id inválido') });
 const PrUrl = z.string().url().regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+\/?$/, 'URL de PR do GitHub');
 
+const EvalCaseBody = z.object({
+  name: z.string().trim().min(1).max(160),
+  prUrl: PrUrl,
+  expected: z.array(z.object({
+    id: z.string().trim().min(1).max(40),
+    path: z.string().trim().max(300).optional(),
+    line: z.number().int().min(1).max(1_000_000).optional(),
+    keywords: z.array(z.string().trim().min(1).max(80)).max(10),
+    note: z.string().trim().max(500).optional(),
+  }).refine(e => !!e.path || e.keywords.length > 0, 'informe o arquivo ou ao menos uma palavra-chave')).min(1).max(30),
+}).strict();
+
 export async function runsRoutes(app: FastifyInstance, opts: { agents: AgentService }): Promise<void> {
   const { agents } = opts;
+
+  // Conjunto fixo de avaliação: PRs com problemas conhecidos para medir o que a IA deixa passar.
+  app.get('/api/evals', async () => agents.evalSummary());
+  app.post('/api/evals', async (req) => agents.saveEvalCase(undefined, EvalCaseBody.parse(req.body)));
+  app.put('/api/evals/:id', async (req) => agents.saveEvalCase(Id.parse(req.params).id, EvalCaseBody.parse(req.body)));
+  app.delete('/api/evals/:id', async (req, reply) => ((await agents.deleteEvalCase(Id.parse(req.params).id)) ? { ok: true } : reply.code(404).send({ error: 'não encontrado' })));
+  app.post('/api/evals/run', async (req) => agents.runEvals(z.object({ ids: z.array(z.string().refine(ObjectId.isValid)).max(100).optional() }).parse(req.body ?? {}).ids));
 
   app.post('/api/review/preview', async (req) => {
     const b = z.object({ url: PrUrl, title: z.string().max(300).optional() }).parse(req.body);

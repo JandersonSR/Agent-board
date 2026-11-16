@@ -65,6 +65,8 @@ export interface RunDoc {
   findingDecisions?: FindingDecision[];
   /** Campos da tarefa de ponta a ponta (kind = 'task'). */
   task?: TaskState;
+  /** Review rodada contra um caso do conjunto fixo de avaliação (painel_avaliacoes). Nunca vira review no GitHub. */
+  evalCaseId?: string;
 }
 
 export class RunsRepo {
@@ -113,9 +115,17 @@ export class RunsRepo {
   /** Reviews concluídas desde uma data, só com o que a medição de qualidade precisa. */
   async reviewsForQuality(since: Date): Promise<RunDoc[]> {
     return (await this.col.find(
-      { kind: 'review', status: 'done', startedAt: { $gte: since } },
+      { kind: 'review', status: 'done', startedAt: { $gte: since }, evalCaseId: { $exists: false } },
       { projection: { startedAt: 1, promptVersion: 1, model: 1, 'target.repo': 1, 'result.review.findings.severity': 1, findingDecisions: 1, usage: 1 } },
     ).toArray()) as RunDoc[];
+  }
+
+  /** Execuções do conjunto fixo de avaliação, só com o que o recall usa. */
+  async evalRuns(): Promise<RunDoc[]> {
+    return (await this.col.find(
+      { evalCaseId: { $exists: true } },
+      { projection: { evalCaseId: 1, promptVersion: 1, startedAt: 1, status: 1, 'result.review.findings': 1, 'usage.costUsd': 1 } },
+    ).sort({ startedAt: -1 }).limit(2000).toArray()) as RunDoc[];
   }
 
   async countSince(since: Date): Promise<number> {

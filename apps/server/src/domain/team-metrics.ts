@@ -71,7 +71,7 @@ export function prFacts(pr: MetricsPr, team: string | undefined, now: number): P
   };
 }
 
-function median(xs: number[]): number | null {
+export function median(xs: number[]): number | null {
   if (!xs.length) return null;
   const s = [...xs].sort((a, b) => a - b);
   const m = Math.floor(s.length / 2);

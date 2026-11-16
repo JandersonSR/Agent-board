@@ -28,6 +28,11 @@ export interface TrackedPr {
   additions?: number;
   deletions?: number;
   mergedAt?: Date | null;
+  /** Branch de origem e labels (identificam hotfix/rollback nas métricas DORA). */
+  head?: string;
+  labels?: string[];
+  /** Quem revisou (nome do time quando conhecido). Só existe em PRs sincronizados a partir da v0.4. */
+  reviewers?: string[];
   statusHistory?: StatusHistoryEntry[];
   statusStats?: StatusStats;
   source: 'auto' | 'manual' | 'legacy';
@@ -152,6 +157,28 @@ export class PrsRepo {
       { archived: { $ne: true }, $or: [{ status: { $ne: 'merged' } }, { mergedAt: { $gte: since } }, { 'prs.mergedAt': { $gte: since } }] },
       { projection: { team: 1, 'prs.url': 1, 'prs.owner': 1, 'prs.status': 1, 'prs.state': 1, 'prs.additions': 1, 'prs.deletions': 1, 'prs.mergedAt': 1, 'prs.statusHistory': 1 } },
     ).limit(2000).toArray() as Promise<TrackedIssue[]>;
+  }
+
+  /** Issues com data de deploy desde `sinceDay` (YYYY-MM-DD), para as métricas DORA. */
+  async listForDora(sinceDay: string): Promise<TrackedIssue[]> {
+    return this.col.find(
+      { archived: { $ne: true }, deployDate: { $gte: sinceDay } },
+      { projection: { key: 1, reference: 1, title: 1, status: 1, deployDate: 1, 'prs.url': 1, 'prs.title': 1, 'prs.labels': 1, 'prs.head': 1, 'prs.createdAt': 1 } },
+    ).limit(3000).toArray() as Promise<TrackedIssue[]>;
+  }
+
+  /** PRs mergeados desde `since` com autor e revisores, para a concentração de conhecimento. */
+  async listForKnowledge(since: Date): Promise<TrackedIssue[]> {
+    return this.col.find(
+      { 'prs.mergedAt': { $gte: since } },
+      { projection: { 'prs.url': 1, 'prs.repo': 1, 'prs.owner': 1, 'prs.state': 1, 'prs.mergedAt': 1, 'prs.reviewers': 1 } },
+    ).limit(5000).toArray() as Promise<TrackedIssue[]>;
+  }
+
+  /** Versão leve de todas as issues acompanhadas, para o progresso das etapas do produto. */
+  async listLite(): Promise<Array<Pick<TrackedIssue, 'key' | 'reference' | 'title' | 'status' | 'deployDate'>>> {
+    return this.col.find({ archived: { $ne: true } }, { projection: { _id: 0, key: 1, reference: 1, title: 1, status: 1, deployDate: 1 } })
+      .limit(5000).toArray() as Promise<Array<Pick<TrackedIssue, 'key' | 'reference' | 'title' | 'status' | 'deployDate'>>>;
   }
 
   async findOne(id: string): Promise<TrackedIssue | null> {
