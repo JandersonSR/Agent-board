@@ -57,8 +57,9 @@ const EnvSchema = z.object({
   DISCORD_MY_ROLE_IDS: optStr,
   TEAM_DISCORD_MEMBERS: optStr,
 
-  FEAT_MAP_PATH: optStr,
-  FEAT_MAP_INVENTORY: optStr,
+  FEAT_MAPS: optStr,
+  FEAT_MAP_ROUTES: optStr,
+  FEAT_CONTEXT_TOKENS: intWithDefault(6000, 500, 50_000),
   SKILLS_KIT_PATH: optStr,
   SKILL_NAMES: optStr,
   WORKTREES_DIR: optStr,
@@ -94,11 +95,15 @@ export interface Config {
     team: Array<{ id: string; name: string }>;
   };
   paths: {
-    featMap: string | undefined; featMapInventory: string | undefined;
+    /** RAGs de features (clones locais): nome -> pasta. */
+    featMaps: Array<{ name: string; path: string }>;
     skillsKit: string | undefined; worktrees: string; repos: Array<{ slug: string; path: string }>;
   };
   /** Papel -> nome da skill no kit (ex.: review=minha-skill-de-review). Nomes ficam no .env. */
   skills: Partial<Record<SkillRole, string>>;
+  /** Qual RAG vale para qual repo alvo (globs no slug do repo). Sem rota = todos os RAGs. */
+  featMapRoutes: Array<{ name: string; patterns: string[] }>;
+  featContextTokens: number;
   limits: { maxConcurrent: number; timeoutMin: number; maxDailyRuns: number; pollIntervalMin: number };
   maskExtraPatterns: string[];
   team: { tzOffsetMin: number; holidays: Set<string> };
@@ -143,8 +148,7 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       team: pairs(e.TEAM_DISCORD_MEMBERS).map(p => ({ id: p.key, name: p.value })),
     },
     paths: {
-      featMap: e.FEAT_MAP_PATH,
-      featMapInventory: e.FEAT_MAP_INVENTORY,
+      featMaps: pairs(e.FEAT_MAPS, ';', '=').map(p => ({ name: p.key, path: p.value })),
       skillsKit: e.SKILLS_KIT_PATH,
       worktrees: e.WORKTREES_DIR ?? path.join(os.homedir(), '.agent-board', 'worktrees'),
       repos: pairs(e.REPOS, ';', '=').map(p => ({ slug: p.key, path: p.value })),
@@ -156,6 +160,8 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       pollIntervalMin: e.POLL_INTERVAL_MIN,
     },
     skills,
+    featMapRoutes: pairs(e.FEAT_MAP_ROUTES, ';', '=').map(p => ({ name: p.key, patterns: list(p.value, '|') })),
+    featContextTokens: e.FEAT_CONTEXT_TOKENS,
     maskExtraPatterns: list(e.MASK_EXTRA_PATTERNS, ';;'),
     team: { tzOffsetMin: e.TEAM_TZ_OFFSET_MIN, holidays: new Set(list(e.HOLIDAYS)) },
     queueTypeOrder: e.QUEUE_TYPE_ORDER,

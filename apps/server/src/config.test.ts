@@ -44,6 +44,13 @@ describe('parseConfig', () => {
     expect(c.skills).toEqual({ review: 'kit-review', daily: 'kit-daily' });
   });
 
+  it('lê vários RAGs de features e as rotas por repo', () => {
+    const c = parseConfig({ FEAT_MAPS: 'core=/maps/a;beta=/maps/b', FEAT_MAP_ROUTES: 'beta=beta-*|legacy-*;core=*' });
+    expect(c.paths.featMaps).toEqual([{ name: 'core', path: '/maps/a' }, { name: 'beta', path: '/maps/b' }]);
+    expect(c.featMapRoutes).toEqual([{ name: 'beta', patterns: ['beta-*', 'legacy-*'] }, { name: 'core', patterns: ['*'] }]);
+    expect(c.featContextTokens).toBe(6000);
+  });
+
   it('recusa limites fora da faixa', () => {
     expect(() => parseConfig({ MAX_CONCURRENT_SESSIONS: '99' })).toThrow();
   });

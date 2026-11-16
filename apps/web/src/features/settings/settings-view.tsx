@@ -9,6 +9,7 @@ import type { Density, ThemePref } from '@/hooks/use-theme';
 import { api } from '@/lib/api';
 import type { CheckState, Health } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { FeatMapsPanel } from './featmaps-panel';
 
 export const useHealth = () => useQuery({ queryKey: ['health'], queryFn: () => api.get<Health>('/api/health'), refetchInterval: 60_000 });
 
@@ -50,6 +51,7 @@ export function SettingsView(p: PrefsProps) {
 
   return (
     <div className="grid gap-4 xl:grid-cols-[1.4fr_1fr]">
+      <div className="space-y-4">
       <section className="rounded-xl border bg-card shadow-xs">
         <header className="flex items-center gap-2 border-b px-4 py-3">
           <h2 className="text-sm font-semibold">Integrações</h2>
@@ -76,6 +78,8 @@ export function SettingsView(p: PrefsProps) {
           })}
         </ul>
       </section>
+      <FeatMapsPanel />
+      </div>
 
       <div className="space-y-4">
         <section className="rounded-xl border bg-card px-4 shadow-xs">
