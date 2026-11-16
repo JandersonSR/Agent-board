@@ -12,6 +12,12 @@ describe('prioridade da fila', () => {
     expect(typeRank(rules, 'Task')).toBe(3);
   });
 
+  it('erros de produção e problemas contam como Bug; "Ajustes Cliente" como Ajuste', () => {
+    expect(typeRank(rules, 'Production Error')).toBe(1);
+    expect(typeRank(rules, 'Problem')).toBe(1);
+    expect(typeRank(rules, 'Ajustes Cliente')).toBe(2);
+  });
+
   it('tipo desconhecido vai para o fim; usa labels/canal como pista', () => {
     expect(typeRank(rules, 'Feature')).toBe(4);
     expect(typeRank(rules, undefined, 'suporte')).toBe(0);
