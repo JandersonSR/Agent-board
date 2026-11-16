@@ -6,6 +6,21 @@ Instead of switching into every terminal to check on your agents, each agent rep
 
 ![Agent Board with four sample sessions](docs/preview.jpg)
 
+> **v3 (in progress, branch `feat/painel-v3`)** — a Tech Lead cockpit: team daily, my queue, blockers, pending reviews,
+> PR/deploy tracking and one-click resolution sessions, on top of everything below.
+> TypeScript monorepo (`apps/server` Fastify + Zod, `apps/web` React + Tailwind + shadcn/ui). Requires Node 20.12+.
+>
+> ```bash
+> npm install
+> cp .env.example .env   # fill in only what you use; empty = integration off
+> npm run dev            # API on 127.0.0.1:$AGENT_BOARD_PORT + web on 127.0.0.1:5173
+> npm test               # hooks (node --test) + server + web (Vitest)
+> npm run build && npm start   # single server on 127.0.0.1 serving the built UI
+> ```
+>
+> Hooks are unchanged (`npm run install-hooks`). The v2 server is still available as `npm run start:legacy`.
+> Design decisions live in [`docs/adr/`](docs/adr/).
+
 - **Approve or deny permission requests from the board**, without switching terminals
 - Per-card progress (the agent's todo list), tokens, estimated cost and **context window usage**
 - Review on the card: diff vs. the base branch, file-by-file patches, open in Cursor/VS Code, PR + CI status, one-click draft PR
