@@ -12,6 +12,9 @@ import { SyncService } from './sync/service.js';
 import { healthRoutes } from './routes/health.js';
 import { featMapRoutes } from './routes/featmaps.js';
 import { FeatMapRegistry } from './featmap/registry.js';
+import { AgentService } from './agents/service.js';
+import { runsRoutes } from './routes/runs.js';
+import { GitHubClient } from './sources/github.js';
 import { PainelStore } from './store/mongo.js';
 
 export interface AppDeps { config: Config; store?: PainelStore; serveWeb?: boolean; startSync?: boolean }
@@ -60,6 +63,11 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
 
   const sync = new SyncService(config, store, mask, app.log);
   await app.register(boardRoutes, { sync, store });
+
+  const gh = config.github.org ? new GitHubClient({ token: config.github.token, login: config.github.login }) : undefined;
+  const agents = new AgentService(config, store, gh, featMaps, mask, app.log);
+  await app.register(runsRoutes, { agents });
+  if (startSync) app.addHook('onReady', async () => { await agents.init().catch(() => undefined); });
   if (startSync) {
     app.addHook('onReady', async () => sync.start());
     app.addHook('onClose', async () => sync.stop());
