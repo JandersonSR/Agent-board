@@ -14,6 +14,7 @@ import { ago, dur, fmtDay, plural } from '@/lib/format';
 import { k, locale, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { ReviewActions } from '../runs/review-actions';
+import { TaskActions } from '../runs/task-actions';
 
 type GoTo = (view: 'settings' | 'deploy' | 'runs', runId?: string) => void;
 
@@ -82,17 +83,18 @@ export function QueueBlock({ goTo, className }: { goTo: GoTo; className?: string
       {items.length === 0 ? (
         <EmptyState icon={CheckCircle2} title={t('Nada aqui')} description={t(filter === 'top' ? 'Nenhum Ticket, Bug, Ajuste ou Tarefa aberto para você.' : 'Nenhum item neste filtro.')} />
       ) : (
-        <ul className="divide-y">{items.map(i => <QueueRow key={i.key} item={i} />)}</ul>
+        <ul className="divide-y">{items.map(i => <QueueRow key={i.key} item={i} onStarted={id => goTo('runs', id)} />)}</ul>
       )}
       <SourceFooter source={github} />
     </BlockCard>
   );
 }
 
-function QueueRow({ item: i }: { item: QueueItem }) {
+function QueueRow({ item: i, onStarted }: { item: QueueItem; onStarted: (id: string) => void }) {
   const created = Date.parse(i.createdAt);
+  const canTask = i.source === 'github' && i.kind === 'issue';
   return (
-    <Row href={i.url}>
+    <Row href={i.url} trailing={canTask ? <TaskActions url={i.url} title={i.title} onStarted={onStarted} /> : undefined}>
       <Pill tone={rankTone(i.rank)} className="w-24 justify-center truncate" title={i.type}>{i.type}</Pill>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px]">{i.title}</p>

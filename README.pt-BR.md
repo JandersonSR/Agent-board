@@ -1,5 +1,7 @@
 # Agent Board
 
+[![CI](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml)
+
 [English](README.md) · **Português**
 
 **Um painel local para Tech Leads.** Numa só tela: a daily do time, a sua fila, os reviews pendentes, o acompanhamento de PRs e deploys e os agentes do Claude Code e do Cursor que você roda em paralelo. Tudo roda só na sua máquina.
@@ -35,8 +37,8 @@
 | **Hoje** | Daily do time (quem postou, confiança baixa, bloqueios novos), bloqueios do time com o tempo de cada um, sua fila (bugs, tickets, tarefas, menções sem resposta sua), reviews pendentes por tamanho e tempo de espera, PRs e deploy, agentes ao vivo e as últimas execuções |
 | **Agentes** | Um card por sessão do Claude Code ou do Cursor, em colunas: *Precisa de você*, *Pronto para revisar*, *Trabalhando*, *Ociosas e encerradas*. Aprove pedidos de permissão, veja progresso, uso de contexto e custo, revise o diff e abra um PR em rascunho |
 | **PRs e deploy** | Acompanhamento por issue. Os PRs ligados a cada issue são encontrados e atualizados sozinhos, de qualquer autor e repositório, com o status da fila de review até o merge e a data de deploy |
-| **Execuções** | Reviews feitas pelo Claude em segundo plano, com log ao vivo, resultado (veredito, riscos, achados por arquivo e linha) e o prompt mascarado |
-| **Métricas** | Tempo dos agentes trabalhando e esperando você, resposta mediana a pedidos, custo estimado, por dia e por tarefa |
+| **Execuções** | Reviews e tarefas em segundo plano, com log ao vivo, resultado e o prompt mascarado. Cada achado de review pode ser mantido ou descartado; tarefas mostram plano, implementação, verificação e diff |
+| **Métricas** | Três abas: **Agentes** (tempo trabalhando e esperando você, custo), **Time** (fluxo a partir do histórico de status dos PRs: tempo até o merge, espera pelo 1º review, mudanças pedidas, tamanho do PR, por semana, time e pessoa) e **Qualidade da IA** (precisão das reviews por IA por versão do prompt, severidade e repositório, custo por achado mantido) |
 | **Configuração** | Estado de cada integração, RAGs de features, limites de custo e preferências (idioma, tema, densidade, editor, notificações no desktop) |
 
 Outros detalhes:
@@ -162,6 +164,24 @@ O botão ✨ num review pendente pede ao Claude que revise o PR em segundo plano
 
 Limites: `MAX_CONCURRENT_SESSIONS`, `SESSION_TIMEOUT_MIN` e `MAX_DAILY_RUNS`. A `ANTHROPIC_API_KEY` é removida do ambiente da execução, para nunca cobrar a API por engano.
 
+### Medindo a qualidade da review por IA
+
+Cada achado de uma review tem os botões **Manter** e **Descartar**. Os descartados não vão para o GitHub. O seu julgamento alimenta **Métricas → Qualidade da IA**: precisão (mantidos ÷ julgados) por versão do prompt, severidade e repositório, cobertura do julgamento e custo por achado mantido. A versão do prompt é um hash da skill de review: mudou a skill, aparece uma versão nova, e dá para comparar. Enquanto menos da metade dos achados estiver julgada, a tela avisa que a precisão ainda não é confiável.
+
+### Tarefas da issue ao PR em rascunho
+
+A varinha numa issue do GitHub em **Minha fila** roda uma tarefa em três etapas com portão:
+
+1. **Plano (só leitura).** Você vê e pode editar o prompt mascarado. O agente lê o código e devolve um plano: passos, arquivos, testes, riscos e dúvidas.
+2. **Aprovação.** Você responde as dúvidas nas observações e clica em **Aprovar plano e implementar**. O agente trabalha numa worktree isolada, na branch `agent/<número>-<slug>`. Ele só roda os comandos de teste permitidos e git local (`status`, `diff`, `add`, `commit`). Push, `gh`, rede e comandos destrutivos ficam bloqueados.
+3. **Verificação independente.** O próprio painel roda o `TASK_VERIFY` do repositório, para o resultado não depender do que o agente diz. Você vê o diff por arquivo e o patch completo.
+
+**Criar PR rascunho** faz push da branch e abre um PR em rascunho que fecha a issue, sempre com confirmação. **Descartar** para o agente e apaga a worktree e a branch local; o histórico fica em Execuções.
+
+### Pré-review por IA no CI do time (opt-in)
+
+`.github/workflows/ai-review.yml` é um workflow reutilizável que os repositórios do time podem chamar. Ele posta um comentário por PR (atualizado a cada push) e nunca aprova, pede mudanças ou faz push. O agente recebe o PR e o diff no prompt e só consegue ler o checkout. Veja [docs/ci-ai-review.md](docs/ci-ai-review.md). **Ele envia código ao provedor do modelo, então precisa de aprovação da empresa** e de um secret `ANTHROPIC_API_KEY`.
+
 ---
 
 ## Configuração
@@ -176,6 +196,7 @@ Toda a configuração fica no `.env`. O [`.env.example`](.env.example) lista cad
 | Discord | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS` |
 | Time e fila | `TEAM_TZ_OFFSET_MIN`, `HOLIDAYS`, `QUEUE_TYPE_ORDER` |
 | Contexto dos agentes | `FEAT_MAPS`, `FEAT_MAP_ROUTES`, `FEAT_CONTEXT_TOKENS`, `SKILLS_KIT_PATH`, `SKILL_NAMES`, `REPOS`, `WORKTREES_DIR`, `AGENT_MODEL_*` |
+| Tarefas | `TASK_TEST_COMMANDS`, `TASK_VERIFY` |
 | Limites de custo | `MAX_CONCURRENT_SESSIONS`, `SESSION_TIMEOUT_MIN`, `MAX_DAILY_RUNS`, `POLL_INTERVAL_MIN` |
 | Privacidade | `MASK_EXTRA_PATTERNS` |
 
@@ -223,6 +244,8 @@ agent-board/
 ├── demo.js            # Sessões de exemplo
 ├── lib/               # Bibliotecas do hook: estado da sessão, uso do transcript, preços
 ├── docs/adr/          # Registros de decisões de arquitetura
+├── ci/                # Script da pré-review por IA do workflow reutilizável
+├── .github/workflows/ # CI e a review por IA reutilizável
 └── .env.example
 ```
 
