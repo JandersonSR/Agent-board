@@ -11,7 +11,7 @@ import { deriveReview, sortReviews, type ReviewDerived } from '../domain/reviews
 import type { MaskResult } from '../privacy/mask.js';
 import { DiscordClient, type DiscordMessage } from '../sources/discord.js';
 import {
-  boardIssueOf, fetchIssueLinks, fetchMyItems, fetchProjectIssues, fetchReviewRequests, fetchTeamPrs, GitHubClient,
+  boardIssueOf, fetchIssueLinks, fetchMyItems, fetchOpenDeployPrs, fetchProjectIssues, fetchReviewRequests, fetchTeamPrs, GitHubClient,
   MissingProjectScope, parseIssueRef, reviewTimes, type DeployPrNodeT,
 } from '../sources/github.js';
 import { deployDateFrom } from '../domain/deploy-date.js';
@@ -246,6 +246,22 @@ export class SyncService {
         if (!(e instanceof MissingProjectScope)) throw e;
         this.projectScope = false;
       }
+    }
+
+    // 1b) Descobre entregas pelos PRs abertos para as branches de deploy (não depende do Project nem
+    //     da lista do time): a issue citada pelo PR entra no acompanhamento com todos os PRs dela.
+    if (this.cfg.deploy.baseBranches.length) {
+      const groups = new Map<string, SyncedGroup>();
+      const since = new Date(today - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
+      for (const pr of await fetchOpenDeployPrs(gh, org, this.cfg.deploy.baseBranches, since)) {
+        const issue = boardIssueOf(pr, org, this.cfg.github.boardRepo);
+        const synced = this.toSyncedPr(pr, names);
+        const key = issue?.url ?? pr.url;
+        const g = groups.get(key) ?? { key, title: this.m(issue?.title ?? pr.title), reference: issue?.url, owner: synced.owner, prs: [] };
+        g.prs.push(synced);
+        groups.set(key, g);
+      }
+      for (const g of groups.values()) await this.prs.upsertGroup(g);
     }
 
     // 2) PRs recentes do time (quando a lista do time existe), agrupados pela issue.

@@ -65,6 +65,9 @@ const EnvSchema = z.object({
   SKILL_NAMES: optStr,
   WORKTREES_DIR: optStr,
   REPOS: optStr,
+  REPOS_ROOT: optStr,
+  AGENT_MODEL_REVIEW: optStr,
+  AGENT_MODEL_TASK: optStr,
 
   MAX_CONCURRENT_SESSIONS: intWithDefault(2, 1, 10),
   SESSION_TIMEOUT_MIN: intWithDefault(20, 1, 180),
@@ -80,6 +83,7 @@ const EnvSchema = z.object({
   GITHUB_PROJECTS: optStr,
   DEPLOY_DATE_FIELD: optStr,
   DEPLOY_LOOKBACK_DAYS: intWithDefault(7, 0, 90),
+  DEPLOY_BASE_BRANCHES: optStr,
 });
 
 export const SKILL_ROLES = ['review', 'reviewInbox', 'daily', 'dailyDigest'] as const;
@@ -102,18 +106,23 @@ export interface Config {
     /** RAGs de features (clones locais): nome -> pasta. */
     featMaps: Array<{ name: string; path: string }>;
     skillsKit: string | undefined; worktrees: string; repos: Array<{ slug: string; path: string }>;
+    /** Pasta onde ficam os clones (repo "x" = <reposRoot>/x quando não está em REPOS). */
+    reposRoot: string;
+    /** Pasta das execuções em segundo plano (cwd isolado dos agentes de review). */
+    runs: string;
   };
   /** Papel -> nome da skill no kit (ex.: review=minha-skill-de-review). Nomes ficam no .env. */
   skills: Partial<Record<SkillRole, string>>;
   /** Qual RAG vale para qual repo alvo (globs no slug do repo). Sem rota = todos os RAGs. */
   featMapRoutes: Array<{ name: string; patterns: string[] }>;
   featContextTokens: number;
+  agentModels: { review: string; task: string };
   limits: { maxConcurrent: number; timeoutMin: number; maxDailyRuns: number; pollIntervalMin: number };
   maskExtraPatterns: string[];
   team: { tzOffsetMin: number; holidays: Set<string> };
   queueTypeOrder: string | undefined;
   prsLookbackDays: number;
-  deploy: { projects: number[]; dateField: RegExp; lookbackDays: number };
+  deploy: { projects: number[]; dateField: RegExp; lookbackDays: number; baseBranches: string[] };
 }
 
 /** Monta a connection string no formato mongodb+srv (MONGO_URI tem prioridade). */
@@ -157,6 +166,8 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       skillsKit: e.SKILLS_KIT_PATH,
       worktrees: e.WORKTREES_DIR ?? path.join(os.homedir(), '.agent-board', 'worktrees'),
       repos: pairs(e.REPOS, ';', '=').map(p => ({ slug: p.key, path: p.value })),
+      reposRoot: e.REPOS_ROOT ?? path.dirname(REPO_ROOT),
+      runs: path.join(os.homedir(), '.agent-board', 'runs'),
     },
     limits: {
       maxConcurrent: e.MAX_CONCURRENT_SESSIONS,
@@ -167,6 +178,7 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
     skills,
     featMapRoutes: pairs(e.FEAT_MAP_ROUTES, ';', '=').map(p => ({ name: p.key, patterns: list(p.value, '|') })),
     featContextTokens: e.FEAT_CONTEXT_TOKENS,
+    agentModels: { review: e.AGENT_MODEL_REVIEW ?? 'sonnet', task: e.AGENT_MODEL_TASK ?? 'sonnet' },
     maskExtraPatterns: list(e.MASK_EXTRA_PATTERNS, ';;'),
     team: { tzOffsetMin: e.TEAM_TZ_OFFSET_MIN, holidays: new Set(list(e.HOLIDAYS)) },
     queueTypeOrder: e.QUEUE_TYPE_ORDER,
@@ -175,6 +187,7 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       projects: list(e.GITHUB_PROJECTS).map(Number).filter(n => Number.isInteger(n) && n > 0),
       dateField: safeRegex(e.DEPLOY_DATE_FIELD ?? 'deploy'),
       lookbackDays: e.DEPLOY_LOOKBACK_DAYS,
+      baseBranches: list(e.DEPLOY_BASE_BRANCHES),
     },
   };
 }

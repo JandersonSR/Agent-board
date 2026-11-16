@@ -23,6 +23,26 @@ export class GitHubClient {
     return t;
   }
 
+  /** REST (para o que o GraphQL não cobre, ex.: criar review PENDING). Resposta validada com Zod. */
+  async rest<T>(method: 'GET' | 'POST', pathname: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
+    const res = await fetch(`https://api.github.com${pathname}`, {
+      method,
+      headers: {
+        Authorization: `bearer ${await this.getToken()}`, Accept: 'application/vnd.github+json',
+        'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'agent-board-local',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      signal: AbortSignal.timeout(30_000),
+    });
+    const data = (await res.json().catch(() => ({}))) as { message?: string; errors?: Array<{ message?: string } | string> };
+    if (!res.ok) {
+      const detail = data.errors?.map(e => (typeof e === 'string' ? e : e.message)).filter(Boolean).join('; ');
+      throw Object.assign(new Error(`GitHub ${res.status}: ${data.message ?? 'erro'}${detail ? ` (${detail})` : ''}`), { statusCode: res.status === 422 ? 409 : 502 });
+    }
+    return schema.parse(data);
+  }
+
   async graphql<T>(query: string, variables: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
     const res = await fetch(GQL_URL, {
       method: 'POST',
@@ -181,21 +201,35 @@ export function reviewTimes(pr: DeployPrNodeT) {
 
 const PageSchema = z.object({ search: z.object({ pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }), nodes: z.array(z.unknown()) }) });
 
-export async function fetchTeamPrs(gh: GitHubClient, org: string, logins: string[], sinceDay: string) {
-  if (!logins.length) return [];
-  const who = logins.map(l => `author:${l}`).join(' ');
+/** Busca PRs (com os campos de deploy) por uma consulta de search do GitHub. */
+async function searchDeployPrs(gh: GitHubClient, q: string, maxPages = 4): Promise<DeployPrNodeT[]> {
   const query = `${PR_FRAGMENT}
 query($q: String!, $after: String) { search(query: $q, type: ISSUE, first: 50, after: $after) {
   pageInfo { hasNextPage endCursor } nodes { __typename ...DeployPr } } }`;
   const out: DeployPrNodeT[] = [];
   let after: string | null = null;
-  for (let page = 0; page < 4; page++) {
-    const d: z.infer<typeof PageSchema> = await gh.graphql(query, { q: `org:${org} is:pr archived:false updated:>=${sinceDay} ${who}`, after }, PageSchema);
+  for (let page = 0; page < maxPages; page++) {
+    const d: z.infer<typeof PageSchema> = await gh.graphql(query, { q, after }, PageSchema);
     for (const n of d.search.nodes) { const p = DeployPrNode.safeParse(n); if (p.success) out.push(p.data); }
     if (!d.search.pageInfo.hasNextPage) break;
     after = d.search.pageInfo.endCursor;
   }
   return out;
+}
+
+export async function fetchTeamPrs(gh: GitHubClient, org: string, logins: string[], sinceDay: string) {
+  if (!logins.length) return [];
+  const who = logins.map(l => `author:${l}`).join(' ');
+  return searchDeployPrs(gh, `org:${org} is:pr archived:false updated:>=${sinceDay} ${who}`);
+}
+
+/** PRs abertos e atualizados recentemente para as branches de deploy: é assim que uma entrega vira "deploy". */
+export async function fetchOpenDeployPrs(gh: GitHubClient, org: string, bases: string[], sinceDay: string): Promise<DeployPrNodeT[]> {
+  const out = new Map<string, DeployPrNodeT>();
+  for (const base of bases) {
+    for (const pr of await searchDeployPrs(gh, `org:${org} is:pr is:open archived:false base:${base} updated:>=${sinceDay}`, 2)) out.set(pr.url, pr);
+  }
+  return [...out.values()];
 }
 
 // ---------- Issues: PRs ligados e campos do Project ----------
@@ -251,28 +285,38 @@ export function parseIssueRef(ref: string): { owner: string; repo: string; numbe
 
 /**
  * Para cada issue: PRs que a fecham, PRs ligados (connected) e PRs que a citam (cross-reference),
- * de qualquer autor/repo da org. Em lotes de 10 por consulta. Com withProject, traz os campos do Project.
+ * de qualquer autor/repo da org. Em lotes de 5 por consulta; se o GitHub recusar o lote (502/timeout
+ * em consultas pesadas), o lote é dividido ao meio até uma issue por vez. Com withProject, traz os
+ * campos do Project.
  */
 export async function fetchIssueLinks(gh: GitHubClient, refs: string[], withProject: boolean): Promise<IssueLinks[]> {
-  const parsed = refs.flatMap(r => { const p = parseIssueRef(r); return p ? [p] : []; });
+  // Índice global no alias: lotes divididos não colidem ao juntar os resultados.
+  const parsed = refs.flatMap(r => { const p = parseIssueRef(r); return p ? [p] : []; }).map((p, idx) => ({ ...p, idx }));
   const out: IssueLinks[] = [];
-  for (let i = 0; i < parsed.length; i += 10) {
-    const batch = parsed.slice(i, i + 10);
-    const body = batch.map((p, j) => `i${j}: repository(owner: ${JSON.stringify(p.owner)}, name: ${JSON.stringify(p.repo)}) { issue(number: ${p.number}) {
+
+  const runBatch = async (batch: typeof parsed): Promise<Record<string, { issue?: unknown } | null>> => {
+    const body = batch.map(p => `i${p.idx}: repository(owner: ${JSON.stringify(p.owner)}, name: ${JSON.stringify(p.repo)}) { issue(number: ${p.number}) {
       number title url state
       closedByPullRequestsReferences(first: 20, includeClosedPrs: true) { nodes { ...DeployPr } }
-      timelineItems(itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT], first: 100) { nodes { __typename
+      timelineItems(itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT], first: 60) { nodes { __typename
         ... on CrossReferencedEvent { source { __typename ...DeployPr } }
         ... on ConnectedEvent { subject { __typename ...DeployPr } } } }
       ${withProject ? PROJECT_FIELDS : ''}
     } }`).join('\n');
-    let data: Record<string, { issue?: unknown } | null>;
     try {
-      data = await gh.graphql(`${PR_FRAGMENT}\nquery {\n${body}\n}`, {}, z.record(z.string(), z.object({ issue: z.unknown() }).nullable()));
+      return await gh.graphql(`${PR_FRAGMENT}\nquery {\n${body}\n}`, {}, z.record(z.string(), z.object({ issue: z.unknown() }).nullable()));
     } catch (e) {
       if (withProject && isScopeError(e)) throw new MissingProjectScope('token sem escopo read:project');
+      if (batch.length > 1) {
+        const mid = Math.ceil(batch.length / 2);
+        return { ...(await runBatch(batch.slice(0, mid))), ...(await runBatch(batch.slice(mid))) };
+      }
       throw e;
     }
+  };
+
+  for (let i = 0; i < parsed.length; i += 5) {
+    const data = await runBatch(parsed.slice(i, i + 5));
     for (const v of Object.values(data)) {
       const issue = IssueWithLinks.safeParse(v?.issue);
       if (!issue.success) continue;
