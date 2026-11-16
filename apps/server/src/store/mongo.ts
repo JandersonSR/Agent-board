@@ -8,7 +8,7 @@ import { SqliteDatabase } from './sqlite-store.js';
 
 export const OWN_COLLECTIONS = [
   'painel_resumos', 'painel_sessoes', 'painel_prs',
-  'painel_incidentes', 'painel_decisoes', 'painel_iniciativas', 'painel_avaliacoes',
+  'painel_incidentes', 'painel_decisoes', 'painel_iniciativas', 'painel_avaliacoes', 'painel_eventos',
 ] as const;
 export type OwnCollection = (typeof OWN_COLLECTIONS)[number];
 
@@ -107,6 +107,7 @@ export class PainelStore {
       ]),
       this.collection('painel_iniciativas').createIndexes([{ key: { status: 1 }, name: 'status' }]),
       this.collection('painel_avaliacoes').createIndexes([{ key: { prUrl: 1 }, name: 'pr_url' }]),
+      this.collection('painel_eventos').createIndexes([{ key: { key: 1 }, name: 'key', unique: true }, { key: { kind: 1, at: -1 }, name: 'kind_at' }, { key: { fingerprint: 1 }, name: 'fingerprint' }]),
     ]);
   }
 

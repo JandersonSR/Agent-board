@@ -59,13 +59,14 @@ Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que voc
 6. [Sessões de agentes (hooks)](#sessões-de-agentes-hooks)
 7. [Execuções em segundo plano](#execuções-em-segundo-plano)
 8. [Visão de Staff](#visão-de-staff)
-9. [Configuração](#configuração)
-10. [Privacidade e segurança](#privacidade-e-segurança)
-11. [Idioma](#idioma)
-12. [Desenvolvimento](#desenvolvimento)
-13. [Problemas comuns](#problemas-comuns)
-14. [Desinstalação](#desinstalação)
-15. [Como contribuir e roadmap](#como-contribuir-e-roadmap)
+9. [Infra em tempo real](#infra-em-tempo-real)
+10. [Configuração](#configuração)
+11. [Privacidade e segurança](#privacidade-e-segurança)
+12. [Idioma](#idioma)
+13. [Desenvolvimento](#desenvolvimento)
+14. [Problemas comuns](#problemas-comuns)
+15. [Desinstalação](#desinstalação)
+16. [Como contribuir e roadmap](#como-contribuir-e-roadmap)
 
 ---
 
@@ -78,6 +79,7 @@ Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que voc
 | **PRs e deploy** | Acompanhamento por issue. Os PRs ligados a cada issue são encontrados e atualizados sozinhos, de qualquer autor e repositório, com o status da fila de review até o merge e a data de deploy |
 | **Execuções** | Reviews e tarefas em segundo plano, com log ao vivo, resultado e o prompt mascarado. Cada achado de review pode ser mantido ou descartado; tarefas mostram plano, implementação, verificação e diff |
 | **Produto** | A iniciativa dividida em etapas com donos (duplas), dependências, datas alvo e riscos. O progresso vem das issues ligadas em PRs e deploy; o caminho crítico mostra o que segura a entrega |
+| **Infra** | Servidores e apps do DigitalOcean, Heroku, Azure e Grafana em tempo real: estado, CPU e memória, alertas disparados com o deploy que pode ter causado, e linha do tempo. Tokens só de leitura |
 | **Incidentes** | Registro com severidade, linha do tempo, impacto, as mudanças que causaram, ações com dono e prazo, e postmortem sem culpados exportado em Markdown |
 | **Decisões** | Design docs, RFCs e ADRs do time com status, dono e prazo para decidir. Os ADRs dos clones locais são importados com um clique |
 | **Métricas** | **Agentes** (tempo trabalhando e esperando você, custo), **Time** (fluxo a partir do histórico de status dos PRs), **DORA** (frequência de deploy, tempo de entrega, taxa de falha de mudança, tempo de recuperação), **Conhecimento** (fator de ônibus por repositório, quem escreve e quem revisa) e **Qualidade da IA** (precisão por versão do prompt e um conjunto fixo que mede o que a IA deixa passar) |
@@ -255,6 +257,29 @@ A precisão só mostra o que a IA apontou à toa. **Métricas → Qualidade da I
 
 Esses números medem o processo, não as pessoas. Use na retro e no planejamento para achar gargalos e riscos, e para mostrar o antes e depois quando mudar alguma coisa.
 
+---
+
+## Infra em tempo real
+
+A tela **Infra** (`G S`) mostra seus servidores e apps, os alertas disparados e os deploys, atualizados a cada minuto. Ela só **lê**: todos os tokens abaixo podem ser só de leitura, e nada na sua infraestrutura é alterado.
+
+| Provedor | O que lê | Acesso só de leitura |
+| --- | --- | --- |
+| **DigitalOcean** | Droplets (estado, CPU e memória pela API de monitoramento), apps do App Platform e seus deployments | Token pessoal com escopo **read** (`DIGITALOCEAN_TOKEN`). `DIGITALOCEAN_TAG` limita aos droplets com uma tag |
+| **Heroku** | Apps, estado dos dynos (no ar, travado, subindo) e releases | `HEROKU_API_KEY` de uma conta com acesso de visualização; liste os apps em `HEROKU_APPS` |
+| **Azure** | Resource Health (disponível, degradado, indisponível) e alertas disparados do Azure Monitor da assinatura | Service principal com o papel **Monitoring Reader**: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SUBSCRIPTION_ID` |
+| **Grafana** | Alertas disparados do Grafana Alerting (vale também para alertas sobre dados do Prometheus, Loki ou Datadog) | Token de service account com papel **Viewer**: `GRAFANA_URL`, `GRAFANA_TOKEN` |
+
+**O que ele faz com isso:**
+
+- **Alertas por limite:** CPU acima de `INFRA_CPU_CRIT` (90%) ou memória acima de `INFRA_MEM_CRIT` (90%) por `INFRA_SUSTAIN_MIN` (5) minutos vira alerta crítico; acima de `INFRA_CPU_WARN` (80%), aviso. Recurso fora do ar também é alerta crítico. Os alertas dos provedores (Azure Monitor, Grafana) entram como vierem.
+- **Possível causa:** um deploy bem-sucedido do mesmo app até 60 minutos antes do alerta aparece ao lado dele.
+- **Incidente a partir do alerta:** alerta crítico num recurso de produção (nome que casa com `INFRA_PROD_RE`, padrão `prod|production|prd`) abre um incidente SEV2 com o alerta e o deploy suspeito na linha do tempo, no máximo 5 por hora (`INFRA_AUTO_INCIDENT=off` desliga). Quando o alerta some, o incidente fica **mitigado**; resolver e escrever o postmortem continua com você. Qualquer outro alerta vira incidente com um clique.
+- **DORA real:** deploys de produção bem-sucedidos do Heroku e do DigitalOcean substituem as datas das issues na frequência de deploy, e o tempo de recuperação conta até a mitigação.
+- **Bloco Atenção** em Hoje: alertas críticos, avisos e recursos fora do ar.
+- **Linha do tempo** de mudanças de estado, alertas e deploys de 24 horas, 7 ou 30 dias (guardada em `painel_eventos`).
+
+Se um provedor não responder, o último estado conhecido é mantido e o erro aparece no chip dele; uma leitura que falhou nunca resolve alertas. Os textos gerados seguem `INFRA_LANG` (`pt-BR` ou `en`).
 
 ---
 

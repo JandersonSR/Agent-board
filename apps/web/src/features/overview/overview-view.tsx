@@ -1,5 +1,5 @@
 // Tela "Hoje": tudo que o Tech Lead precisa ver num só lugar.
-import { Bot, Flag, Landmark, ListChecks, PlayCircle, ShieldAlert, Siren } from 'lucide-react';
+import { Bot, Flag, Landmark, ListChecks, PlayCircle, Server, ShieldAlert, Siren } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BlockCard, Dot, Pill } from '@/components/common';
 import { useAgentSessionsContext } from '@/hooks/use-agent-sessions';
@@ -37,7 +37,7 @@ function RunsBlock({ goTo }: { goTo: (v: OverviewTarget, id?: string) => void })
   );
 }
 
-export type OverviewTarget = 'agents' | 'settings' | 'deploy' | 'runs' | 'product' | 'incidents' | 'decisions';
+export type OverviewTarget = 'agents' | 'settings' | 'deploy' | 'runs' | 'product' | 'infra' | 'incidents' | 'decisions';
 
 function AgentsBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
   const { sessions } = useAgentSessionsContext();
@@ -81,6 +81,9 @@ function StaffBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
   if (!d?.configured) return null;
   const inc = d.incidents!; const dec = d.decisions!;
   const rows: Array<{ icon: typeof Siren; text: string; tone: 'danger' | 'warning'; to: OverviewTarget }> = [];
+  if (d.infra?.critical) rows.push({ icon: Server, text: t('{n} alerta(s) crítico(s) na infra', { n: d.infra.critical }), tone: 'danger', to: 'infra' });
+  if (d.infra?.down) rows.push({ icon: Server, text: t('{n} recurso(s) fora do ar', { n: d.infra.down }), tone: 'danger', to: 'infra' });
+  if (d.infra?.warning) rows.push({ icon: Server, text: t('{n} aviso(s) na infra', { n: d.infra.warning }), tone: 'warning', to: 'infra' });
   if (inc.open) rows.push({ icon: Siren, text: t('{n} incidente(s) aberto(s)', { n: inc.open }), tone: 'danger', to: 'incidents' });
   if (inc.overdueActions.length) rows.push({ icon: Siren, text: t('{n} ação(ões) de incidente atrasada(s)', { n: inc.overdueActions.length }), tone: 'warning', to: 'incidents' });
   if (inc.postmortemPending.length) rows.push({ icon: Siren, text: t('{n} postmortem(s) pendente(s)', { n: inc.postmortemPending.length }), tone: 'warning', to: 'incidents' });

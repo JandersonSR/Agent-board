@@ -9,6 +9,7 @@ What comes next, roughly in order. Open an issue to discuss any item or suggest 
 - **`LEAD_DECK_*` environment variables**, with the `AGENT_BOARD_*` names still accepted.
 
 ## Later
+- **Inbound events:** an optional listener (separate port, signed requests) for Slack, email and webhooks from Datadog, Grafana or your own servers.
 - **SLOs and error budgets** from a metrics source (Prometheus, Grafana or Datadog), linked to incidents.
 - **Dependency health** across repositories (vulnerabilities and outdated packages).
 - **Prebuilt package** (`npx lead-deck`) and a Docker image.
@@ -24,6 +25,6 @@ What comes next, roughly in order. Open an issue to discuss any item or suggest 
 
 **Próximo (v0.5):** relatório semanal gerado pelo painel; partes específicas do time como adaptadores (Slack, Jira, Linear); código em inglês com a interface nos dois idiomas; variáveis `LEAD_DECK_*` aceitando as antigas.
 
-**Depois:** SLOs e orçamento de erro a partir de Prometheus, Grafana ou Datadog; saúde das dependências; pacote pronto (`npx lead-deck`) e imagem Docker; modo time (visão compartilhada só leitura).
+**Depois:** eventos de entrada (Slack, e-mail e webhooks do Datadog, Grafana ou dos seus servidores, em porta separada e com assinatura); SLOs e orçamento de erro a partir de Prometheus, Grafana ou Datadog; saúde das dependências; pacote pronto (`npx lead-deck`) e imagem Docker; modo time (visão compartilhada só leitura).
 
 **Fora dos planos:** serviço hospedado e ranking de pessoas.

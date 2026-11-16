@@ -91,6 +91,25 @@ const EnvSchema = z.object({
   TASK_VERIFY: optStr,
   DORA_FAILURE_RE: optStr,
   DEMO: optStr,
+  INFRA_POLL_SEC: intWithDefault(60, 15, 3600),
+  INFRA_CPU_WARN: intWithDefault(80, 1, 100),
+  INFRA_CPU_CRIT: intWithDefault(90, 1, 100),
+  INFRA_MEM_CRIT: intWithDefault(90, 1, 100),
+  INFRA_SUSTAIN_MIN: intWithDefault(5, 0, 120),
+  INFRA_AUTO_INCIDENT: z.preprocess(empty, z.enum(['critical', 'off']).default('critical')),
+  INFRA_PROD_RE: optStr,
+  INFRA_LANG: optStr,
+  DIGITALOCEAN_TOKEN: optStr,
+  DIGITALOCEAN_TAG: optStr,
+  HEROKU_API_KEY: optStr,
+  HEROKU_APPS: optStr,
+  AZURE_TENANT_ID: optStr,
+  AZURE_CLIENT_ID: optStr,
+  AZURE_CLIENT_SECRET: optStr,
+  AZURE_SUBSCRIPTION_ID: optStr,
+  AZURE_HEALTH_API_VERSION: optStr,
+  GRAFANA_URL: optStr,
+  GRAFANA_TOKEN: optStr,
   DEMO_LANG: optStr,
 });
 
@@ -141,6 +160,15 @@ export interface Config {
   dora: { failureRe: string };
   /** Modo demonstração: dados fictícios, nenhuma integração real, banco local temporário. */
   demo: { on: boolean; lang: 'pt-BR' | 'en' };
+  /** Infraestrutura em tempo real (só leitura): provedores, limites dos alertas e regra de incidente automático. */
+  infra: {
+    pollSec: number; cpuWarn: number; cpuCrit: number; memCrit: number; sustainMin: number;
+    autoIncident: 'critical' | 'off'; prodRe: string; lang: 'pt-BR' | 'en';
+    digitalocean?: { token: string; tag?: string | undefined } | undefined;
+    heroku?: { token: string; apps: string[] } | undefined;
+    azure?: { tenantId: string; clientId: string; clientSecret: string; subscriptionId: string; healthApiVersion?: string | undefined } | undefined;
+    grafana?: { url: string; token: string } | undefined;
+  };
 }
 
 /** Comandos de teste/build que o agente pode rodar na worktree (prefixos; o resto é negado). */
@@ -223,6 +251,17 @@ function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
     },
     dora: { failureRe: validRegex(e.DORA_FAILURE_RE) ?? DEFAULT_FAILURE_RE },
     demo: { on: e.DEMO === '1' || e.DEMO === 'true', lang: (e.DEMO_LANG ?? '').toLowerCase().startsWith('en') ? 'en' : 'pt-BR' },
+    infra: {
+      pollSec: e.INFRA_POLL_SEC, cpuWarn: e.INFRA_CPU_WARN, cpuCrit: e.INFRA_CPU_CRIT, memCrit: e.INFRA_MEM_CRIT, sustainMin: e.INFRA_SUSTAIN_MIN,
+      lang: ((e.DEMO === '1' || e.DEMO === 'true') ? (e.DEMO_LANG ?? '') : (e.INFRA_LANG ?? '')).toLowerCase().startsWith('en') ? 'en' : 'pt-BR',
+      autoIncident: e.INFRA_AUTO_INCIDENT, prodRe: validRegex(e.INFRA_PROD_RE) ?? '\\b(prod|production|prd)\\b',
+      digitalocean: e.DIGITALOCEAN_TOKEN ? { token: e.DIGITALOCEAN_TOKEN, tag: e.DIGITALOCEAN_TAG } : undefined,
+      heroku: e.HEROKU_API_KEY ? { token: e.HEROKU_API_KEY, apps: list(e.HEROKU_APPS) } : undefined,
+      azure: e.AZURE_TENANT_ID && e.AZURE_CLIENT_ID && e.AZURE_CLIENT_SECRET && e.AZURE_SUBSCRIPTION_ID
+        ? { tenantId: e.AZURE_TENANT_ID, clientId: e.AZURE_CLIENT_ID, clientSecret: e.AZURE_CLIENT_SECRET, subscriptionId: e.AZURE_SUBSCRIPTION_ID, healthApiVersion: e.AZURE_HEALTH_API_VERSION }
+        : undefined,
+      grafana: e.GRAFANA_URL && e.GRAFANA_TOKEN ? { url: e.GRAFANA_URL, token: e.GRAFANA_TOKEN } : undefined,
+    },
   };
 }
 
@@ -234,6 +273,7 @@ export function demoConfig(c: Config): Config {
     mongo: { ...c.mongo, uri: undefined, legacyPr: undefined, storage: 'sqlite', sqliteFile: process.env.AGENT_BOARD_DB ?? path.join(os.tmpdir(), 'agent-board-demo', 'data.db') },
     github: { ...c.github, token: undefined, org: undefined },
     discord: { ...c.discord, token: undefined },
+    infra: { ...c.infra, digitalocean: undefined, heroku: undefined, azure: undefined, grafana: undefined },
     paths: { ...c.paths, featMaps: [] },
   };
 }

@@ -42,4 +42,13 @@ describe('computeDora', () => {
     expect(d.changeFailure.failures).toBe(1);
     expect(d.weeks[0]!.week > d.weeks[1]!.week).toBe(true);
   });
+
+  it('deploys reais de produção e recuperação pela mitigação', () => {
+    const d = computeDora([issue('a', '2026-11-10')], [
+      { severity: 'sev2', startedAt: '2026-11-12T10:00:00Z', mitigatedAt: '2026-11-12T10:30:00Z', resolvedAt: '2026-11-12T18:00:00Z' },
+    ], { days: 14, now: NOW, realDeploys: [{ at: '2026-11-10T15:00:00Z', resource: 'api-prod' }, { at: '2026-11-10T18:00:00Z', resource: 'web-prod' }, { at: '2026-11-13T15:00:00Z', resource: 'api-prod' }, { at: '2026-10-01T00:00:00Z', resource: 'old' }] });
+    expect(d.deploys).toMatchObject({ source: 'infra', days: 2, real: { count: 3, days: 2 } });
+    expect(d.deploys.items).toBe(1);
+    expect(d.recovery.medianMs).toBe(30 * 60_000);
+  });
 });

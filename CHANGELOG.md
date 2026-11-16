@@ -4,6 +4,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 
 ## [Unreleased]
 
+### Added
+- **Infra in real time:** DigitalOcean, Heroku, Azure and Grafana read with read-only tokens. Resource status with CPU and memory history, firing alerts (sustained thresholds plus provider alerts), the deploy that may have caused each alert, and a timeline of status changes, alerts and deploys.
+- **Incident from an alert:** critical production alerts open a SEV2 incident (at most 5 per hour, can be turned off) and are marked mitigated when the alert clears; any alert becomes an incident in one click.
+- **DORA with real deploys:** production deploys from the providers drive deploy frequency, and time to restore counts until mitigation.
+- Infra items in the Attention block and an Infra check in Settings.
+
 ## [0.4.0] - 2026-11-16
 
 ### Changed
