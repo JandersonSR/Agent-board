@@ -43,7 +43,7 @@ if (!built) {
 execFileSync(process.execPath, [path.join(root, 'demo.js')], { cwd: root, env, stdio: 'ignore' });
 
 const port = process.env.AGENT_BOARD_PORT || '9999';
-console.log(`\nAgent Board em modo demonstração: http://127.0.0.1:${port}\nDados fictícios em ${dir}. Ctrl+C para sair.\n`);
+console.log(`\nLead Deck em modo demonstração: http://127.0.0.1:${port}\nDados fictícios em ${dir}. Ctrl+C para sair.\n`);
 const server = spawn(process.execPath, [path.join(root, 'apps/server/dist/index.js')], { cwd: root, env, stdio: ['ignore', 'ignore', 'inherit'] });
 const stop = () => server.kill('SIGTERM');
 process.on('SIGINT', stop);

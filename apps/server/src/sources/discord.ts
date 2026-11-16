@@ -28,7 +28,7 @@ export class DiscordClient {
 
   private async get(path: string, attempt = 0): Promise<unknown> {
     const res = await fetch(`${API}${path}`, {
-      headers: { Authorization: `Bot ${this.token}`, 'User-Agent': 'agent-board-local (read-only)' },
+      headers: { Authorization: `Bot ${this.token}`, 'User-Agent': 'lead-deck-local (read-only)' },
       signal: AbortSignal.timeout(20_000),
     });
     if (res.status === 429 && attempt < 2) {

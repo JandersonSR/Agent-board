@@ -1,0 +1,45 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Do not paste tokens, company data or personal data.** For security problems, use Security → Report a vulnerability instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected and what you got.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce
+      description: If possible, reproduce it in `npm run demo`.
+      placeholder: "1. npm run demo\n2. Open Incidents\n3. …"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options: [Windows, macOS, Linux]
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version (`node --version`)
+  - type: dropdown
+    id: storage
+    attributes:
+      label: Storage
+      options: [Local SQLite (default), MongoDB, Demo mode]

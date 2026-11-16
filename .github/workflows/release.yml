@@ -1,0 +1,29 @@
+# Publica uma versão no GitHub quando uma tag vX.Y.Z é enviada, com as notas do CHANGELOG.md.
+#   git tag v0.4.0 && git push origin v0.4.0
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Notas da versão a partir do CHANGELOG
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '
+            $0 ~ "^## \\[" v "\\]" { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+          test -s notes.md || echo "Veja o CHANGELOG.md." > notes.md
+      - name: Criar a versão
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --title "Lead Deck $GITHUB_REF_NAME" --notes-file notes.md --verify-tag
