@@ -79,4 +79,42 @@ describe('rotas de deploy (validação)', () => {
     });
     expect(r.statusCode).toBe(400);
   });
+
+  describe('visão de Staff sem MongoDB', () => {
+    const W = { host: HOST, 'x-agent-board': '1', 'content-type': 'application/json' };
+
+    it('DORA, conhecimento e listas respondem "não configurado"', async () => {
+      for (const url of ['/api/dora?days=30', '/api/knowledge', '/api/incidents', '/api/decisions', '/api/initiatives', '/api/staff/alerts']) {
+        const r = await app.inject({ method: 'GET', url, headers: { host: HOST } });
+        expect(r.statusCode, url).toBe(200);
+        expect(r.json().configured, url).toBe(false);
+      }
+    });
+
+    it('valida incidente antes de tocar no banco', async () => {
+      const r = await app.inject({ method: 'POST', url: '/api/incidents', headers: W, payload: { title: 'x', severity: 'sev9', startedAt: '2026-11-16' } });
+      expect(r.statusCode).toBe(400);
+      const ok = await app.inject({ method: 'POST', url: '/api/incidents', headers: W, payload: { title: 'x', severity: 'sev2', startedAt: '2026-11-16T10:00:00Z' } });
+      expect(ok.statusCode).toBe(503);
+    });
+
+    it('recusa dependência circular entre etapas', async () => {
+      const r = await app.inject({
+        method: 'POST', url: '/api/initiatives', headers: W,
+        payload: { name: 'Empréstimo', stages: [{ id: 'a', name: 'A', dependsOn: ['b'] }, { id: 'b', name: 'B', dependsOn: ['a'] }] },
+      });
+      expect(r.statusCode).toBe(400);
+      expect(JSON.stringify(r.json())).toMatch(/circular/);
+    });
+
+    it('DELETE sem o cabeçalho do painel é recusado', async () => {
+      const r = await app.inject({ method: 'DELETE', url: '/api/incidents/0123456789abcdef01234567', headers: { host: HOST } });
+      expect(r.statusCode).toBe(403);
+    });
+
+    it('caso de avaliação exige arquivo ou palavra-chave', async () => {
+      const r = await app.inject({ method: 'POST', url: '/api/evals', headers: W, payload: { name: 'x', prUrl: 'https://github.com/o/r/pull/1', expected: [{ id: 'a', keywords: [] }] } });
+      expect(r.statusCode).toBe(400);
+    });
+  });
 });

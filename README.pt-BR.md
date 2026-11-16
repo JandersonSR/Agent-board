@@ -21,12 +21,13 @@
 5. [Conectando suas ferramentas](#conectando-suas-ferramentas)
 6. [Sessões de agentes (hooks)](#sessões-de-agentes-hooks)
 7. [Execuções em segundo plano](#execuções-em-segundo-plano)
-8. [Configuração](#configuração)
-9. [Privacidade e segurança](#privacidade-e-segurança)
-10. [Idioma](#idioma)
-11. [Desenvolvimento](#desenvolvimento)
-12. [Problemas comuns](#problemas-comuns)
-13. [Desinstalação](#desinstalação)
+8. [Visão de Staff](#visão-de-staff)
+9. [Configuração](#configuração)
+10. [Privacidade e segurança](#privacidade-e-segurança)
+11. [Idioma](#idioma)
+12. [Desenvolvimento](#desenvolvimento)
+13. [Problemas comuns](#problemas-comuns)
+14. [Desinstalação](#desinstalação)
 
 ---
 
@@ -34,11 +35,14 @@
 
 | Tela | O que você tem |
 | --- | --- |
-| **Hoje** | Daily do time (quem postou, confiança baixa, bloqueios novos), bloqueios do time com o tempo de cada um, sua fila (bugs, tickets, tarefas, menções sem resposta sua), reviews pendentes por tamanho e tempo de espera, PRs e deploy, agentes ao vivo e as últimas execuções |
+| **Hoje** | Daily do time (quem postou, confiança baixa, bloqueios novos), bloqueios do time com o tempo de cada um, sua fila (bugs, tickets, tarefas, menções sem resposta sua), reviews pendentes por tamanho e tempo de espera, PRs e deploy, agentes ao vivo, as últimas execuções e um bloco **Atenção** (incidentes abertos, ações atrasadas, postmortems pendentes, decisões paradas, etapas do produto atrasadas ou bloqueadas) |
 | **Agentes** | Um card por sessão do Claude Code ou do Cursor, em colunas: *Precisa de você*, *Pronto para revisar*, *Trabalhando*, *Ociosas e encerradas*. Aprove pedidos de permissão, veja progresso, uso de contexto e custo, revise o diff e abra um PR em rascunho |
 | **PRs e deploy** | Acompanhamento por issue. Os PRs ligados a cada issue são encontrados e atualizados sozinhos, de qualquer autor e repositório, com o status da fila de review até o merge e a data de deploy |
 | **Execuções** | Reviews e tarefas em segundo plano, com log ao vivo, resultado e o prompt mascarado. Cada achado de review pode ser mantido ou descartado; tarefas mostram plano, implementação, verificação e diff |
-| **Métricas** | Três abas: **Agentes** (tempo trabalhando e esperando você, custo), **Time** (fluxo a partir do histórico de status dos PRs: tempo até o merge, espera pelo 1º review, mudanças pedidas, tamanho do PR, por semana, time e pessoa) e **Qualidade da IA** (precisão das reviews por IA por versão do prompt, severidade e repositório, custo por achado mantido) |
+| **Produto** | A iniciativa dividida em etapas com donos (duplas), dependências, datas alvo e riscos. O progresso vem das issues ligadas em PRs e deploy; o caminho crítico mostra o que segura a entrega |
+| **Incidentes** | Registro com severidade, linha do tempo, impacto, as mudanças que causaram, ações com dono e prazo, e postmortem sem culpados exportado em Markdown |
+| **Decisões** | Design docs, RFCs e ADRs do time com status, dono e prazo para decidir. Os ADRs dos clones locais são importados com um clique |
+| **Métricas** | **Agentes** (tempo trabalhando e esperando você, custo), **Time** (fluxo a partir do histórico de status dos PRs), **DORA** (frequência de deploy, tempo de entrega, taxa de falha de mudança, tempo de recuperação), **Conhecimento** (fator de ônibus por repositório, quem escreve e quem revisa) e **Qualidade da IA** (precisão por versão do prompt e um conjunto fixo que mede o que a IA deixa passar) |
 | **Configuração** | Estado de cada integração, RAGs de features, limites de custo e preferências (idioma, tema, densidade, editor, notificações no desktop) |
 
 Outros detalhes:
@@ -119,7 +123,7 @@ O painel lê o Discord por um bot privado com permissões **só de leitura**. El
 
 ### MongoDB
 
-O painel só escreve nas próprias coleções, `painel_resumos`, `painel_sessoes` e `painel_prs`, e o código impõe isso com uma lista permitida. Use um banco e um usuário só do painel (`MONGO_URI` ou `MONGO_DATABASE_*`). O painel sobe sem MongoDB; os blocos que dependem dele avisam.
+O painel só escreve nas próprias coleções, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` e `painel_avaliacoes`, e o código impõe isso com uma lista permitida. Use um banco e um usuário só do painel (`MONGO_URI` ou `MONGO_DATABASE_*`). O painel sobe sem MongoDB; os blocos que dependem dele avisam.
 
 ### RAGs de features e skills
 
@@ -182,6 +186,24 @@ A varinha numa issue do GitHub em **Minha fila** roda uma tarefa em três etapas
 
 `.github/workflows/ai-review.yml` é um workflow reutilizável que os repositórios do time podem chamar. Ele posta um comentário por PR (atualizado a cada push) e nunca aprova, pede mudanças ou faz push. O agente recebe o PR e o diff no prompt e só consegue ler o checkout. Veja [docs/ci-ai-review.md](docs/ci-ai-review.md). **Ele envia código ao provedor do modelo, então precisa de aprovação da empresa** e de um secret `ANTHROPIC_API_KEY`.
 
+### Medindo o que a IA deixa passar
+
+A precisão só mostra o que a IA apontou à toa. **Métricas → Qualidade da IA → Conjunto fixo** mede o recall: cadastre de 5 a 10 PRs (podem ser antigos) com problemas que vocês já conhecem, dizendo para cada um o arquivo e as palavras que uma boa review usaria. **Rodar todos** faz a review de cada caso com a versão atual do prompt, um de cada vez e dentro dos limites de custo. Um problema conta como encontrado quando um achado está no mesmo arquivo e tem uma das palavras, ou fica a até 10 linhas. Execuções de avaliação nunca viram review no GitHub. Os casos ficam no MongoDB do painel, não no repositório.
+
+---
+
+## Visão de Staff
+
+| Onde | O que mede | De onde vem |
+| --- | --- | --- |
+| **Métricas → DORA** | Frequência de deploy, tempo de entrega (mediana e p90), taxa de falha de mudança e tempo de recuperação, por semana, e a lista das entregas com falha | Datas de deploy das issues mergeadas; correções pela `DORA_FAILURE_RE` (hotfix, rollback, revert…); incidentes que apontam uma mudança como causa |
+| **Métricas → Conhecimento** | Fator de ônibus por repositório, participação de quem mais escreve e mais revisa, PRs mergeados sem review, pessoas que revisam 80% ou mais de um repositório | Autores e revisores dos PRs mergeados (revisores registrados a partir desta versão) |
+| **Incidentes** | Incidentes abertos, ações atrasadas, % de ações concluídas, postmortems pendentes (SEV1/SEV2) | O seu registro de incidentes |
+| **Decisões** | Decisões abertas com prazo vencido, vencendo em 7 dias ou paradas há mais de 3 semanas sem prazo | Cadastro manual e ADRs importados de `docs/adr`, `docs/decisions` e pastas parecidas |
+| **Produto** | Progresso por etapa, etapas esperando dependência, atrasadas, riscos altos abertos, caminho crítico | Issues acompanhadas em PRs e deploy, ligadas por URL, `repo#123` ou texto no título |
+
+Esses números medem o processo, não as pessoas. Use na retro e no planejamento para achar gargalos e riscos, e para mostrar o antes e depois quando mudar alguma coisa.
+
 ---
 
 ## Configuração
@@ -197,6 +219,7 @@ Toda a configuração fica no `.env`. O [`.env.example`](.env.example) lista cad
 | Time e fila | `TEAM_TZ_OFFSET_MIN`, `HOLIDAYS`, `QUEUE_TYPE_ORDER` |
 | Contexto dos agentes | `FEAT_MAPS`, `FEAT_MAP_ROUTES`, `FEAT_CONTEXT_TOKENS`, `SKILLS_KIT_PATH`, `SKILL_NAMES`, `REPOS`, `WORKTREES_DIR`, `AGENT_MODEL_*` |
 | Tarefas | `TASK_TEST_COMMANDS`, `TASK_VERIFY` |
+| DORA | `DORA_FAILURE_RE` |
 | Limites de custo | `MAX_CONCURRENT_SESSIONS`, `SESSION_TIMEOUT_MIN`, `MAX_DAILY_RUNS`, `POLL_INTERVAL_MIN` |
 | Privacidade | `MASK_EXTRA_PATTERNS` |
 

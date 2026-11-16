@@ -5,6 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { DEFAULT_FAILURE_RE } from './domain/dora.js';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
@@ -86,6 +87,7 @@ const EnvSchema = z.object({
   DEPLOY_BASE_BRANCHES: optStr,
   TASK_TEST_COMMANDS: optStr,
   TASK_VERIFY: optStr,
+  DORA_FAILURE_RE: optStr,
 });
 
 export const SKILL_ROLES = ['review', 'reviewInbox', 'daily', 'dailyDigest'] as const;
@@ -127,6 +129,8 @@ export interface Config {
   deploy: { projects: number[]; dateField: RegExp; lookbackDays: number; baseBranches: string[] };
   /** Tarefas de ponta a ponta: comandos que o agente pode rodar e a verificação independente por repo. */
   tasks: { testCommands: string[]; verify: Array<{ repo: string; command: string }> };
+  /** Regex que marca uma entrega como correção de falha (hotfix, rollback, revert…) nas métricas DORA. */
+  dora: { failureRe: string };
 }
 
 /** Comandos de teste/build que o agente pode rodar na worktree (prefixos; o resto é negado). */
@@ -203,5 +207,11 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       testCommands: e.TASK_TEST_COMMANDS ? list(e.TASK_TEST_COMMANDS) : DEFAULT_TASK_COMMANDS,
       verify: pairs(e.TASK_VERIFY, ';', '=').map(p => ({ repo: p.key, command: p.value })),
     },
+    dora: { failureRe: validRegex(e.DORA_FAILURE_RE) ?? DEFAULT_FAILURE_RE },
   };
+}
+
+function validRegex(src: string | undefined): string | undefined {
+  if (!src) return undefined;
+  try { new RegExp(src, 'i'); return src; } catch { return undefined; }
 }
