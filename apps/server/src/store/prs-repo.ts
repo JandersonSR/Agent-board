@@ -13,6 +13,8 @@ export interface TrackedPr {
   url: string;
   title: string;
   owner: string;
+  /** Login do autor no GitHub (filtros por pessoa/time). */
+  author?: string;
   /** Status efetivo (derivado do GitHub, ou o ajuste manual enquanto valer). */
   status: DeployStatus;
   /** Status derivado do GitHub na última sincronização. */
