@@ -13,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Mono, Pill } from '@/components/common';
 import { api } from '@/lib/api';
 import { editorLink, plural } from '@/lib/format';
+import { k, t } from '@/lib/i18n';
 import type { AgentSession, DiffResponse, PrInfo, PrStatus } from '@/lib/types';
 import { PROTECTED_BRANCH } from './session-meta';
 
@@ -24,10 +25,10 @@ function PrLine({ session, pr }: { session: AgentSession; pr: PrStatus | undefin
   const create = useMutation({
     mutationFn: () => api.post<{ url: string }>(`/api/sessions/${enc(session.id)}/pr`),
     onSuccess: (r) => {
-      toast.success('PR rascunho criado', { action: { label: 'Abrir', onClick: () => window.open(r.url, '_blank', 'noopener') } });
+      toast.success(t('PR rascunho criado'), { action: { label: t('Abrir'), onClick: () => window.open(r.url, '_blank', 'noopener') } });
       void qc.invalidateQueries({ queryKey: ['pr', session.id] });
     },
-    onError: (e: Error) => toast.error('Não foi possível criar o PR', { description: e.message }),
+    onError: (e: Error) => toast.error(t('Não foi possível criar o PR'), { description: e.message }),
   });
 
   if (!pr) return <Skeleton className="h-6 w-48" />;
@@ -36,24 +37,24 @@ function PrLine({ session, pr }: { session: AgentSession; pr: PrStatus | undefin
     const canCreate = !!session.branch && !PROTECTED_BRANCH.test(session.branch);
     return (
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <GitPullRequest className="size-3.5" /> Sem PR
+        <GitPullRequest className="size-3.5" /> {t('Sem PR')}
         {canCreate && (
           <>
             <Button size="xs" variant="outline" className="ml-auto" disabled={create.isPending} onClick={() => setConfirm(true)}>
-              {create.isPending ? <Loader2 className="animate-spin" /> : <GitPullRequest />} Criar PR rascunho
+              {create.isPending ? <Loader2 className="animate-spin" /> : <GitPullRequest />} {t('Criar PR rascunho')}
             </Button>
             <AlertDialog open={confirm} onOpenChange={setConfirm}>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Publicar branch e abrir PR rascunho?</AlertDialogTitle>
+                  <AlertDialogTitle>{t('Publicar branch e abrir PR rascunho?')}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Isto faz <Mono>git push</Mono> da branch <Mono>{session.branch}</Mono> e abre um PR em rascunho no GitHub.
-                    É uma ação visível para o time.
+                    {t('Isto faz')} <Mono>git push</Mono> {t('da branch')} <Mono>{session.branch}</Mono> {t('e abre um PR em rascunho no GitHub.')}
+                    {t('É uma ação visível para o time.')}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => create.mutate()}>Fazer push e abrir PR</AlertDialogAction>
+                  <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => create.mutate()}>{t('Fazer push e abrir PR')}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
@@ -63,19 +64,19 @@ function PrLine({ session, pr }: { session: AgentSession; pr: PrStatus | undefin
     );
   }
   const p: PrInfo = pr;
-  const review = p.review === 'APPROVED' ? { t: 'aprovado', tone: 'success' as const }
-    : p.review === 'CHANGES_REQUESTED' ? { t: 'mudanças pedidas', tone: 'danger' as const }
-    : p.review === 'REVIEW_REQUIRED' ? { t: 'review pendente', tone: 'warning' as const } : null;
+  const review = p.review === 'APPROVED' ? { t: k('aprovado'), tone: 'success' as const }
+    : p.review === 'CHANGES_REQUESTED' ? { t: k('mudanças pedidas'), tone: 'danger' as const }
+    : p.review === 'REVIEW_REQUIRED' ? { t: k('review pendente'), tone: 'warning' as const } : null;
   return (
     <div className="flex flex-wrap items-center gap-1.5 text-xs">
       <a href={p.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 font-medium hover:underline">
         <GitPullRequest className="size-3.5" /> PR #{p.number} <ExternalLink className="size-3 opacity-60" />
       </a>
-      <Pill>{p.state.toLowerCase()}{p.draft ? ' · rascunho' : ''}</Pill>
+      <Pill>{p.state.toLowerCase()}{p.draft ? ` · ${t('rascunho')}` : ''}</Pill>
       {!!p.checks?.fail && <Pill tone="danger"><XCircle className="size-3" />{p.checks.fail}</Pill>}
       {!!p.checks?.pending && <Pill tone="warning"><CircleDot className="size-3" />{p.checks.pending}</Pill>}
       {!!p.checks?.pass && <Pill tone="success"><CheckCircle2 className="size-3" />{p.checks.pass}</Pill>}
-      {review && <Pill tone={review.tone}>{review.t}</Pill>}
+      {review && <Pill tone={review.tone}>{t(review.t)}</Pill>}
     </div>
   );
 }
@@ -110,7 +111,7 @@ export function ReviewPanel({ session, editor }: { session: AgentSession; editor
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Mono className="text-success">+{d.add}</Mono><Mono className="text-danger">−{d.del}</Mono>
             <span>vs <Mono>{d.base}</Mono>{d.commits ? ` · ${plural(d.commits, 'commit', 'commits')}` : ''}</span>
-            {d.files.length > 0 && <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setPatchFile(null)}><FileCode2 /> Diff completo</Button>}
+            {d.files.length > 0 && <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setPatchFile(null)}><FileCode2 /> {t('Diff completo')}</Button>}
           </div>
           {d.files.length > 0 && (
             <ul className="max-h-48 space-y-px overflow-auto">
@@ -120,7 +121,7 @@ export function ReviewPanel({ session, editor }: { session: AgentSession; editor
                   <Mono className="w-10 shrink-0 text-danger">{f.del == null ? '' : `−${f.del}`}</Mono>
                   <button type="button" className="min-w-0 flex-1 truncate text-left font-mono text-[12px] hover:underline" title={f.path} onClick={() => setPatchFile(f.path)}>{f.path}</button>
                   {session.cwd && (
-                    <a href={editorLink(editor, session.cwd, f.path)} className="opacity-0 transition group-hover:opacity-100" title={`Abrir no ${editor}`}>
+                    <a href={editorLink(editor, session.cwd, f.path)} className="opacity-0 transition group-hover:opacity-100" title={t('Abrir no {editor}', { editor })}>
                       <ExternalLink className="size-3.5" />
                     </a>
                   )}
@@ -129,7 +130,7 @@ export function ReviewPanel({ session, editor }: { session: AgentSession; editor
             </ul>
           )}
           {d.untracked.length > 0 && (
-            <p className="text-xs text-muted-foreground">{plural(d.untracked.length, 'arquivo novo', 'arquivos novos')} sem <Mono>git add</Mono></p>
+            <p className="text-xs text-muted-foreground">{plural(d.untracked.length, 'arquivo novo', 'arquivos novos')} {t('sem')} <Mono>git add</Mono></p>
           )}
         </>
       )}
@@ -137,8 +138,8 @@ export function ReviewPanel({ session, editor }: { session: AgentSession; editor
       <Dialog open={patchFile !== undefined} onOpenChange={(o) => { if (!o) setPatchFile(undefined); }}>
         <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-5xl">
           <DialogHeader>
-            <DialogTitle className="font-mono text-sm">{session.project} · {patchFile ?? 'diff completo'}</DialogTitle>
-            <DialogDescription>Mudanças da sessão em relação à branch base.</DialogDescription>
+            <DialogTitle className="font-mono text-sm">{session.project} · {patchFile ?? t('diff completo')}</DialogTitle>
+            <DialogDescription>{t('Mudanças da sessão em relação à branch base.')}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40">
             {patch.isLoading ? <div className="p-4"><Skeleton className="h-40 w-full" /></div> : <PatchView text={patch.data ?? ''} />}

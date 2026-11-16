@@ -1,9 +1,10 @@
-// Formatação compacta e consistente (pt-BR) para toda a tela.
+// Formatação compacta e consistente para toda a tela, no idioma escolhido.
+import { getLang, locale, t } from './i18n';
 
 /** "agora", "45 s", "12 min", "3 h", "2 d" */
 export function ago(ts: number, now = Date.now()): string {
   const s = Math.max(0, Math.round((now - ts) / 1000));
-  if (s < 5) return 'agora';
+  if (s < 5) return t('agora');
   if (s < 60) return `${s} s`;
   if (s < 3600) return `${Math.floor(s / 60)} min`;
   if (s < 86400) return `${Math.floor(s / 3600)} h`;
@@ -24,18 +25,29 @@ export function dur(ms: number | undefined): string {
 export function fmtTok(n: number | undefined): string {
   const v = n ?? 0;
   if (!v) return '0';
-  if (v >= 1e6) return `${(v / 1e6).toFixed(1).replace('.', ',')}M`;
+  if (v >= 1e6) return `${decimal((v / 1e6).toFixed(1))}M`;
   if (v >= 1e3) return `${Math.round(v / 1e3)}k`;
   return String(v);
 }
 
 export function fmtCost(c: number | undefined): string {
   const v = c ?? 0;
-  return `US$ ${v < 10 ? v.toFixed(2).replace('.', ',') : Math.round(v)}`;
+  const n = v < 10 ? decimal(v.toFixed(2)) : String(Math.round(v));
+  return getLang() === 'en' ? `$${n}` : `US$ ${n}`;
 }
 
+/** Vírgula decimal em pt-BR, ponto em inglês. */
+const decimal = (s: string): string => (getLang() === 'en' ? s : s.replace('.', ','));
+
+/** "1 PR", "3 PRs". As palavras são chaves de tradução (texto em português). */
 export function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
+  return `${n} ${t(n === 1 ? one : many)}`;
+}
+
+/** Data YYYY-MM-DD no formato do idioma: 16/11 (pt-BR) ou 11/16 (en); com ano, 16/11/2026 ou 11/16/2026. */
+export function fmtDay(iso: string, withYear = false): string {
+  const d = new Date(`${iso.slice(0, 10)}T12:00:00`);
+  return d.toLocaleDateString(locale(), withYear ? { day: '2-digit', month: '2-digit', year: 'numeric' } : { day: '2-digit', month: '2-digit' });
 }
 
 /** Link para abrir arquivo no editor (cursor://, vscode://). */
