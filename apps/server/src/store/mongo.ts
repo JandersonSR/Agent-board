@@ -4,7 +4,10 @@
 import { MongoClient, type Collection, type Db, type Document } from 'mongodb';
 import type { Config } from '../config.js';
 
-export const OWN_COLLECTIONS = ['painel_resumos', 'painel_sessoes', 'painel_prs'] as const;
+export const OWN_COLLECTIONS = [
+  'painel_resumos', 'painel_sessoes', 'painel_prs',
+  'painel_incidentes', 'painel_decisoes', 'painel_iniciativas', 'painel_avaliacoes',
+] as const;
 export type OwnCollection = (typeof OWN_COLLECTIONS)[number];
 
 export function assertOwnCollection(name: string): asserts name is OwnCollection {
@@ -75,7 +78,16 @@ export class PainelStore {
         { key: { status: 1, deployDate: 1 }, name: 'status_deploy' },
         { key: { 'prs.url': 1 }, name: 'pr_url' },
         { key: { linkGroup: 1 }, name: 'link_group' },
+        { key: { deployDate: 1 }, name: 'deploy_date' },
+        { key: { 'prs.mergedAt': 1 }, name: 'pr_merged' },
       ]),
+      this.collection('painel_incidentes').createIndexes([{ key: { startedAt: -1 }, name: 'started' }, { key: { status: 1 }, name: 'status' }]),
+      this.collection('painel_decisoes').createIndexes([
+        { key: { status: 1, decideBy: 1 }, name: 'status_due' },
+        { key: { repo: 1, path: 1 }, name: 'repo_path', unique: true, partialFilterExpression: { source: 'repo' } },
+      ]),
+      this.collection('painel_iniciativas').createIndexes([{ key: { status: 1 }, name: 'status' }]),
+      this.collection('painel_avaliacoes').createIndexes([{ key: { prUrl: 1 }, name: 'pr_url' }]),
     ]);
   }
 

@@ -15,6 +15,8 @@ import { v2 } from '../legacy/v2.js';
 import { runClaude, type RunEvent, type RunHandle } from './claude-runner.js';
 import { limitReason, startOfLocalDay } from './limits.js';
 import { computeReviewQuality, keptFindingIndexes, type FindingDecision } from '../domain/review-quality.js';
+import { recallByVersion, type EvalCase } from '../domain/review-eval.js';
+import { DocRepo } from '../store/doc-repo.js';
 import { buildPendingReview, buildReviewPrompt, parseReviewResult, REVIEW_PROMPT_VERSION } from './review.js';
 import { RunsRepo, type RunDoc, type RunLogEntry, type TaskState } from './runs-repo.js';
 import {
@@ -109,7 +111,7 @@ export class AgentService {
   }
 
   /** Dispara a review em segundo plano. Devolve o id da execução (painel_sessoes). */
-  async startReview(input: { prUrl: string; title?: string | undefined; prompt?: string | undefined }): Promise<{ id: string }> {
+  async startReview(input: { prUrl: string; title?: string | undefined; prompt?: string | undefined; evalCaseId?: string | undefined }): Promise<{ id: string }> {
     const pr = parsePrUrl(input.prUrl);
     if (!pr) throw Object.assign(new Error('URL de PR inválida'), { statusCode: 400 });
     await this.checkLimits();
@@ -123,6 +125,7 @@ export class AgentService {
       title: this.mask(input.title ?? `${pr.repo}#${pr.number}`).text, target: { prUrl: input.prUrl, repo: `${pr.owner}/${pr.repo}` },
       status: 'running', model, promptMasked: masked.text, maskedCount: masked.total, cwd: '', startedAt, log: [], actions: [],
       promptVersion: this.reviewPromptVersion(model), promptEdited: !!input.prompt && input.prompt.trim() !== preview.trim(),
+      ...(input.evalCaseId ? { evalCaseId: input.evalCaseId } : {}),
     });
     const cwd = path.join(this.cfg.paths.runs, id);
     await this.runs.appendLog(id, [], { cwd });
@@ -176,6 +179,88 @@ export class AgentService {
       findings: r.result?.review?.findings ?? [], decisions: r.findingDecisions,
       costUsd: r.usage?.costUsd, durationMs: r.usage?.durationMs,
     })), days);
+  }
+
+  // ---------- Conjunto fixo de avaliação (recall da review por IA) ----------
+  private get evalCases() { return new DocRepo<EvalCase>(this.store, 'painel_avaliacoes'); }
+  evalState: { running: boolean; total: number; done: number; current?: string | undefined; error?: string | undefined; startedAt?: Date | undefined } = { running: false, total: 0, done: 0 };
+
+  private async needStore(): Promise<void> {
+    if (!this.store.configured) throw Object.assign(new Error('MongoDB não configurado'), { statusCode: 503 });
+    await this.store.connect();
+  }
+
+  async listEvalCases(): Promise<Array<EvalCase & { _id: string }>> {
+    await this.needStore();
+    return (await this.evalCases.list({}, { createdAt: 1 }, 500)).map(c => ({ ...c, _id: String(c._id) }));
+  }
+
+  private maskCase<T extends Partial<EvalCase>>(c: T): T {
+    const m = (s: string) => this.mask(s).text;
+    return { ...c, ...(c.name ? { name: m(c.name) } : {}), ...(c.expected ? { expected: c.expected.map(e => ({ ...e, keywords: e.keywords.map(m), ...(e.note ? { note: m(e.note) } : {}) })) } : {}) };
+  }
+
+  async saveEvalCase(id: string | undefined, input: Omit<EvalCase, '_id' | 'createdAt'>): Promise<{ id: string }> {
+    await this.needStore();
+    if (!parsePrUrl(input.prUrl)) throw Object.assign(new Error('URL de PR inválida'), { statusCode: 400 });
+    const doc = this.maskCase(input);
+    if (id) {
+      if (!(await this.evalCases.update(id, doc))) throw Object.assign(new Error('caso não encontrado'), { statusCode: 404 });
+      return { id };
+    }
+    return { id: await this.evalCases.create({ ...doc, createdAt: new Date() }) };
+  }
+
+  async deleteEvalCase(id: string): Promise<boolean> {
+    await this.needStore();
+    return this.evalCases.remove(id);
+  }
+
+  async evalSummary() {
+    await this.needStore();
+    const [cases, runs] = await Promise.all([this.listEvalCases(), this.runs.evalRuns()]);
+    return {
+      currentVersion: this.reviewPromptVersion(this.cfg.agentModels.review),
+      state: this.evalState,
+      cases,
+      versions: recallByVersion(cases, runs.map(r => ({
+        caseId: r.evalCaseId!, promptVersion: r.promptVersion, startedAt: r.startedAt, status: r.status,
+        findings: r.result?.review?.findings, costUsd: r.usage?.costUsd,
+      }))),
+    };
+  }
+
+  /** Roda a review atual em cada caso, um de cada vez (respeita os limites de custo). */
+  async runEvals(ids?: string[]): Promise<{ total: number }> {
+    if (this.evalState.running) throw Object.assign(new Error('a avaliação já está rodando'), { statusCode: 409 });
+    const all = await this.listEvalCases();
+    const cases = ids?.length ? all.filter(c => ids.includes(c._id)) : all;
+    if (!cases.length) throw Object.assign(new Error('nenhum caso para rodar'), { statusCode: 400 });
+    this.evalState = { running: true, total: cases.length, done: 0, startedAt: new Date() };
+    void (async () => {
+      for (const c of cases) {
+        this.evalState.current = c.name;
+        try {
+          const { id } = await this.startReview({ prUrl: c.prUrl, title: `[eval] ${c.name}`, evalCaseId: c._id });
+          await this.waitFinished(id);
+          this.evalState.done++;
+        } catch (e) {
+          this.evalState.error = this.mask((e as Error).message).text;
+          break;
+        }
+      }
+      this.evalState = { ...this.evalState, running: false, current: undefined };
+    })();
+    return { total: cases.length };
+  }
+
+  private async waitFinished(id: string): Promise<void> {
+    await this.active.get(id)?.promise.catch(() => undefined);
+    for (let i = 0; i < 60; i++) {
+      const r = await this.runs.get(id);
+      if (r && r.status !== 'running') return;
+      await new Promise(res => setTimeout(res, 500));
+    }
   }
 
   // Log ao vivo: acumula e grava a cada segundo (mascarado).
@@ -399,6 +484,7 @@ ${v.stderr}`.trim().slice(-6000)).text;
     const review = run?.result?.review;
     const pr = run?.target.prUrl ? parsePrUrl(run.target.prUrl) : undefined;
     if (!run || !review || !pr) throw Object.assign(new Error('execução sem resultado de review'), { statusCode: 409 });
+    if (run.evalCaseId) throw Object.assign(new Error('execução de avaliação não vira review no GitHub'), { statusCode: 409 });
     if (run.actions.some(a => a.type === 'pending_review' && a.ok)) throw Object.assign(new Error('a review PENDING já foi criada para esta execução'), { statusCode: 409 });
 
     const base = `/repos/${pr.owner}/${pr.repo}/pulls/${pr.number}`;

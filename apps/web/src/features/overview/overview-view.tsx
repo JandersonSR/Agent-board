@@ -1,11 +1,12 @@
 // Tela "Hoje": tudo que o Tech Lead precisa ver num só lugar.
-import { Bot, ListChecks, PlayCircle } from 'lucide-react';
+import { Bot, Flag, Landmark, ListChecks, PlayCircle, ShieldAlert, Siren } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { BlockCard, Dot, Pill } from '@/components/common';
 import { useAgentSessionsContext } from '@/hooks/use-agent-sessions';
 import { ago } from '@/lib/format';
 import { BlockersBlock, DailyBlock, PrsBlock, QueueBlock, ReviewsBlock } from '../board/blocks';
 import { useRuns } from '@/hooks/use-runs';
+import { useStaffAlerts } from '@/hooks/use-staff';
 import { RunStatusPill } from '../runs/runs-view';
 import { TaskPhasePill } from '../runs/task-detail';
 import { fmtCost } from '@/lib/format';
@@ -36,7 +37,7 @@ function RunsBlock({ goTo }: { goTo: (v: OverviewTarget, id?: string) => void })
   );
 }
 
-export type OverviewTarget = 'agents' | 'settings' | 'deploy' | 'runs';
+export type OverviewTarget = 'agents' | 'settings' | 'deploy' | 'runs' | 'product' | 'incidents' | 'decisions';
 
 function AgentsBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
   const { sessions } = useAgentSessionsContext();
@@ -73,11 +74,45 @@ function AgentsBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
   );
 }
 
+/** O que pede atenção de Staff: incidentes, ações atrasadas, postmortems, decisões paradas e etapas do produto. */
+function StaffBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
+  const q = useStaffAlerts();
+  const d = q.data;
+  if (!d?.configured) return null;
+  const inc = d.incidents!; const dec = d.decisions!;
+  const rows: Array<{ icon: typeof Siren; text: string; tone: 'danger' | 'warning'; to: OverviewTarget }> = [];
+  if (inc.open) rows.push({ icon: Siren, text: t('{n} incidente(s) aberto(s)', { n: inc.open }), tone: 'danger', to: 'incidents' });
+  if (inc.overdueActions.length) rows.push({ icon: Siren, text: t('{n} ação(ões) de incidente atrasada(s)', { n: inc.overdueActions.length }), tone: 'warning', to: 'incidents' });
+  if (inc.postmortemPending.length) rows.push({ icon: Siren, text: t('{n} postmortem(s) pendente(s)', { n: inc.postmortemPending.length }), tone: 'warning', to: 'incidents' });
+  if (dec.overdue) rows.push({ icon: Landmark, text: t('{n} decisão(ões) com prazo vencido', { n: dec.overdue }), tone: 'danger', to: 'decisions' });
+  if (dec.stale) rows.push({ icon: Landmark, text: t('{n} decisão(ões) parada(s) sem prazo', { n: dec.stale }), tone: 'warning', to: 'decisions' });
+  for (const i of d.initiatives ?? []) {
+    const parts = [i.late ? t('{n} atrasada(s)', { n: i.late }) : '', i.blocked ? t('{n} bloqueada(s)', { n: i.blocked }) : '', i.highRisks ? t('{n} risco(s) alto(s)', { n: i.highRisks }) : ''].filter(Boolean);
+    if (parts.length) rows.push({ icon: Flag, text: `${i.name}: ${parts.join(' · ')}`, tone: i.late || i.blocked ? 'danger' : 'warning', to: 'product' });
+  }
+  return (
+    <BlockCard icon={ShieldAlert} title={t('Atenção')} count={rows.length || undefined} countTone={rows.some(r => r.tone === 'danger') ? 'danger' : 'warning'} className="!min-h-0">
+      {rows.length ? (
+        <ul className="divide-y">
+          {rows.map((r, i) => (
+            <li key={i}>
+              <button type="button" onClick={() => goTo(r.to)} className="flex w-full items-center gap-2.5 px-3.5 py-[calc(var(--row-py)+0.25rem)] text-left text-[13px] hover:bg-muted/60">
+                <Dot tone={r.tone} /><r.icon className="size-3.5 text-muted-foreground" /><span className="min-w-0 flex-1 truncate">{r.text}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : <p className="flex items-center gap-2 px-3.5 py-6 text-xs text-muted-foreground"><ListChecks className="size-4" /> {t('Nada pedindo atenção: sem incidentes abertos, ações atrasadas ou decisões paradas.')}</p>}
+    </BlockCard>
+  );
+}
+
 export function OverviewView({ goTo }: { goTo: (view: OverviewTarget, id?: string) => void }) {
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3 [&>*]:max-h-[28rem] [&>*]:min-h-64">
       <DailyBlock goTo={goTo} />
       <BlockersBlock goTo={goTo} />
+      <StaffBlock goTo={goTo} />
       <AgentsBlock goTo={goTo} />
       <QueueBlock goTo={goTo} className="2xl:col-span-2" />
       <ReviewsBlock goTo={goTo} />

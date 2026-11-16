@@ -19,7 +19,7 @@ export interface Run {
   result?: { review?: ReviewResult; text?: string; error?: string };
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens: number; cacheWriteTokens: number; costUsd: number; durationMs: number; turns: number };
   actions: Array<{ type: string; at: string; ok: boolean; detail?: string }>;
-  promptVersion?: string; promptEdited?: boolean;
+  promptVersion?: string; promptEdited?: boolean; evalCaseId?: string;
   findingDecisions?: FindingDecision[];
   task?: TaskState;
 }

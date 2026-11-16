@@ -9,6 +9,7 @@ import { fmtCost } from '@/lib/format';
 import { k, t } from '@/lib/i18n';
 import { usePref } from '@/lib/prefs';
 import { cn } from '@/lib/utils';
+import { EvalsSection } from './evals-section';
 import { durOrDash, pct, Tile } from './shared';
 
 const RANGES = ['7', '30', '90'] as const;
@@ -82,6 +83,7 @@ export function QualityView() {
           <BucketTable title={k('Por repositório')} rows={m.byRepo} mono />
         </>
       )}
+      <EvalsSection />
     </div>
   );
 }

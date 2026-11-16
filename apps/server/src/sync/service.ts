@@ -47,6 +47,13 @@ export interface ReviewItem extends ReviewDerived {
 
 type Mask = (s: string) => MaskResult;
 
+/** Quem revisou o PR (nome do time quando conhecido), sem o autor e sem bots. */
+export function reviewersOf(pr: Pick<DeployPrNodeT, 'reviews' | 'author'>, names: Map<string, string>): string[] {
+  const author = pr.author?.login?.toLowerCase();
+  const logins = pr.reviews.nodes.map(r => r.author?.login).filter((l): l is string => !!l && l.toLowerCase() !== author && !/\[bot\]$/i.test(l));
+  return [...new Set(logins.map(l => names.get(l.toLowerCase()) ?? l))];
+}
+
 export class SyncService {
   readonly state: Record<SourceId, SourceState>;
   reviews: ReviewItem[] = [];
@@ -204,6 +211,8 @@ export class SyncService {
       state: pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : 'open',
       repo: pr.repository.nameWithOwner, number: pr.number, base: pr.baseRefName, isDraft: pr.isDraft,
       additions: pr.additions, deletions: pr.deletions, mergedAt: pr.mergedAt ? new Date(pr.mergedAt) : null,
+      head: pr.headRefName, labels: (pr.labels?.nodes ?? []).map(l => l.name),
+      reviewers: reviewersOf(pr, names),
     };
   }
 

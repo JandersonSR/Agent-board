@@ -72,7 +72,8 @@ function RunDetail({ id }: { id: string }) {
         <div className="flex flex-wrap gap-2">
           {r.target.prUrl && <Button size="xs" variant="outline" onClick={() => window.open(r.target.prUrl, '_blank', 'noopener')}><ExternalLink /> {t('Abrir PR')}</Button>}
           {r.status === 'running' && <Button size="xs" variant="outline" onClick={() => cancel.mutate(r._id)} disabled={cancel.isPending}><Square /> {t('Cancelar')}</Button>}
-          {review && (posted
+          {review && r.evalCaseId && <Pill tone="info">{t('avaliação: não vira review no GitHub')}</Pill>}
+          {review && !r.evalCaseId && (posted
             ? <Pill tone="success"><CheckCircle2 className="size-3" />{t('review PENDING criada há {time}', { time: ago(Date.parse(posted.at)) })}</Pill>
             : <Button size="xs" onClick={() => setConfirm(true)} disabled={pending.isPending}>
                 {pending.isPending ? <Loader2 className="animate-spin" /> : <GitPullRequestDraft />} {t('Criar review PENDING no GitHub')}
