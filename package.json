@@ -21,9 +21,13 @@
     "uninstall-hooks": "node install.js --uninstall",
     "install-cursor": "node install.js --cursor",
     "uninstall-cursor": "node install.js --cursor --uninstall",
-    "demo:sessions": "node demo.js"
+    "demo:sessions": "node demo.js",
+    "test:e2e": "playwright test"
   },
   "engines": {
     "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1"
   }
 }
