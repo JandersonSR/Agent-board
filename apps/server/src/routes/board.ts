@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { STATUSES } from '../domain/pr-status.js';
+import { computeTeamMetrics } from '../domain/team-metrics.js';
 import type { PainelStore } from '../store/mongo.js';
 import { PrsRepo, type TrackedIssue } from '../store/prs-repo.js';
 import type { SyncService } from '../sync/service.js';
@@ -47,6 +48,15 @@ export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncServic
         || (a.deployDate ?? '9999').localeCompare(b.deployDate ?? '9999')
         || +new Date(b.updatedAt) - +new Date(a.updatedAt));
     return { source: sync.state.prs, items, statuses: STATUSES, projectScope: sync.projectScope, projects: sync.projectsConfigured };
+  });
+
+  // Fluxo de entrega do time (espera por review, mudanças pedidas, tamanho, tempo até o merge).
+  app.get('/api/team-metrics', async (req) => {
+    const { days } = z.object({ days: z.coerce.number().int().min(7).max(365).default(30) }).parse(req.query);
+    if (!store.configured) return { configured: false, ...computeTeamMetrics([], days) };
+    await store.connect();
+    const docs = await repo.listForMetrics(new Date(Date.now() - days * 86_400_000));
+    return { configured: true, ...computeTeamMetrics(docs, days) };
   });
 
   // Acompanhar uma issue: os PRs ligados a ela são encontrados e atualizados sozinhos.

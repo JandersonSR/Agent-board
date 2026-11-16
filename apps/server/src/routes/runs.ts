@@ -36,6 +36,41 @@ export async function runsRoutes(app: FastifyInstance, opts: { agents: AgentServ
     return { ok: true };
   });
 
-  // Ação que sai da máquina: só por clique, com confirmação na tela.
+  // Julgamento dos achados (manter/descartar): base da medição de qualidade e filtro da review PENDING.
+  app.post('/api/runs/:id/feedback', async (req) => {
+    const { decisions } = z.object({ decisions: z.array(z.enum(['accepted', 'rejected']).nullable()).max(60) }).parse(req.body);
+    return { decisions: await agents.setFindingDecisions(Id.parse(req.params).id, decisions) };
+  });
+
+  app.get('/api/quality', async (req) => {
+    const { days } = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }).parse(req.query);
+    return agents.reviewQuality(days);
+  });
+
+  // ---------- Tarefas de ponta a ponta ----------
+  const IssueUrl = z.string().url().regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+\/?$/, 'URL de issue do GitHub');
+
+  app.post('/api/task/preview', async (req) => agents.previewTask(z.object({ url: IssueUrl }).parse(req.body).url));
+
+  app.post('/api/task/start', async (req) => {
+    const b = z.object({ url: IssueUrl, prompt: z.string().min(20).max(120_000).optional() }).parse(req.body);
+    return agents.startTask({ issueUrl: b.url, prompt: b.prompt });
+  });
+
+  app.post('/api/runs/:id/approve', async (req) => {
+    const { notes } = z.object({ notes: z.string().max(4000).optional() }).parse(req.body ?? {});
+    await agents.approveTask(Id.parse(req.params).id, notes);
+    return { ok: true };
+  });
+
+  app.post('/api/runs/:id/discard', async (req) => { await agents.discardTask(Id.parse(req.params).id); return { ok: true }; });
+  app.get('/api/runs/:id/diff', async (req) => agents.taskDiff(Id.parse(req.params).id));
+  app.get('/api/runs/:id/patch', async (req, reply) => {
+    const { file } = z.object({ file: z.string().max(400).optional() }).parse(req.query);
+    return reply.type('text/plain; charset=utf-8').send(await agents.taskPatch(Id.parse(req.params).id, file));
+  });
+
+  // Ações que saem da máquina: só por clique, com confirmação na tela.
+  app.post('/api/runs/:id/task-pr', async (req) => agents.openTaskPr(Id.parse(req.params).id));
   app.post('/api/runs/:id/pending-review', async (req) => agents.postPendingReview(Id.parse(req.params).id));
 }

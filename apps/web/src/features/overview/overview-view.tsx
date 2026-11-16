@@ -7,6 +7,7 @@ import { ago } from '@/lib/format';
 import { BlockersBlock, DailyBlock, PrsBlock, QueueBlock, ReviewsBlock } from '../board/blocks';
 import { useRuns } from '@/hooks/use-runs';
 import { RunStatusPill } from '../runs/runs-view';
+import { TaskPhasePill } from '../runs/task-detail';
 import { fmtCost } from '@/lib/format';
 import { agentText, t } from '@/lib/i18n';
 
@@ -17,12 +18,12 @@ function RunsBlock({ goTo }: { goTo: (v: OverviewTarget, id?: string) => void })
     <BlockCard icon={PlayCircle} title={t('Execuções de agentes')} className="lg:col-span-2 2xl:col-span-3 !min-h-0"
       count={q.data?.running || undefined} countTone="info"
       actions={<Button size="xs" variant="ghost" onClick={() => goTo('runs')}>{t('Abrir execuções')}</Button>}
-      status={q.isLoading ? { kind: 'loading' } : items.length ? { kind: 'ready' } : { kind: 'coming', phase: t('primeira execução'), description: t('Use ✨ num PR em Reviews pendentes para pedir uma review ao Claude. Tarefas (até o PR) chegam na sequência.') }}>
+      status={q.isLoading ? { kind: 'loading' } : items.length ? { kind: 'ready' } : { kind: 'coming', phase: t('primeira execução'), description: t('Use ✨ num PR em Reviews pendentes para uma review, ou a varinha numa issue de Minha fila para resolver a tarefa com um agente.') }}>
       <ul className="divide-y">
         {items.map(r => (
           <li key={r._id}>
             <button type="button" onClick={() => goTo('runs', r._id)} className="flex w-full items-center gap-2.5 px-3.5 py-[calc(var(--row-py)+0.25rem)] text-left hover:bg-muted/60">
-              <RunStatusPill status={r.status} />
+              {r.kind === 'task' ? <TaskPhasePill phase={r.task?.phase} /> : <RunStatusPill status={r.status} />}
               <span className="min-w-0 flex-1 truncate text-[13px]">{r.title}</span>
               {r.result?.review && <span className="shrink-0 text-[11px] text-muted-foreground">{t('{n} achados · prod {ready}', { n: r.result.review.findings.length, ready: t(r.result.review.readyForProd ? 'SIM' : 'NÃO') })}</span>}
               <span className="w-16 shrink-0 text-right text-[11px] text-muted-foreground tabular-nums">{r.usage ? fmtCost(r.usage.costUsd) : ''}</span>

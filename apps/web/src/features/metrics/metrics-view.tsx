@@ -13,19 +13,13 @@ import { ago, dur, fmtCost, fmtDay, fmtTok, plural } from '@/lib/format';
 import { k, t } from '@/lib/i18n';
 import { usePref } from '@/lib/prefs';
 import type { Metrics } from '@/lib/types';
+import { QualityView } from './quality-view';
+import { Tile } from './shared';
+import { TeamMetricsView } from './team-metrics-view';
 
 const RANGES = ['1', '7', '30', '90'] as const;
 type Range = (typeof RANGES)[number];
 
-function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="rounded-xl border bg-card p-4 shadow-xs">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums">{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
-    </div>
-  );
-}
 
 function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
   const [hover, setHover] = useState<number | null>(null);
@@ -90,7 +84,28 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
   );
 }
 
+type MetricsTab = 'agents' | 'team' | 'quality';
+
+/** Métricas em três visões: agentes (hooks), fluxo de entrega do time e qualidade da review por IA. */
 export function MetricsView() {
+  const [tab, setTab] = usePref<MetricsTab>('metrics.tab', 'agents');
+  return (
+    <div className="space-y-4">
+      <Tabs value={tab} onValueChange={v => setTab(v as MetricsTab)}>
+        <TabsList>
+          <TabsTrigger value="agents">{t('Agentes')}</TabsTrigger>
+          <TabsTrigger value="team">{t('Time')}</TabsTrigger>
+          <TabsTrigger value="quality">{t('Qualidade da IA')}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      {tab === 'agents' && <AgentMetrics />}
+      {tab === 'team' && <TeamMetricsView />}
+      {tab === 'quality' && <QualityView />}
+    </div>
+  );
+}
+
+function AgentMetrics() {
   const [range, setRange] = usePref<Range>('metrics.range', '7');
   const [asTable, setAsTable] = useState(false);
   const q = useQuery({
