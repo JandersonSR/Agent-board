@@ -27,6 +27,7 @@ function pairs(raw: string | undefined, sep = ',', kv = ':'): Array<{ key: strin
     return i < 0 ? { key: p, value: p } : { key: p.slice(0, i).trim(), value: p.slice(i + 1).trim() };
   });
 }
+const safeRegex = (p: string) => { try { return new RegExp(p, 'i'); } catch { return /deploy/i; } };
 const list = (raw: string | undefined, sep = ',') => (raw ? raw.split(sep).map(s => s.trim()).filter(Boolean) : []);
 
 const EnvSchema = z.object({
@@ -76,6 +77,9 @@ const EnvSchema = z.object({
   QUEUE_TYPE_ORDER: optStr,
   HOLIDAYS: optStr,
   PRS_LOOKBACK_DAYS: intWithDefault(14, 1, 90),
+  GITHUB_PROJECTS: optStr,
+  DEPLOY_DATE_FIELD: optStr,
+  DEPLOY_LOOKBACK_DAYS: intWithDefault(7, 0, 90),
 });
 
 export const SKILL_ROLES = ['review', 'reviewInbox', 'daily', 'dailyDigest'] as const;
@@ -109,6 +113,7 @@ export interface Config {
   team: { tzOffsetMin: number; holidays: Set<string> };
   queueTypeOrder: string | undefined;
   prsLookbackDays: number;
+  deploy: { projects: number[]; dateField: RegExp; lookbackDays: number };
 }
 
 /** Monta a connection string no formato mongodb+srv (MONGO_URI tem prioridade). */
@@ -166,5 +171,10 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
     team: { tzOffsetMin: e.TEAM_TZ_OFFSET_MIN, holidays: new Set(list(e.HOLIDAYS)) },
     queueTypeOrder: e.QUEUE_TYPE_ORDER,
     prsLookbackDays: e.PRS_LOOKBACK_DAYS,
+    deploy: {
+      projects: list(e.GITHUB_PROJECTS).map(Number).filter(n => Number.isInteger(n) && n > 0),
+      dateField: safeRegex(e.DEPLOY_DATE_FIELD ?? 'deploy'),
+      lookbackDays: e.DEPLOY_LOOKBACK_DAYS,
+    },
   };
 }

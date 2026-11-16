@@ -142,9 +142,18 @@ export async function fetchReviewRequests(gh: GitHubClient, org: string) {
   return raw.map(r => ReviewNode.safeParse(r)).filter(r => r.success).map(r => r.data!);
 }
 
-// ---------- PRs do time (acompanhamento de deploy) ----------
-const TeamPrNode = z.object({
-  __typename: z.literal('PullRequest'),
+// ---------- PRs para o acompanhamento de deploy ----------
+/** Campos de PR usados no deploy: estado, decisão de review e datas para detectar re-review. */
+export const PR_FRAGMENT = `fragment DeployPr on PullRequest {
+  id number title url body state isDraft createdAt updatedAt mergedAt baseRefName headRefName reviewDecision
+  additions deletions author { login } repository { nameWithOwner }
+  reviews(last: 30) { totalCount nodes { state submittedAt } }
+  commits(last: 1) { nodes { commit { committedDate } } }
+  timelineItems(itemTypes: [REVIEW_REQUESTED_EVENT], last: 1) { nodes { ... on ReviewRequestedEvent { createdAt } } }
+  closingIssuesReferences(first: 5) { nodes { number title url repository { nameWithOwner } } }
+}`;
+
+export const DeployPrNode = z.object({
   id: z.string(), number: z.number(), title: z.string(), url: z.string(), body: z.string(),
   state: z.enum(['OPEN', 'CLOSED', 'MERGED']), isDraft: z.boolean(),
   createdAt: z.string(), updatedAt: z.string(), mergedAt: z.string().nullable(),
@@ -152,19 +161,167 @@ const TeamPrNode = z.object({
   reviewDecision: z.enum(['APPROVED', 'CHANGES_REQUESTED', 'REVIEW_REQUIRED']).nullable(),
   additions: z.number(), deletions: z.number(),
   author: Actor, repository: Repo,
-  reviews: z.object({ totalCount: z.number() }),
+  reviews: z.object({ totalCount: z.number(), nodes: z.array(z.object({ state: z.string(), submittedAt: z.string().nullable() })) }),
+  commits: z.object({ nodes: z.array(z.object({ commit: z.object({ committedDate: z.string() }) })) }),
+  timelineItems: z.object({ nodes: z.array(z.object({ createdAt: z.string().optional() })) }),
   closingIssuesReferences: z.object({ nodes: z.array(z.object({ number: z.number(), title: z.string(), url: z.string(), repository: Repo })) }),
 });
-export type TeamPrNodeT = z.infer<typeof TeamPrNode>;
+export type DeployPrNodeT = z.infer<typeof DeployPrNode>;
+export type TeamPrNodeT = DeployPrNodeT;
+
+/** Datas usadas para detectar re-review. */
+export function reviewTimes(pr: DeployPrNodeT) {
+  const rc = pr.reviews.nodes.filter(r => r.state === 'CHANGES_REQUESTED' && r.submittedAt).map(r => r.submittedAt!).sort().pop();
+  return {
+    lastChangesRequestedAt: rc ?? null,
+    lastCommitAt: pr.commits.nodes[0]?.commit.committedDate ?? null,
+    lastReviewRequestedAt: pr.timelineItems.nodes[pr.timelineItems.nodes.length - 1]?.createdAt ?? null,
+  };
+}
+
+const PageSchema = z.object({ search: z.object({ pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }), nodes: z.array(z.unknown()) }) });
 
 export async function fetchTeamPrs(gh: GitHubClient, org: string, logins: string[], sinceDay: string) {
-  const fields = `__typename ... on PullRequest { id number title url body state isDraft createdAt updatedAt mergedAt
-    baseRefName headRefName reviewDecision additions deletions author { login } repository { nameWithOwner }
-    reviews { totalCount } closingIssuesReferences(first: 5) { nodes { number title url repository { nameWithOwner } } } }`;
   if (!logins.length) return [];
   const who = logins.map(l => `author:${l}`).join(' ');
-  const raw = await searchAll(gh, `org:${org} is:pr archived:false updated:>=${sinceDay} ${who}`, fields, z.unknown(), 4);
-  return raw.map(r => TeamPrNode.safeParse(r)).filter(r => r.success).map(r => r.data!);
+  const query = `${PR_FRAGMENT}
+query($q: String!, $after: String) { search(query: $q, type: ISSUE, first: 50, after: $after) {
+  pageInfo { hasNextPage endCursor } nodes { __typename ...DeployPr } } }`;
+  const out: DeployPrNodeT[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < 4; page++) {
+    const d: z.infer<typeof PageSchema> = await gh.graphql(query, { q: `org:${org} is:pr archived:false updated:>=${sinceDay} ${who}`, after }, PageSchema);
+    for (const n of d.search.nodes) { const p = DeployPrNode.safeParse(n); if (p.success) out.push(p.data); }
+    if (!d.search.pageInfo.hasNextPage) break;
+    after = d.search.pageInfo.endCursor;
+  }
+  return out;
+}
+
+// ---------- Issues: PRs ligados e campos do Project ----------
+const FIELD_VALUES = `fieldValues(first: 30) { nodes { __typename
+  ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } }
+  ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
+  ... on ProjectV2ItemFieldTextValue { text field { ... on ProjectV2FieldCommon { name } } } } }`;
+const PROJECT_FIELDS = `projectItems(first: 10) { nodes { project { number title } ${FIELD_VALUES} } }`;
+
+const FieldValue = z.object({
+  __typename: z.string().optional(),
+  date: z.string().nullable().optional(), name: z.string().nullable().optional(), text: z.string().nullable().optional(),
+  field: z.object({ name: z.string().optional() }).nullable().optional(),
+}).passthrough();
+const ProjectItems = z.object({ nodes: z.array(z.object({
+  project: z.object({ number: z.number(), title: z.string() }).nullable().optional(),
+  fieldValues: z.object({ nodes: z.array(FieldValue) }),
+})) });
+
+export interface ProjectField { project?: number | undefined; field: string; date?: string | undefined; text?: string | undefined }
+
+function toField(v: z.infer<typeof FieldValue>, project?: number): ProjectField | undefined {
+  const field = v.field?.name;
+  if (!field) return undefined;
+  return { project, field, date: v.date ?? undefined, text: v.text ?? v.name ?? undefined };
+}
+
+function flattenFields(items: z.infer<typeof ProjectItems> | undefined): ProjectField[] {
+  const out: ProjectField[] = [];
+  for (const it of items?.nodes ?? []) {
+    for (const v of it.fieldValues.nodes) { const f = toField(v, it.project?.number); if (f) out.push(f); }
+  }
+  return out;
+}
+
+const IssueWithLinks = z.object({
+  number: z.number(), title: z.string(), url: z.string(), state: z.enum(['OPEN', 'CLOSED']),
+  closedByPullRequestsReferences: z.object({ nodes: z.array(z.unknown()) }).optional(),
+  timelineItems: z.object({ nodes: z.array(z.object({ __typename: z.string(), source: z.unknown().optional(), subject: z.unknown().optional() }).passthrough()) }),
+  projectItems: ProjectItems.optional(),
+});
+
+export interface IssueLinks { url: string; number: number; title: string; state: 'OPEN' | 'CLOSED'; prs: DeployPrNodeT[]; projectFields: ProjectField[] }
+
+export class MissingProjectScope extends Error {}
+const isScopeError = (e: unknown) => /read:project|INSUFFICIENT_SCOPES/i.test((e as Error)?.message ?? '');
+
+/** Parse de "https://github.com/org/repo/issues/123" ou "org/repo#123". */
+export function parseIssueRef(ref: string): { owner: string; repo: string; number: number } | undefined {
+  const m = ref.match(/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/(\d+)/i) ?? ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
+  return m ? { owner: m[1]!, repo: m[2]!, number: Number(m[3]) } : undefined;
+}
+
+/**
+ * Para cada issue: PRs que a fecham, PRs ligados (connected) e PRs que a citam (cross-reference),
+ * de qualquer autor/repo da org. Em lotes de 10 por consulta. Com withProject, traz os campos do Project.
+ */
+export async function fetchIssueLinks(gh: GitHubClient, refs: string[], withProject: boolean): Promise<IssueLinks[]> {
+  const parsed = refs.flatMap(r => { const p = parseIssueRef(r); return p ? [p] : []; });
+  const out: IssueLinks[] = [];
+  for (let i = 0; i < parsed.length; i += 10) {
+    const batch = parsed.slice(i, i + 10);
+    const body = batch.map((p, j) => `i${j}: repository(owner: ${JSON.stringify(p.owner)}, name: ${JSON.stringify(p.repo)}) { issue(number: ${p.number}) {
+      number title url state
+      closedByPullRequestsReferences(first: 20, includeClosedPrs: true) { nodes { ...DeployPr } }
+      timelineItems(itemTypes: [CROSS_REFERENCED_EVENT, CONNECTED_EVENT], first: 100) { nodes { __typename
+        ... on CrossReferencedEvent { source { __typename ...DeployPr } }
+        ... on ConnectedEvent { subject { __typename ...DeployPr } } } }
+      ${withProject ? PROJECT_FIELDS : ''}
+    } }`).join('\n');
+    let data: Record<string, { issue?: unknown } | null>;
+    try {
+      data = await gh.graphql(`${PR_FRAGMENT}\nquery {\n${body}\n}`, {}, z.record(z.string(), z.object({ issue: z.unknown() }).nullable()));
+    } catch (e) {
+      if (withProject && isScopeError(e)) throw new MissingProjectScope('token sem escopo read:project');
+      throw e;
+    }
+    for (const v of Object.values(data)) {
+      const issue = IssueWithLinks.safeParse(v?.issue);
+      if (!issue.success) continue;
+      const prs = new Map<string, DeployPrNodeT>();
+      const add = (n: unknown) => { const p = DeployPrNode.safeParse(n); if (p.success) prs.set(p.data.url, p.data); };
+      issue.data.closedByPullRequestsReferences?.nodes.forEach(add);
+      for (const t of issue.data.timelineItems.nodes) add(t.source ?? t.subject);
+      out.push({
+        url: issue.data.url, number: issue.data.number, title: issue.data.title, state: issue.data.state,
+        prs: [...prs.values()], projectFields: flattenFields(issue.data.projectItems),
+      });
+    }
+  }
+  return out;
+}
+
+const ProjectPage = z.object({ organization: z.object({ projectV2: z.object({ items: z.object({
+  pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
+  nodes: z.array(z.object({
+    content: z.object({ __typename: z.string(), number: z.number().optional(), title: z.string().optional(), url: z.string().optional(), state: z.string().optional() }).nullable(),
+    fieldValues: z.object({ nodes: z.array(FieldValue) }),
+  })),
+}) }).nullable() }) });
+
+/** Issues de um Project da org com seus campos (para descobrir as que têm data de deploy). */
+export async function fetchProjectIssues(gh: GitHubClient, org: string, projectNumber: number, maxPages = 30) {
+  const query = `query($org: String!, $n: Int!, $after: String) { organization(login: $org) { projectV2(number: $n) {
+    items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes {
+      content { __typename ... on Issue { number title url state } }
+      ${FIELD_VALUES} } } } } }`;
+  const out: Array<{ url: string; title: string; state: string; fields: ProjectField[] }> = [];
+  let after: string | null = null;
+  for (let page = 0; page < maxPages; page++) {
+    let d: z.infer<typeof ProjectPage>;
+    try { d = await gh.graphql(query, { org, n: projectNumber, after }, ProjectPage); }
+    catch (e) { if (isScopeError(e)) throw new MissingProjectScope('token sem escopo read:project'); throw e; }
+    const items = d.organization.projectV2?.items;
+    if (!items) break;
+    for (const n of items.nodes) {
+      if (n.content?.__typename !== 'Issue' || !n.content.url) continue;
+      out.push({
+        url: n.content.url, title: n.content.title ?? '', state: n.content.state ?? 'OPEN',
+        fields: n.fieldValues.nodes.flatMap(v => { const f = toField(v, projectNumber); return f ? [f] : []; }),
+      });
+    }
+    if (!items.pageInfo.hasNextPage) break;
+    after = items.pageInfo.endCursor;
+  }
+  return out;
 }
 
 /** Issue do board referenciada pelo PR (closing refs ou link/ref no corpo). */

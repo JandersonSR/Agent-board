@@ -46,7 +46,34 @@ export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncServic
         || Number(a.status === 'merged') - Number(b.status === 'merged')
         || (a.deployDate ?? '9999').localeCompare(b.deployDate ?? '9999')
         || +new Date(b.updatedAt) - +new Date(a.updatedAt));
-    return { source: sync.state.prs, items, statuses: STATUSES };
+    return { source: sync.state.prs, items, statuses: STATUSES, projectScope: sync.projectScope, projects: sync.projectsConfigured };
+  });
+
+  // Acompanhar uma issue: os PRs ligados a ela são encontrados e atualizados sozinhos.
+  app.post('/api/prs', async (req) => {
+    const body = z.object({
+      issue: z.string().trim().min(1).max(300),
+      deployDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    }).parse(req.body);
+    return sync.trackIssue(body.issue, body.deployDate);
+  });
+
+  app.post('/api/prs/:id/archive', async (req, reply) => {
+    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'id inválido') }).parse(req.params);
+    const { archived } = z.object({ archived: z.boolean().default(true) }).parse(req.body ?? {});
+    await store.connect();
+    if (!(await repo.archive(id, archived))) return reply.code(404).send({ error: 'não encontrado' });
+    return { ok: true };
+  });
+
+  // Ajuste manual do status de um PR (ex.: re-review). null remove o ajuste.
+  app.patch('/api/prs/:id/pr', async (req, reply) => {
+    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'id inválido') }).parse(req.params);
+    const body = z.object({ url: z.string().url(), status: z.enum(STATUSES).nullable() }).parse(req.body);
+    await store.connect();
+    const doc = await repo.setOverride(id, body.url, body.status);
+    if (!doc) return reply.code(404).send({ error: 'PR não encontrado nesta issue' });
+    return { ...doc, _id: String(doc._id) };
   });
 
   app.patch('/api/prs/:id', async (req, reply) => {
