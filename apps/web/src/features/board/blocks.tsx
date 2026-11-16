@@ -15,6 +15,21 @@ import { k, locale, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { ReviewActions } from '../runs/review-actions';
 import { TaskActions } from '../runs/task-actions';
+import { ActiveFilters, FilterMenu, usePeople } from '@/components/filter-menu';
+import { applyFilters, facetValues, isEmpty, useFilters, type Filterable } from '@/lib/filters';
+import type { ReviewItem, TrackedIssue } from '@/lib/board-types';
+
+const queueFilterable = (i: QueueItem): Filterable => ({ authors: [i.author], repos: [i.repo], text: i.title });
+const reviewFilterable = (r: ReviewItem): Filterable => ({ authors: [r.author], repos: [r.repo], text: r.title });
+export const issueFilterable = (i: TrackedIssue): Filterable => ({
+  authors: [...i.prs.filter(p => p.state !== 'closed').map(p => p.author ?? p.owner), i.owner],
+  repos: i.prs.map(p => p.repo),
+  teams: [i.team],
+  text: `${i.title} ${i.reference ?? ''}`,
+});
+
+/** Contagem "filtrados/total" quando há filtro. */
+const countLabel = (shown: number, total: number, filtered: boolean) => (filtered && shown !== total ? `${shown}/${total}` : total || undefined);
 
 type GoTo = (view: 'settings' | 'deploy' | 'runs', runId?: string) => void;
 
@@ -59,27 +74,34 @@ type QueueFilter = 'all' | 'top' | 'unanswered';
 export function QueueBlock({ goTo, className }: { goTo: GoTo; className?: string }) {
   const q = useQueue();
   const [filter, setFilter] = useState<QueueFilter>('top');
+  const [filters, setFilters] = useFilters('queue');
+  const people = usePeople().data;
+  const all = q.data?.items ?? [];
+  const options = useMemo(() => ({ author: facetValues(all, i => [i.author]), repo: facetValues(all, i => [i.repo]) }), [all]);
   const items = useMemo(() => {
-    const all = q.data?.items ?? [];
-    if (filter === 'top') return all.filter(i => i.rank <= 3);
-    if (filter === 'unanswered') return all.filter(i => i.reasons.includes('mentioned') && !i.answered);
-    return all;
-  }, [q.data, filter]);
-  const total = q.data?.items.length ?? 0;
+    const byTab = filter === 'top' ? all.filter(i => i.rank <= 3)
+      : filter === 'unanswered' ? all.filter(i => i.reasons.includes('mentioned') && !i.answered) : all;
+    return applyFilters(byTab, queueFilterable, filters, people);
+  }, [all, filter, filters, people]);
+  const total = all.length;
   const github = q.data?.source.github;
 
   return (
-    <BlockCard icon={Inbox} title={t('Minha fila')} count={total || undefined} className={className}
+    <BlockCard icon={Inbox} title={t('Minha fila')} count={countLabel(applyFilters(all, queueFilterable, filters, people).length, total, !isEmpty(filters))} className={className}
       status={statusOf(q, github, k('GitHub'), goTo)}
       actions={
-        <Tabs value={filter} onValueChange={v => setFilter(v as QueueFilter)}>
-          <TabsList className="h-7">
-            <TabsTrigger value="top" className="px-2 text-xs">{t('Prioritários')}</TabsTrigger>
-            <TabsTrigger value="unanswered" className="px-2 text-xs">{t('Sem resposta')}</TabsTrigger>
-            <TabsTrigger value="all" className="px-2 text-xs">{t('Todos')}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <>
+          <FilterMenu filters={filters} onChange={setFilters} options={options} />
+          <Tabs value={filter} onValueChange={v => setFilter(v as QueueFilter)}>
+            <TabsList className="h-7">
+              <TabsTrigger value="top" className="px-2 text-xs">{t('Prioritários')}</TabsTrigger>
+              <TabsTrigger value="unanswered" className="px-2 text-xs">{t('Sem resposta')}</TabsTrigger>
+              <TabsTrigger value="all" className="px-2 text-xs">{t('Todos')}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </>
       }>
+      <ActiveFilters filters={filters} onChange={setFilters} className="border-b px-3.5 py-1.5" />
       {items.length === 0 ? (
         <EmptyState icon={CheckCircle2} title={t('Nada aqui')} description={t(filter === 'top' ? 'Nenhum Ticket, Bug, Ajuste ou Tarefa aberto para você.' : 'Nenhum item neste filtro.')} />
       ) : (
@@ -122,14 +144,24 @@ function QueueRow({ item: i, onStarted }: { item: QueueItem; onStarted: (id: str
 // ---------- Reviews pendentes ----------
 export function ReviewsBlock({ goTo, className }: { goTo: GoTo; className?: string }) {
   const q = useReviews();
-  const items = q.data?.items ?? [];
+  const [filters, setFilters] = useFilters('reviews');
+  const people = usePeople().data;
+  const all = q.data?.items ?? [];
+  const options = useMemo(() => ({ author: facetValues(all, r => [r.author]), repo: facetValues(all, r => [r.repo]) }), [all]);
+  const items = useMemo(() => applyFilters(all, reviewFilterable, filters, people), [all, filters, people]);
   const late = items.filter(r => r.waitingBusinessDays > 1).length;
   return (
-    <BlockCard icon={GitPullRequest} title={t('Reviews pendentes')} count={items.length || undefined} countTone={late ? 'warning' : 'neutral'}
+    <BlockCard icon={GitPullRequest} title={t('Reviews pendentes')} count={countLabel(items.length, all.length, !isEmpty(filters))} countTone={late ? 'warning' : 'neutral'}
       className={className} status={statusOf(q, q.data?.source, k('GitHub'), goTo)}
-      actions={late > 0 ? <span className="text-[11px] text-warning">{t('{n} há mais de 1 dia útil', { n: late })}</span> : undefined}>
+      actions={
+        <>
+          {late > 0 && <span className="text-[11px] text-warning">{t('{n} há mais de 1 dia útil', { n: late })}</span>}
+          <FilterMenu filters={filters} onChange={setFilters} options={options} />
+        </>
+      }>
+      <ActiveFilters filters={filters} onChange={setFilters} className="border-b px-3.5 py-1.5" />
       {items.length === 0 ? (
-        <EmptyState icon={CheckCircle2} title={t('Nenhum review pendente')} description={t('Quando pedirem seu review, o PR aparece aqui.')} />
+        <EmptyState icon={CheckCircle2} title={t(all.length ? 'Nenhum PR com estes filtros' : 'Nenhum review pendente')} description={t(all.length ? 'Ajuste ou limpe os filtros.' : 'Quando pedirem seu review, o PR aparece aqui.')} />
       ) : (
         <ul className="divide-y">
           {items.map(r => (
@@ -237,12 +269,26 @@ export function BlockersBlock({ goTo, className }: { goTo: GoTo; className?: str
 // ---------- PRs e deploy (resumo) ----------
 export function PrsBlock({ goTo, className }: { goTo: GoTo; className?: string }) {
   const q = usePrs();
-  const open = (q.data?.items ?? []).filter(i => i.status !== 'merged');
+  // Mesmos filtros (salvos) da tela PRs e deploy.
+  const [filters, setFilters] = useFilters('deploy');
+  const people = usePeople().data;
+  const allOpen = useMemo(() => (q.data?.items ?? []).filter(i => i.status !== 'merged'), [q.data]);
+  const options = useMemo(() => ({
+    author: facetValues(allOpen, i => issueFilterable(i).authors), repo: facetValues(allOpen, i => issueFilterable(i).repos),
+    team: facetValues(allOpen, i => [i.team]),
+  }), [allOpen]);
+  const open = useMemo(() => applyFilters(allOpen, issueFilterable, filters, people), [allOpen, filters, people]);
   const overdue = open.filter(i => i.overdue).length;
   return (
-    <BlockCard icon={Rocket} title={t('PRs e deploy')} count={open.length || undefined} countTone={overdue ? 'danger' : 'neutral'} className={className}
+    <BlockCard icon={Rocket} title={t('PRs e deploy')} count={countLabel(open.length, allOpen.length, !isEmpty(filters))} countTone={overdue ? 'danger' : 'neutral'} className={className}
       status={q.isLoading ? { kind: 'loading' } : q.error ? { kind: 'error', message: (q.error as Error).message, retry: () => void q.refetch() } : { kind: 'ready' }}
-      actions={<Button size="xs" variant="ghost" onClick={() => goTo('deploy')}>{t('Abrir acompanhamento')}</Button>}>
+      actions={
+        <>
+          <FilterMenu filters={filters} onChange={setFilters} options={options} />
+          <Button size="xs" variant="ghost" onClick={() => goTo('deploy')}>{t('Abrir acompanhamento')}</Button>
+        </>
+      }>
+      <ActiveFilters filters={filters} onChange={setFilters} className="border-b px-3.5 py-1.5" />
       {open.length === 0 ? <EmptyState icon={CheckCircle2} title={t('Nada em andamento')} description={t('Issues com PRs abertos aparecem aqui.')} /> : (
         <ul className="divide-y">
           {open.slice(0, 8).map(i => (
