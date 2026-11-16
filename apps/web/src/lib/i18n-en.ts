@@ -546,6 +546,21 @@ export const EN: Record<string, string> = {
     'This pushes the branch {branch} and opens a draft PR that closes the issue. The team will see it.',
   'O agente para, e a worktree e a branch local da tarefa são apagadas. O histórico fica em Execuções.':
     'The agent stops, and the task worktree and local branch are deleted. The history stays in Runs.',
+  // Filters (people, teams, repositories)
+  'Filtros': 'Filters',
+  'Pessoa': 'Person',
+  'Ocultar bots': 'Hide bots',
+  'Ocultar os meus': 'Hide mine',
+  'Clique: mostrar só · de novo: ocultar · de novo: limpar': 'Click: show only · again: hide · again: clear',
+  'Limpar filtros': 'Clear filters',
+  'sem bots': 'no bots',
+  'sem os meus': 'not mine',
+  'Remover filtro {name}': 'Remove filter {name}',
+  'Buscar no título…': 'Search titles…',
+  'Buscar no título': 'Search titles',
+  'Nenhum PR com estes filtros': 'No PRs match these filters',
+  'Ajuste ou limpe os filtros.': 'Adjust or clear the filters.',
+  '{shown} de {total} issues': '{shown} of {total} issues',
 
   // Formatting
   'agora': 'now',

@@ -14,6 +14,7 @@ import { featMapRoutes } from './routes/featmaps.js';
 import { FeatMapRegistry } from './featmap/registry.js';
 import { AgentService } from './agents/service.js';
 import { runsRoutes } from './routes/runs.js';
+import { peopleRoutes } from './routes/people.js';
 import { GitHubClient } from './sources/github.js';
 import { PainelStore } from './store/mongo.js';
 
@@ -67,6 +68,7 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
   const gh = config.github.org ? new GitHubClient({ token: config.github.token, login: config.github.login }) : undefined;
   const agents = new AgentService(config, store, gh, featMaps, mask, app.log);
   await app.register(runsRoutes, { agents });
+  await app.register(peopleRoutes, { gh, org: config.github.org });
   if (startSync) app.addHook('onReady', async () => { await agents.init().catch(() => undefined); });
   if (startSync) {
     app.addHook('onReady', async () => sync.start());

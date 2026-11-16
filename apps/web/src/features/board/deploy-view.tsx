@@ -19,6 +19,9 @@ import { DEPLOY_STATUSES, STATUS_META, type DeployStatus, type TrackedIssue, typ
 import { ago, dur } from '@/lib/format';
 import { k, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
+import { ActiveFilters, FilterMenu, FilterSearch, usePeople } from '@/components/filter-menu';
+import { applyFilters, facetValues, isEmpty, useFilters } from '@/lib/filters';
+import { issueFilterable } from './blocks';
 
 type Filter = 'open' | 'overdue' | DeployStatus | 'all';
 
@@ -122,18 +125,27 @@ export function DeployView() {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const archive = useArchiveIssue();
   const q = usePrs(filter === 'all' || filter === 'merged');
+  const [filters, setFilters] = useFilters('deploy');
+  const people = usePeople().data;
+  const raw = useMemo(() => q.data?.items ?? [], [q.data]);
+  const options = useMemo(() => ({
+    author: facetValues(raw, i => issueFilterable(i).authors), repo: facetValues(raw, i => issueFilterable(i).repos),
+    team: facetValues(raw, i => [i.team]),
+  }), [raw]);
+  // Filtros (pessoa/time/repo/texto) primeiro; as abas e os contadores trabalham sobre o resultado.
+  const filtered = useMemo(() => applyFilters(raw, issueFilterable, filters, people), [raw, filters, people]);
   const items = useMemo(() => {
-    const all = q.data?.items ?? [];
+    const all = filtered;
     if (filter === 'open') return all.filter(i => i.status !== 'merged');
     if (filter === 'overdue') return all.filter(i => i.overdue);
     if (filter === 'all') return all;
     return all.filter(i => i.status === filter);
-  }, [q.data, filter]);
+  }, [filtered, filter]);
   const counts = useMemo(() => {
-    const all = q.data?.items ?? [];
+    const all = filtered;
     const by = Object.fromEntries(DEPLOY_STATUSES.map(s => [s, all.filter(i => i.status === s).length])) as Record<DeployStatus, number>;
     return { open: all.filter(i => i.status !== 'merged').length, overdue: all.filter(i => i.overdue).length, by };
-  }, [q.data]);
+  }, [filtered]);
   const toggle = (id: string) => setOpen(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
   return (
@@ -149,6 +161,13 @@ export function DeployView() {
           <p>{t('Datas do GitHub Project desligadas: o token não tem o escopo')} <Mono>read:project</Mono>. {t('Rode')} <Mono>gh auth refresh -s read:project</Mono> {t('e defina')} <Mono>GITHUB_PROJECTS</Mono> {t('no .env. Até lá, informe a data aqui.')}</p>
         </div>
       )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <FilterSearch filters={filters} onChange={setFilters} className="w-72" />
+        <FilterMenu filters={filters} onChange={setFilters} options={options} align="start" size="sm" />
+        <ActiveFilters filters={filters} onChange={setFilters} />
+        {!isEmpty(filters) && <span className="ml-auto text-xs text-muted-foreground">{t('{shown} de {total} issues', { shown: filtered.length, total: raw.length })}</span>}
+      </div>
 
       <Tabs value={filter} onValueChange={v => setFilter(v as Filter)}>
         <TabsList className="h-auto flex-wrap">
