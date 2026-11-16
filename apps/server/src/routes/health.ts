@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { SKILL_ROLES, type Config } from '../config.js';
+import type { FeatMapRegistry } from '../featmap/registry.js';
 import type { PainelStore } from '../store/mongo.js';
 import { execCmd } from '../util/exec.js';
 
@@ -51,18 +52,14 @@ function mongoCheck(store: PainelStore): Check {
   }
 }
 
-function featMapCheck(cfg: Config): Check {
-  const base = { id: 'featmap', label: 'RAG de features' };
-  const p = cfg.paths.featMap;
-  const rel = cfg.paths.featMapInventory;
-  if (!p || !rel) return { ...base, state: 'off', detail: 'FEAT_MAP_PATH/FEAT_MAP_INVENTORY não definidos' };
-  const inv = path.join(p, rel);
-  try {
-    const data = JSON.parse(fs.readFileSync(inv, 'utf8')) as { feats?: unknown[]; updated?: string };
-    return { ...base, state: 'ok', detail: `${data.feats?.length ?? 0} features · atualizado ${data.updated ?? '?'}` };
-  } catch {
-    return { ...base, state: 'error', detail: 'inventário de features não encontrado', hint: 'Confira FEAT_MAP_PATH e FEAT_MAP_INVENTORY.' };
-  }
+async function featMapCheck(registry: FeatMapRegistry): Promise<Check> {
+  const base = { id: 'featmap', label: 'RAGs de features' };
+  if (!registry.names.length) return { ...base, state: 'off', detail: 'FEAT_MAPS não definido', hint: 'Ex.: FEAT_MAPS=core=C:/reps/mapa-a;outro=C:/reps/mapa-b' };
+  const { maps } = await registry.all();
+  const bad = maps.filter(m => !m.ok);
+  const detail = maps.map(m => m.ok ? `${m.name}: ${m.packs} packs${m.behind ? ` (${m.behind} commits atrás)` : ''}` : `${m.name}: ${m.error}`).join(' · ');
+  const state: CheckState = bad.length === maps.length ? 'error' : bad.length || maps.some(m => m.behind) ? 'warn' : 'ok';
+  return { ...base, state, detail, ...(bad.length ? { hint: 'Clone o repositório do RAG na pasta indicada em FEAT_MAPS.' } : maps.some(m => m.behind) ? { hint: 'Rode git pull no clone do RAG para atualizar.' } : {}) };
 }
 
 function skillsCheck(cfg: Config): Check {
@@ -86,7 +83,7 @@ function reposCheck(cfg: Config): Check {
     : { ...base, state: 'ok', detail: `${repos.length} configurados: ${repos.map(r => r.slug).join(', ')}` };
 }
 
-export async function healthRoutes(app: FastifyInstance, opts: { config: Config; store: PainelStore }): Promise<void> {
+export async function healthRoutes(app: FastifyInstance, opts: { config: Config; store: PainelStore; featMaps: FeatMapRegistry }): Promise<void> {
   let cache: { at: number; checks: Check[] } | undefined;
 
   app.get('/api/health', async (req) => {
@@ -94,8 +91,8 @@ export async function healthRoutes(app: FastifyInstance, opts: { config: Config;
     if (!fresh && cache && Date.now() - cache.at < 30_000) {
       return { checks: [mongoCheck(opts.store), ...cache.checks.filter(c => c.id !== 'mongo')], limits: opts.config.limits };
     }
-    const [claude, github] = await Promise.all([claudeCheck(), githubCheck(opts.config)]);
-    const checks = [mongoCheck(opts.store), github, discordCheck(opts.config), claude, featMapCheck(opts.config), skillsCheck(opts.config), reposCheck(opts.config)];
+    const [claude, github, featmap] = await Promise.all([claudeCheck(), githubCheck(opts.config), featMapCheck(opts.featMaps)]);
+    const checks = [mongoCheck(opts.store), github, discordCheck(opts.config), claude, featmap, skillsCheck(opts.config), reposCheck(opts.config)];
     cache = { at: Date.now(), checks };
     return { checks, limits: opts.config.limits };
   });

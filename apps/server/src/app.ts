@@ -10,6 +10,8 @@ import { agentsRoutes } from './routes/agents.js';
 import { boardRoutes } from './routes/board.js';
 import { SyncService } from './sync/service.js';
 import { healthRoutes } from './routes/health.js';
+import { featMapRoutes } from './routes/featmaps.js';
+import { FeatMapRegistry } from './featmap/registry.js';
 import { PainelStore } from './store/mongo.js';
 
 export interface AppDeps { config: Config; store?: PainelStore; serveWeb?: boolean; startSync?: boolean }
@@ -51,7 +53,9 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
     return reply.code(status).send({ error: message });
   });
 
-  await app.register(healthRoutes, { config, store });
+  const featMaps = new FeatMapRegistry(config);
+  await app.register(healthRoutes, { config, store, featMaps });
+  await app.register(featMapRoutes, { registry: featMaps });
   await app.register(agentsRoutes, { port: config.port, approvalWait: config.approvalWait });
 
   const sync = new SyncService(config, store, mask, app.log);
