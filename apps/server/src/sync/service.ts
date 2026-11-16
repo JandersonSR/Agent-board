@@ -10,9 +10,13 @@ import { parseTypeOrder, sortQueue, typeRank } from '../domain/priority.js';
 import { deriveReview, sortReviews, type ReviewDerived } from '../domain/reviews.js';
 import type { MaskResult } from '../privacy/mask.js';
 import { DiscordClient, type DiscordMessage } from '../sources/discord.js';
-import { boardIssueOf, fetchMyItems, fetchReviewRequests, fetchTeamPrs, GitHubClient } from '../sources/github.js';
+import {
+  boardIssueOf, fetchIssueLinks, fetchMyItems, fetchProjectIssues, fetchReviewRequests, fetchTeamPrs, GitHubClient,
+  MissingProjectScope, parseIssueRef, reviewTimes, type DeployPrNodeT,
+} from '../sources/github.js';
+import { deployDateFrom } from '../domain/deploy-date.js';
 import type { PainelStore } from '../store/mongo.js';
-import { PrsRepo, type SyncedGroup } from '../store/prs-repo.js';
+import { PrsRepo, type SyncedGroup, type SyncedPr } from '../store/prs-repo.js';
 
 export type SourceId = 'github' | 'discord' | 'prs';
 export interface SourceState { configured: boolean; lastSync?: string | undefined; error?: string | undefined; running: boolean }
@@ -65,7 +69,8 @@ export class SyncService {
       github: { configured: !!this.gh, running: false },
       discord: { configured: !!this.discord && !!cfg.discord.dailyChannelId && cfg.discord.team.length > 0, running: false },
       // Sem a lista do time o sync traria PRs de outros times (que eu só reviso): fica desligado.
-      prs: { configured: !!this.gh && store.configured && cfg.github.team.length > 0, running: false },
+      // Rotina de deploy: issues acompanhadas (Project, painel ou migradas) → PRs ligados. Lista do time é opcional.
+      prs: { configured: !!this.gh && store.configured, running: false },
     };
   }
 
@@ -186,30 +191,111 @@ export class SyncService {
     this.queue = sortQueue([...this.queue.filter(q => q.source === 'github'), ...discordQueue]);
   }
 
-  // ---------- PRs do time → painel_prs ----------
+  // ---------- PRs e deploy → painel_prs ----------
+  /** null = ainda não testado; false = token sem read:project (degrada sem Project). */
+  projectScope: boolean | null = null;
+  get projectsConfigured(): number { return this.cfg.deploy.projects.length; }
+
+  private toSyncedPr(pr: DeployPrNodeT, names: Map<string, string>): SyncedPr {
+    const status = deriveStatus({ state: pr.state, reviewDecision: pr.reviewDecision, reviewCount: pr.reviews.totalCount, ...reviewTimes(pr) });
+    const owner = names.get(pr.author?.login?.toLowerCase() ?? '') ?? pr.author?.login ?? '?';
+    return {
+      url: pr.url, title: this.m(pr.title), owner, status: status ?? 'review_queue',
+      state: pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : 'open',
+      repo: pr.repository.nameWithOwner, number: pr.number, base: pr.baseRefName, isDraft: pr.isDraft,
+      additions: pr.additions, deletions: pr.deletions, mergedAt: pr.mergedAt ? new Date(pr.mergedAt) : null,
+    };
+  }
+
+  /** Roda uma chamada que lê o Project; se faltar o escopo, marca e devolve undefined. */
+  private async withProject<T>(fn: (withProject: boolean) => Promise<T>): Promise<T> {
+    if (this.projectScope === false) return fn(false);
+    try {
+      const r = await fn(true);
+      this.projectScope = true;
+      return r;
+    } catch (e) {
+      if (!(e instanceof MissingProjectScope)) throw e;
+      this.projectScope = false;
+      this.log.warn('token do GitHub sem read:project: datas de deploy do Project desligadas');
+      return fn(false);
+    }
+  }
+
   private async syncPrs(): Promise<void> {
     await this.store.connect();
     const gh = this.gh!;
     const org = this.cfg.github.org!;
-    const since = new Date(Date.now() - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
     const names = new Map(this.cfg.github.team.map(t => [t.login.toLowerCase(), t.name]));
-    const prs = await fetchTeamPrs(gh, org, this.cfg.github.team.map(t => t.login), since);
+    const today = Date.now();
+    const minDeploy = new Date(today - this.cfg.deploy.lookbackDays * 86_400_000).toISOString().slice(0, 10);
 
-    const groups = new Map<string, SyncedGroup>();
-    for (const pr of prs) {
-      const status = deriveStatus({ state: pr.state, reviewDecision: pr.reviewDecision, reviewCount: pr.reviews.totalCount });
-      const issue = boardIssueOf(pr, org, this.cfg.github.boardRepo);
-      const owner = names.get(pr.author?.login?.toLowerCase() ?? '') ?? pr.author?.login ?? '?';
-      const key = issue?.url ?? pr.url;
-      const g = groups.get(key) ?? { key, title: this.m(issue?.title ?? pr.title), reference: issue?.url, owner, prs: [] };
-      g.prs.push({
-        url: pr.url, title: this.m(pr.title), owner, status: status ?? 'review_queue',
-        state: pr.state === 'MERGED' ? 'merged' : pr.state === 'CLOSED' ? 'closed' : 'open',
-        repo: pr.repository.nameWithOwner, number: pr.number, base: pr.baseRefName, isDraft: pr.isDraft,
-        additions: pr.additions, deletions: pr.deletions, mergedAt: pr.mergedAt ? new Date(pr.mergedAt) : null,
-      });
-      groups.set(key, g);
+    // 1) Descobre issues com data de deploy nos Projects configurados.
+    if (this.cfg.deploy.projects.length && this.projectScope !== false) {
+      try {
+        for (const n of this.cfg.deploy.projects) {
+          const items = await fetchProjectIssues(gh, org, n);
+          for (const it of items) {
+            const date = deployDateFrom(it.fields, this.cfg.deploy.dateField);
+            if (!date || date < minDeploy) continue;
+            await this.prs.upsertGroup({ key: it.url, title: this.m(it.title), reference: it.url, owner: '', prs: [], projectDeployDate: date, issueState: it.state === 'CLOSED' ? 'CLOSED' : 'OPEN' });
+          }
+        }
+        this.projectScope = true;
+      } catch (e) {
+        if (!(e instanceof MissingProjectScope)) throw e;
+        this.projectScope = false;
+      }
     }
-    for (const g of groups.values()) await this.prs.upsertGroup(g);
+
+    // 2) PRs recentes do time (quando a lista do time existe), agrupados pela issue.
+    if (this.cfg.github.team.length) {
+      const since = new Date(today - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
+      const groups = new Map<string, SyncedGroup>();
+      for (const pr of await fetchTeamPrs(gh, org, this.cfg.github.team.map(t => t.login), since)) {
+        const issue = boardIssueOf(pr, org, this.cfg.github.boardRepo);
+        const synced = this.toSyncedPr(pr, names);
+        const key = issue?.url ?? pr.url;
+        const g = groups.get(key) ?? { key, title: this.m(issue?.title ?? pr.title), reference: issue?.url, owner: synced.owner, prs: [] };
+        g.prs.push(synced);
+        groups.set(key, g);
+      }
+      for (const g of groups.values()) await this.prs.upsertGroup(g);
+    }
+
+    // 3) Para cada issue acompanhada: todos os PRs ligados (qualquer autor/repo) + data do Project.
+    const refs = await this.prs.issueRefsToTrack();
+    const links = await this.withProject(withProject => fetchIssueLinks(gh, refs, withProject));
+    for (const issue of links) {
+      const prs = issue.prs.map(pr => this.toSyncedPr(pr, names));
+      await this.prs.upsertGroup({
+        key: issue.url, title: this.m(issue.title), reference: issue.url, owner: prs[0]?.owner ?? '',
+        prs, projectDeployDate: deployDateFrom(issue.projectFields, this.cfg.deploy.dateField), issueState: issue.state,
+      });
+    }
+  }
+
+  /** Começa a acompanhar uma issue (link ou org/repo#n ou número do board) e já busca os PRs dela. */
+  async trackIssue(ref: string, deployDate?: string): Promise<{ key: string; title: string; prs: number }> {
+    if (!this.gh || !this.cfg.github.org) throw Object.assign(new Error('GitHub não configurado'), { statusCode: 503 });
+    await this.store.connect();
+    const org = this.cfg.github.org;
+    const normalized = /^\d+$/.test(ref.trim())
+      ? (this.cfg.github.boardRepo ? `${org}/${this.cfg.github.boardRepo}#${ref.trim()}` : '')
+      : ref.trim();
+    if (!parseIssueRef(normalized)) throw Object.assign(new Error('informe o link da issue, org/repo#número ou o número (com GITHUB_BOARD_REPO)'), { statusCode: 400 });
+    const [issue] = await this.withProject(withProject => fetchIssueLinks(this.gh!, [normalized], withProject));
+    if (!issue) throw Object.assign(new Error('issue não encontrada (ou sem acesso)'), { statusCode: 404 });
+    const names = new Map(this.cfg.github.team.map(t => [t.login.toLowerCase(), t.name]));
+    const prs = issue.prs.map(pr => this.toSyncedPr(pr, names));
+    await this.prs.upsertGroup({
+      key: issue.url, title: this.m(issue.title), reference: issue.url, owner: prs[0]?.owner ?? '', prs,
+      projectDeployDate: deployDateFrom(issue.projectFields, this.cfg.deploy.dateField), issueState: issue.state, source: 'manual',
+    });
+    if (deployDate) {
+      const doc = (await this.prs.list({ includeOldMerged: true })).find(d => d.key === issue.url);
+      if (doc?._id) await this.prs.patch(String(doc._id), { deployDate });
+    }
+    return { key: issue.url, title: issue.title, prs: prs.length };
   }
 }

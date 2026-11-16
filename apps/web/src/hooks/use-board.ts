@@ -21,8 +21,38 @@ export const useDaily = () =>
 export const useBlockers = () =>
   useQuery({ queryKey: ['blockers'], queryFn: () => api.get<{ source: SourceState; items: OpenBlocker[] }>('/api/blockers'), refetchInterval: every });
 
+export interface PrsResponse { source: SourceState; items: TrackedIssue[]; projectScope: boolean | null; projects: number }
 export const usePrs = (all = false) =>
-  useQuery({ queryKey: ['prs', all], queryFn: () => api.get<{ source: SourceState; items: TrackedIssue[] }>(`/api/prs${all ? '?all=1' : ''}`), refetchInterval: every });
+  useQuery({ queryKey: ['prs', all], queryFn: () => api.get<PrsResponse>(`/api/prs${all ? '?all=1' : ''}`), refetchInterval: every });
+
+const invalidatePrs = (qc: ReturnType<typeof useQueryClient>) => void qc.invalidateQueries({ queryKey: ['prs'] });
+
+export function useTrackIssue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { issue: string; deployDate?: string }) => api.post<{ key: string; title: string; prs: number }>('/api/prs', body),
+    onSuccess: (r) => { invalidatePrs(qc); toast.success('Issue acompanhada', { description: `${r.title} · ${r.prs} PR(s) encontrados` }); },
+    onError: (e: Error) => toast.error('Não foi possível acompanhar', { description: e.message }),
+  });
+}
+
+export function useArchiveIssue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, archived }: { id: string; archived: boolean }) => api.post(`/api/prs/${id}/archive`, { archived }),
+    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(v.archived ? 'Parou de acompanhar' : 'Voltou a acompanhar'); },
+    onError: (e: Error) => toast.error('Falhou', { description: e.message }),
+  });
+}
+
+export function useSetPrStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, url, status }: { id: string; url: string; status: string | null }) => api.patch(`/api/prs/${id}/pr`, { url, status }),
+    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(v.status ? 'Status ajustado' : 'Voltou ao automático'); },
+    onError: (e: Error) => toast.error('Não foi possível ajustar', { description: e.message }),
+  });
+}
 
 /** Sincroniza agora (GitHub + Discord + PRs) e recarrega tudo. */
 export function useSyncNow() {

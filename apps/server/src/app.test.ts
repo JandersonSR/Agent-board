@@ -60,3 +60,23 @@ describe('app', () => {
     expect(r.statusCode).toBe(403);
   });
 });
+
+describe('rotas de deploy (validação)', () => {
+  it('recusa data de deploy fora do formato ao acompanhar issue', async () => {
+    const r = await app.inject({
+      method: 'POST', url: '/api/prs',
+      headers: { host: HOST, 'x-agent-board': '1', 'content-type': 'application/json' },
+      payload: { issue: 'org/repo#1', deployDate: '20/11/2026' },
+    });
+    expect(r.statusCode).toBe(400);
+  });
+
+  it('recusa status desconhecido no ajuste manual', async () => {
+    const r = await app.inject({
+      method: 'PATCH', url: '/api/prs/507f1f77bcf86cd799439011/pr',
+      headers: { host: HOST, 'x-agent-board': '1', 'content-type': 'application/json' },
+      payload: { url: 'https://github.com/o/r/pull/1', status: 'quase_la' },
+    });
+    expect(r.statusCode).toBe(400);
+  });
+});

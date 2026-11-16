@@ -33,14 +33,17 @@ export interface OpenBlocker {
   since: string; ageMs: number; source: 'daily' | 'channel'; inferred: boolean; messageUrl?: string; channel?: string;
 }
 
-export type DeployStatus = 'review_queue' | 'reviewing' | 'rcs' | 'waiting_approves' | 'merged';
+export type DeployStatus = 'review_queue' | 'reviewing' | 'rcs' | 're_review' | 'waiting_approves' | 'merged';
+export const DEPLOY_STATUSES: DeployStatus[] = ['review_queue', 'reviewing', 'rcs', 're_review', 'waiting_approves', 'merged'];
 export interface TrackedPr {
   url: string; title: string; owner: string; status: DeployStatus; state: 'open' | 'closed' | 'merged';
+  derivedStatus?: DeployStatus; statusOverride?: { status: DeployStatus; at: string; basis: DeployStatus } | null;
   repo?: string; number?: number; base?: string; isDraft?: boolean; additions?: number; deletions?: number;
   source: 'auto' | 'manual' | 'legacy';
 }
 export interface TrackedIssue {
   _id: string; key: string; title: string; reference?: string; owner: string; team?: string; deployDate?: string;
+  deployDateSource?: 'project' | 'manual' | 'legacy'; issueState?: 'OPEN' | 'CLOSED';
   status: DeployStatus; prs: TrackedPr[]; source: 'auto' | 'manual' | 'legacy'; overdue: boolean;
   syncedAt?: string; updatedAt: string; createdAt: string; mergedAt?: string | null;
   statusStats?: Partial<Record<DeployStatus, { count: number; totalMs: number }>>;
@@ -51,6 +54,7 @@ export const STATUS_META: Record<DeployStatus, { label: string; tone: 'neutral' 
   review_queue: { label: 'Fila de review', tone: 'neutral' },
   reviewing: { label: 'Em review', tone: 'info' },
   rcs: { label: 'RCs', tone: 'danger' },
-  waiting_approves: { label: 'Aguardando aprovações', tone: 'warning' },
+  re_review: { label: 'Re-review', tone: 'warning' },
+  waiting_approves: { label: 'Aguardando aprovações', tone: 'info' },
   merged: { label: 'Merged', tone: 'success' },
 };
