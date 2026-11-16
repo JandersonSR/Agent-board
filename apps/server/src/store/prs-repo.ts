@@ -144,6 +144,14 @@ export class PrsRepo {
     return this.col.find(filter).sort({ updatedAt: -1 }).limit(500).toArray() as Promise<TrackedIssue[]>;
   }
 
+  /** Issues com PR aberto ou mergeado desde `since`, só com o que as métricas do time usam. */
+  async listForMetrics(since: Date): Promise<TrackedIssue[]> {
+    return this.col.find(
+      { archived: { $ne: true }, $or: [{ status: { $ne: 'merged' } }, { mergedAt: { $gte: since } }, { 'prs.mergedAt': { $gte: since } }] },
+      { projection: { team: 1, 'prs.url': 1, 'prs.owner': 1, 'prs.status': 1, 'prs.state': 1, 'prs.additions': 1, 'prs.deletions': 1, 'prs.mergedAt': 1, 'prs.statusHistory': 1 } },
+    ).limit(2000).toArray() as Promise<TrackedIssue[]>;
+  }
+
   async findOne(id: string): Promise<TrackedIssue | null> {
     return (await this.col.findOne({ _id: new ObjectId(id) })) as TrackedIssue | null;
   }

@@ -84,6 +84,8 @@ const EnvSchema = z.object({
   DEPLOY_DATE_FIELD: optStr,
   DEPLOY_LOOKBACK_DAYS: intWithDefault(7, 0, 90),
   DEPLOY_BASE_BRANCHES: optStr,
+  TASK_TEST_COMMANDS: optStr,
+  TASK_VERIFY: optStr,
 });
 
 export const SKILL_ROLES = ['review', 'reviewInbox', 'daily', 'dailyDigest'] as const;
@@ -123,7 +125,15 @@ export interface Config {
   queueTypeOrder: string | undefined;
   prsLookbackDays: number;
   deploy: { projects: number[]; dateField: RegExp; lookbackDays: number; baseBranches: string[] };
+  /** Tarefas de ponta a ponta: comandos que o agente pode rodar e a verificação independente por repo. */
+  tasks: { testCommands: string[]; verify: Array<{ repo: string; command: string }> };
 }
+
+/** Comandos de teste/build que o agente pode rodar na worktree (prefixos; o resto é negado). */
+export const DEFAULT_TASK_COMMANDS = [
+  'npm test', 'npm run test', 'npm run lint', 'npm run typecheck', 'npm run build', 'pnpm test', 'yarn test', 'npx vitest',
+  'dotnet build', 'dotnet test', 'mvn test', './mvnw test', 'gradle test', './gradlew test', 'go test', 'pytest', 'bundle exec rspec',
+];
 
 /** Monta a connection string no formato mongodb+srv (MONGO_URI tem prioridade). */
 export function buildMongoUri(e: RawEnv): string | undefined {
@@ -188,6 +198,10 @@ export function parseConfig(env: NodeJS.ProcessEnv = process.env): Config {
       dateField: safeRegex(e.DEPLOY_DATE_FIELD ?? 'deploy'),
       lookbackDays: e.DEPLOY_LOOKBACK_DAYS,
       baseBranches: list(e.DEPLOY_BASE_BRANCHES),
+    },
+    tasks: {
+      testCommands: e.TASK_TEST_COMMANDS ? list(e.TASK_TEST_COMMANDS) : DEFAULT_TASK_COMMANDS,
+      verify: pairs(e.TASK_VERIFY, ';', '=').map(p => ({ repo: p.key, command: p.value })),
     },
   };
 }

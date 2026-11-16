@@ -1,7 +1,7 @@
 // Execuções de agentes disparadas pelo painel: lista, log ao vivo, resultado e ações.
 import { useEffect, useRef, useState } from 'react';
 import {
-  AlertTriangle, Bot, CheckCircle2, CircleDot, Clock, ExternalLink, GitPullRequestDraft, Loader2, Square, XCircle,
+  AlertTriangle, Bot, Check, CheckCircle2, CircleDot, Clock, ExternalLink, GitPullRequestDraft, Loader2, Square, X, XCircle,
 } from 'lucide-react';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
@@ -11,7 +11,8 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState, Mono, Pill, type Tone } from '@/components/common';
-import { useCancelRun, usePendingReview, useRun, useRuns, type Run, type Severity } from '@/hooks/use-runs';
+import { useCancelRun, usePendingReview, useRun, useRuns, useSetFeedback, type FindingDecision, type Run, type Severity } from '@/hooks/use-runs';
+import { TaskDetail, TaskPhasePill } from './task-detail';
 import { ago, dur, fmtCost, fmtTok } from '@/lib/format';
 import { k, locale, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -35,13 +36,23 @@ function RunDetail({ id }: { id: string }) {
   const q = useRun(id);
   const cancel = useCancelRun();
   const pending = usePendingReview();
+  const feedback = useSetFeedback(id);
   const [confirm, setConfirm] = useState(false);
   const logEnd = useRef<HTMLDivElement>(null);
   const r = q.data;
   useEffect(() => { if (r?.status === 'running') logEnd.current?.scrollIntoView({ block: 'end' }); }, [r?.log.length, r?.status]);
 
   if (q.isLoading || !r) return <div className="space-y-3 p-4"><Skeleton className="h-8" /><Skeleton className="h-40" /></div>;
+  if (r.kind === 'task') return <TaskDetail run={r} />;
   const review = r.result?.review;
+  const decisions: FindingDecision[] = review ? review.findings.map((_, i) => r.findingDecisions?.[i] ?? null) : [];
+  const decide = (i: number, d: Exclude<FindingDecision, null>) => {
+    const next = [...decisions];
+    next[i] = next[i] === d ? null : d;
+    feedback.mutate(next);
+  };
+  const kept = decisions.filter(d => d !== 'rejected').length;
+  const judged = decisions.filter(Boolean).length;
   const posted = r.actions.find(a => a.type === 'pending_review' && a.ok);
   const elapsed = (r.endedAt ? Date.parse(r.endedAt) : Date.now()) - Date.parse(r.startedAt);
 
@@ -52,7 +63,7 @@ function RunDetail({ id }: { id: string }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{r.title}</p>
             <p className="text-xs text-muted-foreground">
-              {r.kind === 'review' ? 'Review' : t('Tarefa')} · {r.model} · {t('iniciada há {time}', { time: ago(Date.parse(r.startedAt)) })} · {dur(elapsed)}
+              {r.kind === 'review' ? 'Review' : t('Tarefa')} · {r.promptVersion ?? r.model}{r.promptEdited ? ` (${t('prompt editado')})` : ''} · {t('iniciada há {time}', { time: ago(Date.parse(r.startedAt)) })} · {dur(elapsed)}
               {r.usage && <> · {fmtTok(r.usage.inputTokens + r.usage.cacheReadTokens + r.usage.cacheWriteTokens)} in / {fmtTok(r.usage.outputTokens)} out · {fmtCost(r.usage.costUsd)}</>}
             </p>
           </div>
@@ -95,14 +106,24 @@ function RunDetail({ id }: { id: string }) {
                 <section><h3 className="mb-1 text-xs font-semibold">{t('Riscos')}</h3><ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">{review.risks.map((b, i) => <li key={i}>{b}</li>)}</ul></section>
               )}
               <section className="space-y-2">
-                <h3 className="text-xs font-semibold">{t('Achados ({n})', { n: review.findings.length })}</h3>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  <h3 className="text-xs font-semibold">{t('Achados ({n})', { n: review.findings.length })}</h3>
+                  {review.findings.length > 0 && <span className="text-[11px] text-muted-foreground">{t('{judged} de {total} julgados · {kept} vão para a review', { judged, total: review.findings.length, kept })}</span>}
+                </div>
+                {review.findings.length > 0 && !posted && <p className="text-[11px] text-muted-foreground">{t('Marque cada achado. Os descartados não vão para o GitHub, e o julgamento mede a precisão da review por IA.')}</p>}
                 {review.findings.length === 0 && <p className="text-xs text-muted-foreground">{t('Nenhum achado.')}</p>}
                 {review.findings.map((f, i) => (
-                  <article key={i} className="rounded-lg border p-3">
+                  <article key={i} className={cn('rounded-lg border p-3', decisions[i] === 'rejected' && 'opacity-55', decisions[i] === 'accepted' && 'border-success/40')}>
                     <div className="flex flex-wrap items-center gap-2">
                       <Pill tone={SEV[f.severity]}>{f.severity}</Pill>
                       <span className="text-[13px] font-medium">{f.title}</span>
                       {f.path && <Mono className="ml-auto text-[11px] text-muted-foreground">{f.path}{f.line ? `:${f.line}` : ''}</Mono>}
+                      <div className={cn('flex gap-1', !f.path && 'ml-auto')}>
+                        <Button size="xs" variant={decisions[i] === 'accepted' ? 'secondary' : 'ghost'} aria-pressed={decisions[i] === 'accepted'}
+                          disabled={feedback.isPending || !!posted} onClick={() => decide(i, 'accepted')}><Check /> {t('Manter')}</Button>
+                        <Button size="xs" variant={decisions[i] === 'rejected' ? 'secondary' : 'ghost'} aria-pressed={decisions[i] === 'rejected'}
+                          disabled={feedback.isPending || !!posted} onClick={() => decide(i, 'rejected')}><X /> {t('Descartar')}</Button>
+                      </div>
                     </div>
                     <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{f.body}</p>
                     {f.suggestion && <pre className="mt-2 overflow-auto rounded bg-muted p-2 font-mono text-[11px]">{f.suggestion}</pre>}
@@ -138,7 +159,7 @@ function RunDetail({ id }: { id: string }) {
           <AlertDialogHeader>
             <AlertDialogTitle>{t('Criar review PENDING no GitHub?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t('Os {n} achados viram uma review pendente no seu nome: comentários nas linhas do diff e o resto no corpo.', { n: review?.findings.length ?? 0 })}
+              {t('Os {n} achados mantidos viram uma review pendente no seu nome: comentários nas linhas do diff e o resto no corpo.', { n: kept })}
               {' '}{t('Ela só fica visível para o autor depois que você a submeter no GitHub. Nada é aprovado.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -164,7 +185,7 @@ export function RunsView({ selected, onSelect }: { selected: string | null; onSe
           {q.data && <Pill className="ml-auto">{t('{n} rodando', { n: q.data.running })}</Pill>}
         </header>
         {q.isLoading ? <div className="space-y-2 p-3">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-12" />)}</div>
-          : items.length === 0 ? <EmptyState icon={Bot} title={t('Nenhuma execução ainda')} description={t('Use o botão ✨ num PR em Reviews pendentes para pedir uma review ao Claude.')} />
+          : items.length === 0 ? <EmptyState icon={Bot} title={t('Nenhuma execução ainda')} description={t('Use ✨ num PR em Reviews pendentes para uma review, ou a varinha numa issue de Minha fila para resolver a tarefa com um agente.')} />
           : (
             <ul className="min-h-0 flex-1 divide-y overflow-auto">
               {items.map(r => (
@@ -173,7 +194,7 @@ export function RunsView({ selected, onSelect }: { selected: string | null; onSe
                     className={cn('w-full px-3.5 py-2.5 text-left hover:bg-muted/60', current === r._id && 'bg-muted')}>
                     <div className="flex items-center gap-2">
                       <span className="min-w-0 flex-1 truncate text-[13px]">{r.title}</span>
-                      <RunStatusPill status={r.status} />
+                      {r.kind === 'task' ? <TaskPhasePill phase={r.task?.phase} /> : <RunStatusPill status={r.status} />}
                     </div>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {r.kind === 'review' ? 'review' : t('tarefa')} · {ago(Date.parse(r.startedAt))}

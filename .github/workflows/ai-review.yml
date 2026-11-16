@@ -1,0 +1,74 @@
+# Pré-review por IA, reutilizável pelos repositórios do time (opt-in).
+# Só comenta: nunca aprova, nunca pede mudanças, nunca faz push. Veja docs/ci-ai-review.md.
+# Exige aprovação da empresa para enviar código ao provedor do modelo e um secret ANTHROPIC_API_KEY no repositório que chama.
+name: AI pre-review
+
+on:
+  workflow_call:
+    inputs:
+      model:
+        type: string
+        default: sonnet
+      max-lines:
+        description: PRs maiores que isso são pulados com um aviso
+        type: number
+        default: 2000
+      language:
+        description: pt-BR ou en
+        type: string
+        default: pt-BR
+      skip-label:
+        type: string
+        default: no-ai-review
+      agent-board-ref:
+        description: Versão do agent-board usada (tag ou SHA; fixe para não mudar sem você saber)
+        type: string
+        default: main
+    secrets:
+      ANTHROPIC_API_KEY:
+        required: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    if: >-
+      github.event_name == 'pull_request' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(github.event.pull_request.labels.*.name, inputs.skip-label)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: ai-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Checkout do PR
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Script de review
+        uses: actions/checkout@v4
+        with:
+          repository: JandersonSR/agent-board
+          ref: ${{ inputs.agent-board-ref }}
+          path: .agent-board
+          sparse-checkout: ci
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Pré-review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          MODEL: ${{ inputs.model }}
+          MAX_LINES: ${{ inputs.max-lines }}
+          LANG_OUT: ${{ inputs.language }}
+        run: node .agent-board/ci/ai-review.mjs

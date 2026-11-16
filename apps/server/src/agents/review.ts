@@ -22,6 +22,12 @@ export const ReviewResult = z.object({
 });
 export type ReviewResultT = z.infer<typeof ReviewResult>;
 
+/**
+ * Versão do modelo de prompt desta execução. Mude ao alterar buildReviewPrompt ou JSON_CONTRACT:
+ * a qualidade (precisão dos achados) é comparada por versão.
+ */
+export const REVIEW_PROMPT_VERSION = 'r1';
+
 const JSON_CONTRACT = `{
   "verdict": "approve" | "request_changes" | "comment",
   "readyForProd": true | false,
@@ -48,18 +54,20 @@ export function buildReviewPrompt(opts: { prUrl: string; skill?: string | undefi
   ].filter(Boolean).join('\n\n');
 }
 
-/** Extrai o último bloco JSON da resposta e valida. */
-export function parseReviewResult(text: string): { ok: true; value: ReviewResultT } | { ok: false; error: string } {
+/** Extrai o último bloco JSON válido da resposta do agente (do fim para o começo). */
+export function parseJsonBlock<T>(text: string, schema: z.ZodType<T>): { ok: true; value: T } | { ok: false; error: string } {
   const blocks = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)].map(m => m[1]!);
   const candidates = blocks.length ? blocks.reverse() : [text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)];
   for (const c of candidates) {
     try {
-      const parsed = ReviewResult.safeParse(JSON.parse(c));
+      const parsed = schema.safeParse(JSON.parse(c));
       if (parsed.success) return { ok: true, value: parsed.data };
     } catch { /* tenta o próximo */ }
   }
   return { ok: false, error: 'o agente não devolveu o JSON esperado' };
 }
+
+export const parseReviewResult = (text: string) => parseJsonBlock(text, ReviewResult);
 
 // ---------- Review PENDING ----------
 

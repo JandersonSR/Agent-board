@@ -1,0 +1,16 @@
+# Copie para .github/workflows/ai-review.yml no repositório do time.
+name: AI pre-review
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+permissions:
+  contents: read
+  pull-requests: write
+jobs:
+  ai-review:
+    uses: JandersonSR/agent-board/.github/workflows/ai-review.yml@main # fixe numa tag ou SHA
+    with:
+      language: pt-BR
+      max-lines: 2000
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
