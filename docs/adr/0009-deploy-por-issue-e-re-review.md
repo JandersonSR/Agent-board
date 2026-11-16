@@ -2,7 +2,7 @@
 
 - **Status:** aceito
 - **Data:** 2026-11-16
-- **Substitui em parte:** ADR 0007, onde a descoberta partia só dos autores (time)
+- **Substitui em parte:** a decisão anterior em que a descoberta de PRs partia só dos autores (time)
 
 ## Contexto
 No painel anterior cada PR era cadastrado à mão. Uma entrega (issue) costuma ter PRs em vários repos e várias bases (`main` e as branches de produção), de autores diferentes. A data de deploy fica no GitHub Project, mas às vezes é combinada fora dele. O fluxo de review também precisava distinguir **re-review**: as mudanças pedidas já foram atendidas e o PR espera nova revisão.
