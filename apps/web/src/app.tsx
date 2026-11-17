@@ -95,7 +95,7 @@ export function App() {
             <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" /></div>
             <div className="leading-tight">
               <p className="text-sm font-semibold tracking-tight">Agent Board</p>
-              <p className="text-[11px] text-muted-foreground">{t('painel do Tech Lead')}</p>
+              <p className="text-[11px] text-muted-foreground">{t('painel do TL')}</p>
             </div>
           </div>
           <nav className="flex-1 space-y-0.5 px-2 py-2" aria-label={t('Navegação principal')}>
