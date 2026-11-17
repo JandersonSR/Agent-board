@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveStatus, effectiveStatus, enterStatus, groupStatus, type DeployStatus, type Tracked } from './pr-status.js';
+import { deriveStatus, effectiveStatus, enterStatus, groupStatus, prodBranchMatcher, type DeployStatus, type Tracked } from './pr-status.js';
 
 describe('status de deploy derivado do GitHub', () => {
   it('mapeia estados do PR', () => {
@@ -24,6 +24,20 @@ describe('status de deploy derivado do GitHub', () => {
     expect(groupStatus(['merged', 'merged'])).toBe('merged');
     expect(groupStatus([])).toBeNull();
   });
+
+  it('merge numa branch de produção → production; o grupo só fica em produção quando nada está aberto', () => {
+    expect(deriveStatus({ state: 'MERGED', reviewDecision: null, reviewCount: 0, intoProduction: true })).toBe('production');
+    expect(deriveStatus({ state: 'OPEN', reviewDecision: 'APPROVED', reviewCount: 1, intoProduction: true })).toBe('waiting_approves');
+    expect(groupStatus(['merged', 'production'])).toBe('production'); // PR na main + PR na production
+    expect(groupStatus(['production', 'waiting_approves'])).toBe('waiting_approves');
+  });
+
+  it('branches de produção com curinga', () => {
+    const isProd = prodBranchMatcher(['production', 'production-*', 'jobs']);
+    expect(['production', 'production-api', 'Production-Hooks', 'jobs'].every(isProd)).toBe(true);
+    expect([undefined, 'main', 'develop', 'pre-production', 'jobs-old', 'production.x'].some(isProd)).toBe(false);
+    expect(prodBranchMatcher(['release.1'])('releasex1')).toBe(false); // ponto é literal
+  });
 });
 
 describe('ajuste manual de status', () => {
@@ -33,7 +47,12 @@ describe('ajuste manual de status', () => {
   });
   it('cai sozinho quando o derivado muda ou o PR é mergeado', () => {
     expect(effectiveStatus('waiting_approves', ov)).toEqual({ status: 'waiting_approves', override: null });
-    expect(effectiveStatus('merged', { ...ov, basis: 'merged' })).toEqual({ status: 'merged', override: null });
+    expect(effectiveStatus('merged', ov)).toEqual({ status: 'merged', override: null });
+  });
+  it('"em produção" marcado à mão sobre um PR merged vale; production do GitHub derruba qualquer ajuste', () => {
+    const prod = { status: 'production' as DeployStatus, at: '2026-11-16T10:00:00Z', basis: 'merged' as DeployStatus };
+    expect(effectiveStatus('merged', prod)).toEqual({ status: 'production', override: prod });
+    expect(effectiveStatus('production', { ...ov, basis: 'production' })).toEqual({ status: 'production', override: null });
   });
   it('sem ajuste usa o derivado', () => {
     expect(effectiveStatus('reviewing', null)).toEqual({ status: 'reviewing', override: null });

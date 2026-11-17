@@ -9,7 +9,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { BlockCard, Dot, EmptyState, Mono, Pill, type BlockStatus, type Tone } from '@/components/common';
 import { useBlockers, useDaily, usePrs, useQueue, useReviews } from '@/hooks/use-board';
 import type { PrSize, QueueItem, SourceState } from '@/lib/board-types';
-import { STATUS_META } from '@/lib/board-types';
+import { isDone, STATUS_META } from '@/lib/board-types';
 import { ago, dur, fmtDay, plural } from '@/lib/format';
 import { k, locale, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -272,7 +272,7 @@ export function PrsBlock({ goTo, className }: { goTo: GoTo; className?: string }
   // Mesmos filtros (salvos) da tela PRs e deploy.
   const [filters, setFilters] = useFilters('deploy');
   const people = usePeople().data;
-  const allOpen = useMemo(() => (q.data?.items ?? []).filter(i => i.status !== 'merged'), [q.data]);
+  const allOpen = useMemo(() => (q.data?.items ?? []).filter(i => !isDone(i.status)), [q.data]);
   const options = useMemo(() => ({
     author: facetValues(allOpen, i => issueFilterable(i).authors), repo: facetValues(allOpen, i => issueFilterable(i).repos),
     team: facetValues(allOpen, i => [i.team]),

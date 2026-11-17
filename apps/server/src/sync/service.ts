@@ -5,7 +5,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config.js';
 import { blockersFromChannels, blockersFromDailies, mergeBlockers, type ChannelMessage, type OpenBlocker } from '../domain/blockers.js';
 import { summarizeDaily, type DailyMessage, type DailySummary } from '../domain/daily.js';
-import { deriveStatus } from '../domain/pr-status.js';
+import { deriveStatus, prodBranchMatcher } from '../domain/pr-status.js';
 import { parseTypeOrder, sortQueue, typeRank } from '../domain/priority.js';
 import { deriveReview, sortReviews, type ReviewDerived } from '../domain/reviews.js';
 import type { MaskResult } from '../privacy/mask.js';
@@ -67,12 +67,14 @@ export class SyncService {
   private readonly discord: DiscordClient | undefined;
   private readonly prs: PrsRepo;
   private readonly typeRules;
+  private readonly isProdBranch: (base: string | undefined) => boolean;
 
   constructor(private readonly cfg: Config, private readonly store: PainelStore, private readonly mask: Mask, private readonly log: FastifyBaseLogger) {
     this.gh = cfg.github.org ? new GitHubClient({ token: cfg.github.token, login: cfg.github.login }) : undefined;
     this.discord = cfg.discord.token ? new DiscordClient(cfg.discord.token, cfg.discord.guildId) : undefined;
     this.prs = new PrsRepo(store);
     this.typeRules = parseTypeOrder(cfg.queueTypeOrder);
+    this.isProdBranch = prodBranchMatcher(cfg.deploy.prodBranches);
     this.state = {
       github: { configured: !!this.gh, running: false },
       discord: { configured: !!this.discord && !!cfg.discord.dailyChannelId && cfg.discord.team.length > 0, running: false },
@@ -218,7 +220,7 @@ export class SyncService {
   get projectsConfigured(): number { return this.cfg.deploy.projects.length; }
 
   private toSyncedPr(pr: DeployPrNodeT, names: Map<string, string>): SyncedPr {
-    const status = deriveStatus({ state: pr.state, reviewDecision: pr.reviewDecision, reviewCount: pr.reviews.totalCount, ...reviewTimes(pr) });
+    const status = deriveStatus({ state: pr.state, reviewDecision: pr.reviewDecision, reviewCount: pr.reviews.totalCount, ...reviewTimes(pr), intoProduction: this.isProdBranch(pr.baseRefName) });
     const owner = names.get(pr.author?.login?.toLowerCase() ?? '') ?? pr.author?.login ?? '?';
     return {
       url: pr.url, title: this.m(pr.title), owner, ...(pr.author?.login ? { author: pr.author.login } : {}), status: status ?? 'review_queue',

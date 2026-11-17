@@ -126,6 +126,8 @@ export const EN: Record<string, string> = {
   'Re-review': 'Re-review',
   'Aguardando aprovações': 'Waiting for approvals',
   'Merged': 'Merged',
+  'Em produção': 'In production',
+  'Em produção, o card sai do acompanhamento automático.': 'In production, the card leaves automatic tracking.',
   'do Project': 'from the Project',
   'editada no painel': 'edited on the board',
   'do painel antigo': 'from the old board',

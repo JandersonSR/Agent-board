@@ -3,7 +3,7 @@
 // time, responsável, ordem, ajuste de status) nunca são sobrescritos por ela.
 import { ObjectId, type Document } from 'mongodb';
 import {
-  effectiveStatus, enterStatus, groupStatus,
+  DONE_STATUSES, effectiveStatus, enterStatus, groupStatus, isDone,
   type DeployStatus, type StatusHistoryEntry, type StatusOverride, type StatusStats,
 } from '../domain/pr-status.js';
 import type { PainelStore } from './mongo.js';
@@ -84,7 +84,7 @@ function recomputeGroup(doc: TrackedIssue, now: Date): TrackedIssue {
   const live = doc.prs.filter(p => p.state !== 'closed').map(p => p.status);
   const status = groupStatus(live) ?? doc.status;
   let next = enterStatus(doc, status, now);
-  if (status === 'merged' && !next.mergedAt) {
+  if (isDone(status) && !next.mergedAt) {
     next = { ...next, mergedAt: doc.prs.map(p => p.mergedAt).filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? now };
   }
   return next;
@@ -146,7 +146,7 @@ export class PrsRepo {
     const days = opts.mergedWithinDays ?? 7;
     const filter: Document = opts.includeOldMerged ? { archived: { $ne: true } } : {
       archived: { $ne: true },
-      $or: [{ status: { $ne: 'merged' } }, { mergedAt: { $gte: new Date(Date.now() - days * 86_400_000) } }, { mergedAt: null }],
+      $or: [{ status: { $nin: [...DONE_STATUSES] } }, { mergedAt: { $gte: new Date(Date.now() - days * 86_400_000) } }, { mergedAt: null }],
     };
     return this.col.find(filter).sort({ updatedAt: -1 }).limit(500).toArray() as Promise<TrackedIssue[]>;
   }
@@ -154,7 +154,7 @@ export class PrsRepo {
   /** Issues com PR aberto ou mergeado desde `since`, só com o que as métricas do time usam. */
   async listForMetrics(since: Date): Promise<TrackedIssue[]> {
     return this.col.find(
-      { archived: { $ne: true }, $or: [{ status: { $ne: 'merged' } }, { mergedAt: { $gte: since } }, { 'prs.mergedAt': { $gte: since } }] },
+      { archived: { $ne: true }, $or: [{ status: { $nin: [...DONE_STATUSES] } }, { mergedAt: { $gte: since } }, { 'prs.mergedAt': { $gte: since } }] },
       { projection: { team: 1, 'prs.url': 1, 'prs.owner': 1, 'prs.status': 1, 'prs.state': 1, 'prs.additions': 1, 'prs.deletions': 1, 'prs.mergedAt': 1, 'prs.statusHistory': 1 } },
     ).limit(2000).toArray() as Promise<TrackedIssue[]>;
   }
@@ -191,16 +191,18 @@ export class PrsRepo {
     if (urls.length) or.push({ 'prs.url': { $in: urls } });
     const existing = (await this.col.findOne({ $or: or })) as TrackedIssue | null;
     if (existing?.archived) return; // parou de acompanhar: a rotina não ressuscita
+    if (existing?.status === 'production') return; // em produção: entrega encerrada, a rotina não mexe mais
     const doc = mergeGroup(existing, group, now);
     const { _id, ...rest } = doc;
     if (_id) await this.col.replaceOne({ _id }, rest);
     else await this.col.insertOne(rest as TrackedIssue);
   }
 
-  /** Issues que a rotina deve consultar no GitHub: não arquivadas e não mergeadas há mais de `days`. */
+  /** Issues que a rotina deve consultar no GitHub: não arquivadas, não em produção e não mergeadas há mais de `days`. */
   async issueRefsToTrack(days = 3): Promise<string[]> {
     const docs = await this.col.find({
       archived: { $ne: true },
+      status: { $ne: 'production' },
       reference: { $regex: '/issues/\\d+$' },
       $or: [{ status: { $ne: 'merged' } }, { mergedAt: { $gte: new Date(Date.now() - days * 86_400_000) } }],
     }, { projection: { reference: 1 } }).toArray();

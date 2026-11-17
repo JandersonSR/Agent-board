@@ -71,8 +71,8 @@ export function computeInitiative(init: Pick<Initiative, 'stages'>, tracked: Tra
   const stages = init.stages.map(s => {
     const q = s.query?.trim().toLowerCase();
     const matched = tracked.filter(t => s.issues.some(r => refMatches(r, t)) || (!!q && t.title.toLowerCase().includes(q)))
-      .map(t => ({ key: t.key, title: t.title, status: t.status, deployDate: t.deployDate, deployed: t.status === 'merged' && !!t.deployDate && t.deployDate <= today }));
-    const merged = matched.filter(m => m.status === 'merged').length;
+      .map(t => ({ key: t.key, title: t.title, status: t.status, deployDate: t.deployDate, deployed: t.status === 'production' || (t.status === 'merged' && !!t.deployDate && t.deployDate <= today) }));
+    const merged = matched.filter(m => m.status === 'merged' || m.status === 'production').length;
     const deployed = matched.filter(m => m.deployed).length;
     const waitingOn = s.dependsOn.filter(d => byId.has(d) && byId.get(d)!.status !== 'done');
     return {

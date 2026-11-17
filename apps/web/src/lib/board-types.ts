@@ -35,8 +35,10 @@ export interface OpenBlocker {
   since: string; ageMs: number; source: 'daily' | 'channel'; inferred: boolean; messageUrl?: string; channel?: string;
 }
 
-export type DeployStatus = 'review_queue' | 'reviewing' | 'rcs' | 're_review' | 'waiting_approves' | 'merged';
-export const DEPLOY_STATUSES: DeployStatus[] = ['review_queue', 'reviewing', 'rcs', 're_review', 'waiting_approves', 'merged'];
+export type DeployStatus = 'review_queue' | 'reviewing' | 'rcs' | 're_review' | 'waiting_approves' | 'merged' | 'production';
+export const DEPLOY_STATUSES: DeployStatus[] = ['review_queue', 'reviewing', 'rcs', 're_review', 'waiting_approves', 'merged', 'production'];
+/** Entregue (merged) ou em produção: sai dos "abertos". */
+export const isDone = (s: DeployStatus) => s === 'merged' || s === 'production';
 export interface TrackedPr {
   url: string; title: string; owner: string; author?: string; status: DeployStatus; state: 'open' | 'closed' | 'merged';
   derivedStatus?: DeployStatus; statusOverride?: { status: DeployStatus; at: string; basis: DeployStatus } | null;
@@ -60,4 +62,5 @@ export const STATUS_META: Record<DeployStatus, { label: string; tone: 'neutral' 
   re_review: { label: k('Re-review'), tone: 'warning' },
   waiting_approves: { label: k('Aguardando aprovações'), tone: 'info' },
   merged: { label: k('Merged'), tone: 'success' },
+  production: { label: k('Em produção'), tone: 'success' },
 };

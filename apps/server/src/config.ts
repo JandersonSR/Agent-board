@@ -87,6 +87,7 @@ const EnvSchema = z.object({
   DEPLOY_DATE_FIELD: optStr,
   DEPLOY_LOOKBACK_DAYS: intWithDefault(7, 0, 90),
   DEPLOY_BASE_BRANCHES: optStr,
+  DEPLOY_PROD_BRANCHES: optStr,
   TASK_TEST_COMMANDS: optStr,
   TASK_VERIFY: optStr,
   DORA_FAILURE_RE: optStr,
@@ -153,7 +154,7 @@ export interface Config {
   team: { tzOffsetMin: number; holidays: Set<string> };
   queueTypeOrder: string | undefined;
   prsLookbackDays: number;
-  deploy: { projects: number[]; dateField: RegExp; lookbackDays: number; baseBranches: string[] };
+  deploy: { projects: number[]; dateField: RegExp; lookbackDays: number; baseBranches: string[]; prodBranches: string[] };
   /** Tarefas de ponta a ponta: comandos que o agente pode rodar e a verificação independente por repo. */
   tasks: { testCommands: string[]; verify: Array<{ repo: string; command: string }> };
   /** Regex que marca uma entrega como correção de falha (hotfix, rollback, revert…) nas métricas DORA. */
@@ -244,6 +245,8 @@ function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
       dateField: safeRegex(e.DEPLOY_DATE_FIELD ?? 'deploy'),
       lookbackDays: e.DEPLOY_LOOKBACK_DAYS,
       baseBranches: list(e.DEPLOY_BASE_BRANCHES),
+      // Merge numa destas = em produção: o card vira "Em produção" e sai do acompanhamento.
+      prodBranches: list(e.DEPLOY_PROD_BRANCHES ?? 'production,production-*'),
     },
     tasks: {
       testCommands: e.TASK_TEST_COMMANDS ? list(e.TASK_TEST_COMMANDS) : DEFAULT_TASK_COMMANDS,
