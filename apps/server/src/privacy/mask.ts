@@ -39,9 +39,10 @@ const keepLabel = (kind: MaskKind) => (_m: string, label: string) => `${label}[$
 
 // Order matters: secrets and long documents before short ones.
 const RULES: Rule[] = [
-  // Segredos
+  // Secrets
   { kind: 'SEGREDO', re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g },
-  { kind: 'SEGREDO', re: /\b[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,40}\b/g }, // token de bot Discord
+  { kind: 'SEGREDO', re: /\b[A-Za-z0-9_-]{23,28}\.[A-Za-z0-9_-]{6,7}\.[A-Za-z0-9_-]{27,40}\b/g }, // Discord bot token
+  { kind: 'SEGREDO', re: /\b(?:xox[abposr]-[A-Za-z0-9-]{10,}|lin_api_[A-Za-z0-9]{20,}|ATATT[A-Za-z0-9_=-]{20,})/g }, // Slack, Linear and Jira tokens
   { kind: 'SEGREDO', re: /\b(Bearer\s+)[A-Za-z0-9._~+/-]{16,}=*/gi, replace: (_m, p: string) => `${p}[SEGREDO]` },
   { kind: 'SEGREDO', re: /(\b[a-z][a-z0-9+.-]*:\/\/)[^\s:/@]+:[^\s@/]+@/gi, replace: (_m, p: string) => `${p}[SEGREDO]@` },
   { kind: 'SEGREDO', re: /\b((?:senha|password|passwd|secret|token|api[_-]?key)\s*[:=]\s*)\S+/gi, replace: keepLabel('SEGREDO') },
@@ -72,13 +73,13 @@ const RULES: Rule[] = [
 ];
 
 // Spans that are never personal data and must not be broken by masking:
-// Discord mentions/channels and URLs (the URL path stays; the query string is masked).
-const PROTECT = /<(?:@[!&]?|#)\d{15,22}>|https?:\/\/[^\s<>()]+/g;
+// Discord and Slack mentions/channels and URLs (the URL path stays; the query string is masked).
+const PROTECT = /<(?:@[!&]?|#)\d{15,22}>|<(?:@[UW][A-Z0-9]{6,}|#C[A-Z0-9]{6,}|!subteam\^[A-Z0-9]{6,})(?:\|[^>]*)?>|https?:\/\/[^\s<>()]+/g;
 
 function compileExtra(patterns: string[]): Rule[] {
   const out: Rule[] = [];
   for (const p of patterns) {
-    try { out.push({ kind: 'EXTRA', re: new RegExp(p, 'g') }); } catch { /* regex inválida no .env: ignora */ }
+    try { out.push({ kind: 'EXTRA', re: new RegExp(p, 'g') }); } catch { /* invalid regex in .env: ignored */ }
   }
   return out;
 }

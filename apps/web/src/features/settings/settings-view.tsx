@@ -142,6 +142,26 @@ export function SettingsView(p: PrefsProps) {
             <li>{t('Developer mode → Copy the channel IDs and your user ID →')} <Mono className="text-[11px]">.env</Mono>.</li>
           </ol>
         </section>
+
+        <section className="rounded-xl border bg-card px-4 py-3 shadow-xs">
+          <h2 className="flex items-center gap-2 text-sm font-semibold"><CircleDashed className="size-4 text-muted-foreground" /> {t('Slack app (read-only)')}</h2>
+          <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-muted-foreground">
+            <li>api.slack.com/apps → <b className="text-foreground">Create New App</b> {t('in your own workspace (an internal app).')}</li>
+            <li>{t('OAuth & Permissions → bot scopes')} <b className="text-foreground">{t('only')}</b> <Mono className="text-[11px]">channels:history groups:history users:read usergroups:read</Mono>.</li>
+            <li>{t('Install to the workspace →')} Bot User OAuth Token → <Mono className="text-[11px]">SLACK_BOT_TOKEN</Mono>.</li>
+            <li>{t('Invite the app to the daily channel and to the watched channels (/invite @app).')}</li>
+            <li>{t('Channel IDs (channel details) and your member ID (profile → Copy member ID) →')} <Mono className="text-[11px]">.env</Mono>.</li>
+          </ol>
+        </section>
+
+        <section className="rounded-xl border bg-card px-4 py-3 shadow-xs">
+          <h2 className="flex items-center gap-2 text-sm font-semibold"><CircleDashed className="size-4 text-muted-foreground" /> {t('Jira and Linear (read-only)')}</h2>
+          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-muted-foreground">
+            <li><b className="text-foreground">Jira:</b> {t('an API token from an account with read access')} (id.atlassian.com → Security) → <Mono className="text-[11px]">JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN</Mono>.</li>
+            <li><b className="text-foreground">Linear:</b> Settings → API → {t('personal API key')} → <Mono className="text-[11px]">LINEAR_API_KEY</Mono>.</li>
+            <li>{t('Your queue shows the issues assigned to you. With the project keys (JIRA_PROJECT_KEYS, LINEAR_TEAM_KEYS), PRs that mention a key in the title, branch or body are grouped under that issue in PRs and deploys.')}</li>
+          </ul>
+        </section>
       </div>
     </div>
   );

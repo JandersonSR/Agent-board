@@ -169,6 +169,28 @@ O painel lê o Discord por um bot privado com permissões **só de leitura**. El
 4. Um admin do servidor abre a URL e adiciona o bot.
 5. Com o Modo desenvolvedor ligado, copie os IDs do servidor, dos canais e do seu usuário para o `.env` (`DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS`).
 
+### Slack (no lugar do Discord)
+
+Os mesmos blocos (daily do time, bloqueios, menções na fila) podem ler o Slack. Um chat por vez: o Slack é usado quando só `SLACK_BOT_TOKEN` está preenchido, ou com `CHAT_PROVIDER=slack`.
+
+1. api.slack.com/apps → **Create New App** no seu próprio workspace (um app interno; os limites mais rígidos de histórico do Slack valem só para apps distribuídos fora do Marketplace).
+2. **OAuth & Permissions** → escopos do bot **só** `channels:history`, `groups:history`, `users:read` e `usergroups:read`. Instale e copie o **Bot User OAuth Token** para `SLACK_BOT_TOKEN`.
+3. Convide o app para o canal da daily e para os canais observados (`/invite @seu-app`).
+4. Preencha `SLACK_DAILY_CHANNEL_ID`, `SLACK_WATCH_CHANNELS` (`rótulo:channelId`), `SLACK_MY_USER_ID`, `SLACK_MY_GROUP_IDS` (grupos que te mencionam, ex.: `@leads`) e `TEAM_SLACK_MEMBERS` (`memberId:nome`).
+
+Uma menção conta como respondida quando você respondeu na thread ou escreveu depois no canal. O formato da daily é o mesmo do Discord (negrito com `*x*` também funciona).
+
+### Jira e Linear
+
+Além do GitHub Issues (e do GitHub Projects para as datas de deploy), a fila e o acompanhamento de deploy podem ler o Jira e o Linear, só leitura.
+
+| Ferramenta | Acesso | O que acrescenta |
+| --- | --- | --- |
+| **Jira Cloud** | `JIRA_BASE_URL`, `JIRA_EMAIL` e um token de API (`JIRA_API_TOKEN`) de uma conta com acesso de leitura | Sua fila: `JIRA_JQL` (padrão: atribuídas a você e não concluídas). Data de deploy de um campo de data (`JIRA_DEPLOY_DATE_FIELD`, ex.: `customfield_10050`) |
+| **Linear** | Uma chave de API pessoal (`LINEAR_API_KEY`) | Sua fila: issues atribuídas a você e não terminadas. Com `LINEAR_DUE_DATE_IS_DEPLOY=true`, o prazo vira a data de deploy |
+
+Com as chaves dos projetos (`JIRA_PROJECT_KEYS=LOAN,CRM`, `LINEAR_TEAM_KEYS=ENG`), os PRs que citam uma chave no título, na branch ou na descrição ficam agrupados nessa issue em **PRs e deploy**, com o título, o estado e a data de deploy da ferramenta. Também dá para acompanhar uma issue digitando a chave (`LOAN-214`) ou o link.
+
 ### Dados: SQLite local ou MongoDB
 
 Por padrão o painel guarda os dados num arquivo SQLite local (`~/.agent-board/data.db`, ou `AGENT_BOARD_DB`). Sem servidor e sem instalar nada. Preencha `MONGO_URI` (ou `MONGO_DATABASE_*`) para usar MongoDB, por exemplo para compartilhar os dados entre máquinas.

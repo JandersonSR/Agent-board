@@ -50,7 +50,7 @@ const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: st
 
 const SHORTCUTS: Array<[string, string]> = [
   ['Ctrl K', k('Command palette')], ['G H', k('Go to Today')], ['G A', k('Go to Agents')], ['G D', k('Go to PRs and deploys')], ['G E', k('Go to Runs')], ['G P', k('Go to Product')], ['G S', k('Go to Infra')], ['G I', k('Go to Incidents')], ['G R', k('Go to Decisions')], ['G M', k('Go to Metrics')],
-  ['G C', k('Go to Settings')], ['N', k('New agent task')], ['R', k('Sync now (GitHub/Discord)')], ['T', k('Toggle theme')], ['L', k('Switch language (Portuguese / English)')], ['?', k('Show shortcuts')],
+  ['G C', k('Go to Settings')], ['N', k('New agent task')], ['R', k('Sync now (GitHub, chat and trackers)')], ['T', k('Toggle theme')], ['L', k('Switch language (Portuguese / English)')], ['?', k('Show shortcuts')],
 ];
 
 const THEME_NEXT: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' };
@@ -155,7 +155,7 @@ export function App() {
                   {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
                   <span className="hidden text-xs lg:inline">{syncing ? t('syncing…') : lastSync ? t('{time} ago', { time: ago(Date.parse(lastSync)) }) : t('sync')}</span>
                 </Button>
-              </TooltipTrigger><TooltipContent>{t('Sync GitHub and Discord now')} <Kbd>R</Kbd></TooltipContent></Tooltip>
+              </TooltipTrigger><TooltipContent>{t('Sync GitHub, chat and trackers now')} <Kbd>R</Kbd></TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger asChild>
                 <Button size="icon-sm" variant="ghost" onClick={cycleTheme} aria-label={t('Theme: {theme}', { theme: t(THEME_LABEL[theme]) })}><ThemeIcon /></Button>
               </TooltipTrigger><TooltipContent>{t('Theme: {theme}', { theme: t(THEME_LABEL[theme]) })} <Kbd>T</Kbd></TooltipContent></Tooltip>

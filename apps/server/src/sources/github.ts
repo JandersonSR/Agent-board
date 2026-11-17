@@ -234,6 +234,20 @@ export async function fetchOpenDeployPrs(gh: GitHubClient, org: string, bases: s
   return [...out.values()];
 }
 
+/**
+ * PRs that mention any of the keys (Jira/Linear) in the title or body, 5 keys per search.
+ * The caller matches each PR to its key (the branch name also counts there).
+ */
+export async function fetchPrsMentioning(gh: GitHubClient, org: string, keys: string[]): Promise<DeployPrNodeT[]> {
+  const out = new Map<string, DeployPrNodeT>();
+  const valid = [...new Set(keys)].filter(k => /^[A-Z][A-Z0-9_]*-\d+$/.test(k));
+  for (let i = 0; i < valid.length; i += 5) {
+    const any = valid.slice(i, i + 5).map(k => `"${k}"`).join(' OR ');
+    for (const pr of await searchDeployPrs(gh, `org:${org} is:pr archived:false ${any} in:title,body`, 2)) out.set(pr.url, pr);
+  }
+  return [...out.values()];
+}
+
 // ---------- Issues: linked PRs and Project fields ----------
 const FIELD_VALUES = `fieldValues(first: 30) { nodes { __typename
   ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } }

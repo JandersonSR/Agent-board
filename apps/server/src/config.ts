@@ -62,6 +62,24 @@ const EnvSchema = z.object({
   DISCORD_MY_ROLE_IDS: optStr,
   TEAM_DISCORD_MEMBERS: optStr,
 
+  CHAT_PROVIDER: z.preprocess(empty, z.enum(['discord', 'slack']).optional()),
+  SLACK_BOT_TOKEN: optStr,
+  SLACK_DAILY_CHANNEL_ID: optStr,
+  SLACK_WATCH_CHANNELS: optStr,
+  SLACK_MY_USER_ID: optStr,
+  SLACK_MY_GROUP_IDS: optStr,
+  TEAM_SLACK_MEMBERS: optStr,
+
+  JIRA_BASE_URL: optStr,
+  JIRA_EMAIL: optStr,
+  JIRA_API_TOKEN: optStr,
+  JIRA_JQL: optStr,
+  JIRA_DEPLOY_DATE_FIELD: optStr,
+  JIRA_PROJECT_KEYS: optStr,
+  LINEAR_API_KEY: optStr,
+  LINEAR_TEAM_KEYS: optStr,
+  LINEAR_DUE_DATE_IS_DEPLOY: optStr,
+
   FEAT_MAPS: optStr,
   FEAT_MAP_ROUTES: optStr,
   FEAT_CONTEXT_TOKENS: intWithDefault(6000, 500, 50_000),
@@ -135,6 +153,17 @@ export interface Config {
     token: string | undefined; guildId: string | undefined; dailyChannelId: string | undefined;
     watchChannels: Array<{ label: string; id: string }>; myUserId: string | undefined; myRoleIds: string[];
     team: Array<{ id: string; name: string }>;
+  };
+  slack: {
+    token: string | undefined; dailyChannelId: string | undefined;
+    watchChannels: Array<{ label: string; id: string }>; myUserId: string | undefined; myGroupIds: string[];
+    team: Array<{ id: string; name: string }>;
+  };
+  /** Which chat feeds the daily, blockers and mentions (one at a time). */
+  chatProvider: 'discord' | 'slack' | undefined;
+  trackers: {
+    jira?: { baseUrl: string; email: string; token: string; jql: string | undefined; deployDateField: string | undefined; projectKeys: string[] } | undefined;
+    linear?: { apiKey: string; teamKeys: string[]; dueDateIsDeploy: boolean } | undefined;
   };
   paths: {
     /** RAGs de features (clones locais): nome -> pasta. */
@@ -225,6 +254,24 @@ function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
       myUserId: e.DISCORD_MY_USER_ID, myRoleIds: list(e.DISCORD_MY_ROLE_IDS),
       team: pairs(e.TEAM_DISCORD_MEMBERS).map(p => ({ id: p.key, name: p.value })),
     },
+    slack: {
+      token: e.SLACK_BOT_TOKEN, dailyChannelId: e.SLACK_DAILY_CHANNEL_ID,
+      watchChannels: pairs(e.SLACK_WATCH_CHANNELS).map(p => ({ label: p.key, id: p.value })),
+      myUserId: e.SLACK_MY_USER_ID, myGroupIds: list(e.SLACK_MY_GROUP_IDS),
+      team: pairs(e.TEAM_SLACK_MEMBERS).map(p => ({ id: p.key, name: p.value })),
+    },
+    // CHAT_PROVIDER picks one explicitly; otherwise whichever has a token (Discord first, as before).
+    chatProvider: e.CHAT_PROVIDER ?? (e.DISCORD_BOT_TOKEN ? 'discord' : e.SLACK_BOT_TOKEN ? 'slack' : undefined),
+    trackers: {
+      jira: e.JIRA_BASE_URL && e.JIRA_EMAIL && e.JIRA_API_TOKEN ? {
+        baseUrl: e.JIRA_BASE_URL, email: e.JIRA_EMAIL, token: e.JIRA_API_TOKEN, jql: e.JIRA_JQL, deployDateField: e.JIRA_DEPLOY_DATE_FIELD,
+        projectKeys: list(e.JIRA_PROJECT_KEYS).map(k => k.toUpperCase()),
+      } : undefined,
+      linear: e.LINEAR_API_KEY ? {
+        apiKey: e.LINEAR_API_KEY, teamKeys: list(e.LINEAR_TEAM_KEYS).map(k => k.toUpperCase()),
+        dueDateIsDeploy: /^(1|true|yes)$/i.test(e.LINEAR_DUE_DATE_IS_DEPLOY ?? ''),
+      } : undefined,
+    },
     paths: {
       featMaps: pairs(e.FEAT_MAPS, ';', '=').map(p => ({ name: p.key, path: p.value })),
       skillsKit: e.SKILLS_KIT_PATH,
@@ -284,6 +331,8 @@ export function demoConfig(c: Config): Config {
     mongo: { ...c.mongo, uri: undefined, legacyPr: undefined, storage: 'sqlite', sqliteFile: process.env.AGENT_BOARD_DB ?? path.join(os.tmpdir(), 'agent-board-demo', 'data.db') },
     github: { ...c.github, token: undefined, org: undefined },
     discord: { ...c.discord, token: undefined },
+    slack: { ...c.slack, token: undefined },
+    trackers: {},
     infra: { ...c.infra, digitalocean: undefined, heroku: undefined, azure: undefined, grafana: undefined },
     paths: { ...c.paths, featMaps: [] },
   };

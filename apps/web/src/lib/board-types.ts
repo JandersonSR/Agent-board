@@ -1,11 +1,13 @@
 import { k } from './i18n';
 
 // Tech Lead block shapes (mirror apps/server/src/sync/service.ts and domain/*).
-export interface SourceState { configured: boolean; lastSync?: string; error?: string; running: boolean }
-export type Sources = Record<'github' | 'discord' | 'prs', SourceState>;
+export interface SourceState { configured: boolean; lastSync?: string; error?: string; running: boolean; provider?: string }
+export type Sources = Record<'github' | 'chat' | 'tracker' | 'prs', SourceState>;
 
 export interface QueueItem {
-  key: string; source: 'github' | 'discord'; kind: 'issue' | 'pr' | 'message';
+  key: string; source: 'github' | 'chat' | 'jira' | 'linear'; kind: 'issue' | 'pr' | 'message';
+  /** Where it came from ("Slack · support", "Jira · ABC-12"). */
+  origin?: string;
   type: string; rank: number; title: string; url: string; repo?: string; number?: number;
   labels: string[]; author?: string; createdAt: string; updatedAt: string; reasons: string[]; answered: boolean;
 }

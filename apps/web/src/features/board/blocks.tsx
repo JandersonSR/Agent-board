@@ -122,7 +122,7 @@ function QueueRow({ item: i, onStarted }: { item: QueueItem; onStarted: (id: str
         <p className="truncate text-[13px]">{i.title}</p>
         <p className="truncate text-[11px] text-muted-foreground [&>*]:mr-1.5">
           {i.repo && <Mono className="text-[11px]">{i.repo.split('/')[1]}#{i.number}</Mono>}
-          {i.source === 'discord' && <span>Discord · {i.labels[0]}</span>}
+          {i.source !== 'github' && i.origin && <span>{i.origin}</span>}
           {i.reasons.includes('assigned') && <span>· {t('assigned')}</span>}
           {i.reasons.includes('mentioned') && <span>· {t('mention')}</span>}
         </p>
@@ -201,7 +201,7 @@ export function DailyBlock({ goTo, className }: { goTo: GoTo; className?: string
   return (
     <BlockCard icon={MessagesSquare} title={t('Team daily')} className={className}
       count={s ? `${s.postedCount}/${total}` : undefined} countTone={s && s.missing.length ? 'warning' : 'success'}
-      status={statusOf(q, q.data?.source, k('Discord'), goTo)}>
+      status={statusOf(q, q.data?.source, q.data?.source?.provider ?? k('Team chat'), goTo)}>
       {!s ? <EmptyState icon={MessagesSquare} title={t('No data yet')} description={t('Waiting for the first read of the daily channel.')} /> : (
         <div className="space-y-3 p-3.5 text-xs">
           {s.missing.length > 0 && (
@@ -242,7 +242,7 @@ export function BlockersBlock({ goTo, className }: { goTo: GoTo; className?: str
   const items = q.data?.items ?? [];
   return (
     <BlockCard icon={CircleSlash} title={t('Team blockers')} count={items.length || undefined} countTone="danger" className={className}
-      status={statusOf(q, q.data?.source, k('Discord'), goTo)}>
+      status={statusOf(q, q.data?.source, q.data?.source?.provider ?? k('Team chat'), goTo)}>
       {items.length === 0 ? <EmptyState icon={CheckCircle2} title={t('Nobody is blocked')} description={t('Blockers from dailies and channels show up here.')} /> : (
         <ul className="divide-y">
           {items.map(b => (

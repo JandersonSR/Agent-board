@@ -1,4 +1,5 @@
-// Periodic (POLL_INTERVAL_MIN) and on-demand sync. Reads GitHub and Discord, applies the
+// Periodic (POLL_INTERVAL_MIN) and on-demand sync. Reads GitHub, the team chat (Discord or Slack) and
+// the issue trackers (Jira, Linear), applies the
 // domain rules, masks every text and keeps an in-memory snapshot for the API.
 // Only write: upsert into deck_prs (own collection).
 import type { FastifyBaseLogger } from 'fastify';
@@ -9,9 +10,10 @@ import { deriveStatus, prodBranchMatcher } from '../domain/pr-status.js';
 import { parseTypeOrder, sortQueue, typeRank } from '../domain/priority.js';
 import { deriveReview, sortReviews, type ReviewDerived } from '../domain/reviews.js';
 import type { MaskResult } from '../privacy/mask.js';
-import { DiscordClient, type DiscordMessage } from '../sources/discord.js';
+import { answeredByMe, discordChat, slackChat, titleOf, type ChatMessage, type ChatSettings, type ChatSource } from '../sources/chat.js';
+import { findKeys, jiraTracker, keyFromUrl, linearTracker, type TrackerIssue, type TrackerSource } from '../sources/trackers.js';
 import {
-  boardIssueOf, fetchIssueLinks, fetchMyItems, fetchOpenDeployPrs, fetchProjectIssues, fetchReviewRequests, fetchTeamPrs, GitHubClient,
+  boardIssueOf, fetchIssueLinks, fetchMyItems, fetchOpenDeployPrs, fetchProjectIssues, fetchPrsMentioning, fetchReviewRequests, fetchTeamPrs, GitHubClient,
   MissingProjectScope, parseIssueRef, reviewTimes, type DeployPrNodeT,
 } from '../sources/github.js';
 import { deployDateFrom } from '../domain/deploy-date.js';
@@ -19,12 +21,14 @@ import type { DeckStore } from '../store/store.js';
 import { demoData, seedDemo } from '../demo/seed.js';
 import { PrsRepo, type SyncedGroup, type SyncedPr } from '../store/prs-repo.js';
 
-export type SourceId = 'github' | 'discord' | 'prs';
-export interface SourceState { configured: boolean; lastSync?: string | undefined; error?: string | undefined; running: boolean }
+export type SourceId = 'github' | 'chat' | 'tracker' | 'prs';
+export interface SourceState { configured: boolean; lastSync?: string | undefined; error?: string | undefined; running: boolean; provider?: string | undefined }
 
 export interface QueueItem {
   key: string;
-  source: 'github' | 'discord';
+  source: 'github' | 'chat' | 'jira' | 'linear';
+  /** Where it came from, for the screen ("Slack · support", "Jira · ABC-12"). */
+  origin?: string | undefined;
   kind: 'issue' | 'pr' | 'message';
   type: string;
   rank: number;
@@ -64,20 +68,29 @@ export class SyncService {
   private running: Promise<void> | undefined;
   private timer: NodeJS.Timeout | undefined;
   private readonly gh: GitHubClient | undefined;
-  private readonly discord: DiscordClient | undefined;
+  private readonly chat: ChatSource | undefined;
+  private readonly chatSettings: ChatSettings;
+  readonly trackers: TrackerSource[];
   private readonly prs: PrsRepo;
   private readonly typeRules;
   private readonly isProdBranch: (base: string | undefined) => boolean;
 
-  constructor(private readonly cfg: Config, private readonly store: DeckStore, private readonly mask: Mask, private readonly log: FastifyBaseLogger) {
+  constructor(
+    private readonly cfg: Config, private readonly store: DeckStore, private readonly mask: Mask, private readonly log: Pick<FastifyBaseLogger, 'warn' | 'error'>,
+    deps: { chat?: { source: ChatSource; settings: ChatSettings } | undefined; trackers?: TrackerSource[] | undefined } = {},
+  ) {
     this.gh = cfg.github.org ? new GitHubClient({ token: cfg.github.token, login: cfg.github.login }) : undefined;
-    this.discord = cfg.discord.token ? new DiscordClient(cfg.discord.token, cfg.discord.guildId) : undefined;
+    const c = deps.chat ?? chatFrom(cfg);
+    this.chat = c?.source;
+    this.chatSettings = c?.settings ?? { watchChannels: [], myGroupIds: [], team: [] };
+    this.trackers = deps.trackers ?? trackersFrom(cfg);
     this.prs = new PrsRepo(store);
     this.typeRules = parseTypeOrder(cfg.queueTypeOrder);
     this.isProdBranch = prodBranchMatcher(cfg.deploy.prodBranches);
     this.state = {
       github: { configured: !!this.gh, running: false },
-      discord: { configured: !!this.discord && !!cfg.discord.dailyChannelId && cfg.discord.team.length > 0, running: false },
+      chat: { configured: !!this.chat && !!this.chatSettings.dailyChannelId && this.chatSettings.team.length > 0, running: false, provider: this.chat?.label },
+      tracker: { configured: this.trackers.length > 0, running: false, provider: this.trackers.map(t => t.label).join(' + ') || undefined },
       // Without the team list the sync would bring PRs from other teams (that I only review): it stays off.
       // Deploy routine: tracked issues (Project, deck or migrated) → linked PRs. The team list is optional.
       prs: { configured: !!this.gh && store.configured, running: false },
@@ -93,7 +106,7 @@ export class SyncService {
     const d = demoData(this.cfg.demo.lang);
     this.daily = d.daily; this.blockers = d.blockers; this.queue = d.queue; this.reviews = d.reviews;
     const at = new Date().toISOString();
-    for (const id of Object.keys(this.state) as SourceId[]) this.state[id] = { configured: true, running: false, lastSync: at };
+    for (const id of Object.keys(this.state) as SourceId[]) this.state[id] = { configured: true, running: false, lastSync: at, provider: id === 'chat' ? 'Discord' : id === 'tracker' ? 'Jira' : undefined };
     await seedDemo(this.store, this.cfg.demo.lang).catch(e => this.log.warn({ err: (e as Error).message }, 'failed to seed demo mode'));
   }
 
@@ -111,7 +124,8 @@ export class SyncService {
       try {
         await Promise.all([
           this.step('github', () => this.syncGitHub()),
-          this.step('discord', () => this.syncDiscord()),
+          this.step('chat', () => this.syncChat()),
+          this.step('tracker', () => this.syncTrackers()),
           this.step('prs', () => this.syncPrs()),
         ]);
       } finally { this.running = undefined; }
@@ -128,12 +142,12 @@ export class SyncService {
       s.lastSync = new Date().toISOString();
       s.error = undefined;
     } catch (e) {
-      s.error = this.m((e as Error).message ?? 'erro');
+      s.error = this.m((e as Error).message ?? 'error');
       this.log.warn({ source: id, error: s.error }, 'sync failed');
     } finally { s.running = false; }
   }
 
-  // ---------- GitHub: reviews e fila ----------
+  // ---------- GitHub: reviews and queue ----------
   private async syncGitHub(): Promise<void> {
     const gh = this.gh!;
     const org = this.cfg.github.org!;
@@ -164,57 +178,84 @@ export class SyncService {
         answered: !!last && last.author?.login?.toLowerCase() === me.toLowerCase(),
       };
     });
-    this.queue = sortQueue([...githubQueue, ...this.queue.filter(q => q.source === 'discord')]);
+    this.queue = sortQueue([...githubQueue, ...this.queue.filter(q => q.source !== 'github')]);
   }
 
-  // ---------- Discord: daily, blockers, mentions ----------
-  private async syncDiscord(): Promise<void> {
-    const d = this.discord!;
-    const cfg = this.cfg.discord;
+  // ---------- Team chat (Discord or Slack): daily, blockers, mentions ----------
+  private async syncChat(): Promise<void> {
+    const chat = this.chat!;
+    const cfg = this.chatSettings;
     const now = Date.now();
     const team = cfg.team;
-    const toDaily = (m: DiscordMessage): DailyMessage => ({
-      id: m.id, authorId: m.author.id, content: this.m(m.content), timestamp: m.timestamp, url: d.messageUrl(m.channel_id, m.id),
-    });
+    const toDaily = (m: ChatMessage): DailyMessage => ({ id: m.id, authorId: m.authorId, content: this.m(m.text), timestamp: m.at, url: m.url });
 
-    const dailyMsgs = (await d.messagesSince(cfg.dailyChannelId!, now - 10 * 86_400_000)).map(toDaily);
+    const dailyMsgs = (await chat.messagesSince(cfg.dailyChannelId!, now - 10 * 86_400_000)).map(toDaily);
     this.daily = summarizeDaily(dailyMsgs, team, now, this.cfg.team.tzOffsetMin);
 
-    const channelMsgs: Array<ChannelMessage & { raw: DiscordMessage }> = [];
+    const raw: ChatMessage[] = [];
+    const channelMsgs: ChannelMessage[] = [];
     for (const ch of cfg.watchChannels) {
-      const msgs = await d.messagesSince(ch.id, now - 7 * 86_400_000, 500);
-      channelMsgs.push(...msgs.map(m => ({ ...toDaily(m), channel: ch.label, raw: m })));
+      const msgs = await chat.messagesSince(ch.id, now - 7 * 86_400_000, 500);
+      raw.push(...msgs);
+      channelMsgs.push(...msgs.map(m => ({ ...toDaily(m), channel: ch.label })));
     }
     this.blockers = mergeBlockers(
       blockersFromDailies(dailyMsgs, team, now, this.cfg.team.tzOffsetMin),
       blockersFromChannels(channelMsgs, team, now),
     );
 
-    // Mentions of me (user or roles) I have not answered yet.
+    // Mentions of me (user or groups) I have not answered yet.
     const myId = cfg.myUserId;
-    const roles = new Set(cfg.myRoleIds);
-    const discordQueue: QueueItem[] = [];
+    const groups = new Set(cfg.myGroupIds);
+    const labels = new Map(cfg.watchChannels.map(c => [c.id, c.label]));
+    const chatQueue: QueueItem[] = [];
     if (myId) {
-      const repliedTo = new Set(channelMsgs.filter(m => m.raw.author.id === myId).map(m => m.raw.message_reference?.message_id).filter(Boolean));
-      for (const m of channelMsgs) {
-        const r = m.raw;
-        if (r.author.id === myId) continue;
-        const mentionsMe = r.mentions.some(x => x.id === myId) || r.mention_roles.some(x => roles.has(x));
-        if (!mentionsMe) continue;
-        const answered = repliedTo.has(r.id) || channelMsgs.some(x => x.raw.author.id === myId && x.channel === m.channel && Date.parse(x.timestamp) > Date.parse(m.timestamp));
-        const firstLine = m.content.split(/\r?\n/).find(l => l.trim())?.replace(/<@[!&]?\d+>/g, '').trim() ?? '';
-        discordQueue.push({
-          key: `dc:${r.channel_id}:${r.id}`, source: 'discord', kind: 'message', type: m.channel,
-          rank: typeRank(this.typeRules, m.channel), title: firstLine.slice(0, 160) || '(no text)', url: m.url ?? '',
-          labels: [m.channel], author: r.author.global_name ?? r.author.username, createdAt: r.timestamp, updatedAt: r.timestamp,
-          reasons: ['mentioned'], answered,
+      for (const m of raw) {
+        if (m.authorId === myId) continue;
+        if (!m.mentions.includes(myId) && !m.groupMentions.some(g => groups.has(g))) continue;
+        const channel = labels.get(m.channelId) ?? m.channelId;
+        chatQueue.push({
+          key: `${chat.provider}:${m.channelId}:${m.id}`, source: 'chat', origin: `${chat.label} · ${channel}`, kind: 'message', type: channel,
+          rank: typeRank(this.typeRules, channel), title: this.m(titleOf(m.text)) || '(no text)', url: m.url,
+          labels: [channel], author: m.authorName, createdAt: m.at, updatedAt: m.at, reasons: ['mentioned'], answered: answeredByMe(m, raw, myId),
         });
       }
     }
-    this.queue = sortQueue([...this.queue.filter(q => q.source === 'github'), ...discordQueue]);
+    this.queue = sortQueue([...this.queue.filter(q => q.source !== 'chat'), ...chatQueue]);
   }
 
-  // ---------- PRs e deploy → deck_prs ----------
+  // ---------- Issue trackers (Jira, Linear): my queue ----------
+  private async syncTrackers(): Promise<void> {
+    const items: QueueItem[] = [];
+    const failures: string[] = [];
+    await Promise.all(this.trackers.map(async t => {
+      try {
+        for (const i of await t.myQueue()) items.push(this.trackerItem(i));
+      } catch (e) { failures.push((e as Error).message); }
+    }));
+    this.queue = sortQueue([...this.queue.filter(q => q.source !== 'jira' && q.source !== 'linear'), ...items]);
+    if (failures.length) throw new Error(failures.join(' · '));
+  }
+
+  private trackerItem(i: TrackerIssue): QueueItem {
+    return {
+      key: `${i.provider}:${i.key}`, source: i.provider, origin: `${i.provider === 'jira' ? 'Jira' : 'Linear'} · ${i.key}`, kind: 'issue',
+      type: i.type ?? 'Issue', rank: typeRank(this.typeRules, i.type, ...i.labels), title: this.m(i.title), url: i.url, labels: i.labels,
+      createdAt: i.createdAt, updatedAt: i.updatedAt, reasons: ['assigned'], answered: false,
+    };
+  }
+
+  /** The tracker issue a PR belongs to, from a key in its title, branch or body (first tracker that knows the prefix). */
+  private trackerKeyOf(pr: DeployPrNodeT): { tracker: TrackerSource; key: string } | undefined {
+    const text = `${pr.title} ${pr.headRefName} ${pr.body}`;
+    for (const t of this.trackers) {
+      const [key] = findKeys(text, t.prefixes);
+      if (key) return { tracker: t, key };
+    }
+    return undefined;
+  }
+
+  // ---------- PRs and deploys → deck_prs ----------
   /** null = not tested yet; false = token without read:project (degrades without Project). */
   projectScope: boolean | null = null;
   get projectsConfigured(): number { return this.cfg.deploy.projects.length; }
@@ -275,34 +316,11 @@ export class SyncService {
 
     // 1b) Finds deliveries from the PRs open to the deploy branches (does not depend on the Project or
     //     the team list): the issue the PR mentions is tracked with all its PRs.
-    if (this.cfg.deploy.baseBranches.length) {
-      const groups = new Map<string, SyncedGroup>();
-      const since = new Date(today - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
-      for (const pr of await fetchOpenDeployPrs(gh, org, this.cfg.deploy.baseBranches, since)) {
-        const issue = boardIssueOf(pr, org, this.cfg.github.boardRepo);
-        const synced = this.toSyncedPr(pr, names);
-        const key = issue?.url ?? pr.url;
-        const g = groups.get(key) ?? { key, title: this.m(issue?.title ?? pr.title), reference: issue?.url, owner: synced.owner, prs: [] };
-        g.prs.push(synced);
-        groups.set(key, g);
-      }
-      for (const g of groups.values()) await this.prs.upsertGroup(g);
-    }
+    const since = new Date(today - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
+    if (this.cfg.deploy.baseBranches.length) await this.groupAndSave(await fetchOpenDeployPrs(gh, org, this.cfg.deploy.baseBranches, since), names);
 
     // 2) The team's recent PRs (when the team list exists), grouped by issue.
-    if (this.cfg.github.team.length) {
-      const since = new Date(today - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
-      const groups = new Map<string, SyncedGroup>();
-      for (const pr of await fetchTeamPrs(gh, org, this.cfg.github.team.map(t => t.login), since)) {
-        const issue = boardIssueOf(pr, org, this.cfg.github.boardRepo);
-        const synced = this.toSyncedPr(pr, names);
-        const key = issue?.url ?? pr.url;
-        const g = groups.get(key) ?? { key, title: this.m(issue?.title ?? pr.title), reference: issue?.url, owner: synced.owner, prs: [] };
-        g.prs.push(synced);
-        groups.set(key, g);
-      }
-      for (const g of groups.values()) await this.prs.upsertGroup(g);
-    }
+    if (this.cfg.github.team.length) await this.groupAndSave(await fetchTeamPrs(gh, org, this.cfg.github.team.map(t => t.login), since), names);
 
     // 3) For each tracked issue: every linked PR (any author/repo) + the Project date.
     const refs = await this.prs.issueRefsToTrack();
@@ -314,10 +332,65 @@ export class SyncService {
         prs, projectDeployDate: deployDateFrom(issue.projectFields, this.cfg.deploy.dateField), issueState: issue.state,
       });
     }
+
+    // 3b) Issues tracked in Jira/Linear: state, title and deploy date from the tracker; PRs that mention the key.
+    if (this.trackers.length) {
+      const keys = (await this.prs.trackerRefsToTrack()).map(keyFromUrl).filter((k): k is string => !!k);
+      await this.saveTrackerGroups(keys, await fetchPrsMentioning(gh, org, keys), names);
+    }
+  }
+
+  /**
+   * Groups PRs by the issue they belong to and saves the groups: a GitHub issue (closing reference or board link),
+   * else a Jira/Linear key found in the PR, else the PR on its own.
+   */
+  private async groupAndSave(prs: DeployPrNodeT[], names: Map<string, string>): Promise<void> {
+    const org = this.cfg.github.org!;
+    const groups = new Map<string, SyncedGroup>();
+    const byKey = new Map<string, DeployPrNodeT[]>();
+    for (const pr of prs) {
+      const issue = boardIssueOf(pr, org, this.cfg.github.boardRepo);
+      const tracked = issue ? undefined : this.trackerKeyOf(pr);
+      if (tracked) { byKey.set(tracked.key, [...(byKey.get(tracked.key) ?? []), pr]); continue; }
+      const synced = this.toSyncedPr(pr, names);
+      const key = issue?.url ?? pr.url;
+      const g = groups.get(key) ?? { key, title: this.m(issue?.title ?? pr.title), reference: issue?.url, owner: synced.owner, prs: [] };
+      g.prs.push(synced);
+      groups.set(key, g);
+    }
+    for (const g of groups.values()) await this.prs.upsertGroup(g);
+    if (byKey.size) await this.saveTrackerGroups([...byKey.keys()], [...byKey.values()].flat(), names);
+  }
+
+  /** Saves one group per Jira/Linear issue, with the tracker's title, state and deploy date and the PRs that mention its key. */
+  private async saveTrackerGroups(keys: string[], prs: DeployPrNodeT[], names: Map<string, string>): Promise<void> {
+    const issues = new Map<string, TrackerIssue>();
+    for (const t of this.trackers) {
+      const mine = keys.filter(k => findKeys(k, t.prefixes).length);
+      if (!mine.length) continue;
+      try {
+        for (const i of await t.issues(mine)) issues.set(i.key, i);
+      } catch (e) { this.log.warn({ tracker: t.provider, err: this.m((e as Error).message) }, 'failed to read tracker issues'); }
+    }
+    for (const key of new Set(keys)) {
+      const issue = issues.get(key);
+      const related = prs.filter(pr => this.trackerKeyOf(pr)?.key === key).map(pr => this.toSyncedPr(pr, names));
+      if (!issue) {
+        // Unknown to the tracker (or it failed): keep each PR on its own, as before.
+        for (const p of related) await this.prs.upsertGroup({ key: p.url, title: p.title, owner: p.owner, prs: [p] });
+        continue;
+      }
+      await this.prs.upsertGroup({
+        key: issue.url, title: this.m(`${issue.key} ${issue.title}`), reference: issue.url, owner: related[0]?.owner ?? '', prs: related,
+        ...(issue.deployDate ? { projectDeployDate: issue.deployDate } : {}), issueState: issue.done ? 'CLOSED' : 'OPEN',
+      });
+    }
   }
 
   /** Starts tracking an issue (link, org/repo#n or board number) and fetches its PRs right away. */
   async trackIssue(ref: string, deployDate?: string): Promise<{ key: string; title: string; prs: number }> {
+    const fromTracker = await this.trackTrackerIssue(ref.trim(), deployDate);
+    if (fromTracker) return fromTracker;
     if (!this.gh || !this.cfg.github.org) throw Object.assign(new Error('GitHub not configured'), { statusCode: 503 });
     await this.store.connect();
     const org = this.cfg.github.org;
@@ -339,4 +412,48 @@ export class SyncService {
     }
     return { key: issue.url, title: issue.title, prs: prs.length };
   }
+
+  /** Jira/Linear key or link ("LOAN-214", ".../browse/LOAN-214"): tracks it with the PRs that mention the key. */
+  private async trackTrackerIssue(ref: string, deployDate?: string): Promise<{ key: string; title: string; prs: number } | undefined> {
+    const key = keyFromUrl(ref) ?? (/^[A-Z][A-Z0-9_]*-\d+$/i.test(ref) ? ref.toUpperCase() : undefined);
+    const tracker = key && this.trackers.find(t => (/^https?:/.test(ref) ? t.owns(ref) : findKeys(key, t.prefixes).length > 0));
+    if (!key || !tracker) return undefined;
+    await this.store.connect();
+    const [issue] = await tracker.issues([key]);
+    if (!issue) throw Object.assign(new Error('issue not found (or no access)'), { statusCode: 404 });
+    const names = new Map(this.cfg.github.team.map(t => [t.login.toLowerCase(), t.name]));
+    const found = this.gh && this.cfg.github.org ? await fetchPrsMentioning(this.gh, this.cfg.github.org, [key]) : [];
+    const prs = found.filter(pr => this.trackerKeyOf(pr)?.key === key).map(pr => this.toSyncedPr(pr, names));
+    await this.prs.upsertGroup({
+      key: issue.url, title: this.m(`${issue.key} ${issue.title}`), reference: issue.url, owner: prs[0]?.owner ?? '', prs,
+      ...(issue.deployDate ? { projectDeployDate: issue.deployDate } : {}), issueState: issue.done ? 'CLOSED' : 'OPEN', source: 'manual',
+    });
+    if (deployDate) {
+      const doc = (await this.prs.list({ includeOldMerged: true })).find(d => d.key === issue.url);
+      if (doc?._id) await this.prs.patch(String(doc._id), { deployDate });
+    }
+    return { key: issue.url, title: issue.title, prs: prs.length };
+  }
+}
+
+/** The configured chat (Discord or Slack) and its channels, team and ids. */
+export function chatFrom(cfg: Config): { source: ChatSource; settings: ChatSettings } | undefined {
+  if (cfg.chatProvider === 'slack' && cfg.slack.token) {
+    const s = cfg.slack;
+    return { source: slackChat({ token: s.token! }), settings: { dailyChannelId: s.dailyChannelId, watchChannels: s.watchChannels, myUserId: s.myUserId, myGroupIds: s.myGroupIds, team: s.team } };
+  }
+  if (cfg.chatProvider === 'discord' && cfg.discord.token) {
+    const d = cfg.discord;
+    return { source: discordChat(d.token!, d.guildId), settings: { dailyChannelId: d.dailyChannelId, watchChannels: d.watchChannels, myUserId: d.myUserId, myGroupIds: d.myRoleIds, team: d.team } };
+  }
+  return undefined;
+}
+
+export function trackersFrom(cfg: Config): TrackerSource[] {
+  const j = cfg.trackers.jira;
+  const l = cfg.trackers.linear;
+  return [
+    ...(j ? [jiraTracker({ baseUrl: j.baseUrl, email: j.email, token: j.token, jql: j.jql, deployDateField: j.deployDateField, projectKeys: j.projectKeys })] : []),
+    ...(l ? [linearTracker({ apiKey: l.apiKey, teamKeys: l.teamKeys, dueDateIsDeploy: l.dueDateIsDeploy })] : []),
+  ];
 }

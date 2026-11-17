@@ -36,13 +36,41 @@ async function githubCheck(cfg: Config, tr: Tr): Promise<Check> {
     : { ...base, state: 'error', detail: tr('gh não autenticado', 'gh not authenticated'), hint: tr('Rode: gh auth login', 'Run: gh auth login') };
 }
 
-export function discordCheck(cfg: Config, tr: Tr): Check {
-  const base = { id: 'discord', label: tr('Discord (bot só leitura)', 'Discord (read-only bot)') };
+export function chatCheck(cfg: Config, tr: Tr): Check {
+  const base = { id: 'chat', label: tr('Chat do time (Discord ou Slack, só leitura)', 'Team chat (Discord or Slack, read-only)') };
+  if (cfg.chatProvider === 'slack') {
+    const s = cfg.slack;
+    const label = tr('Slack (app só leitura)', 'Slack (read-only app)');
+    if (!s.token) return { ...base, label, state: 'off', detail: tr('SLACK_BOT_TOKEN não definido', 'SLACK_BOT_TOKEN not set') };
+    const missing = [!s.dailyChannelId && 'SLACK_DAILY_CHANNEL_ID', !s.myUserId && 'SLACK_MY_USER_ID', !s.team.length && 'TEAM_SLACK_MEMBERS'].filter(Boolean);
+    if (missing.length) return { ...base, label, state: 'warn', detail: `${tr('faltando', 'missing')}: ${missing.join(', ')}` };
+    return { ...base, label, state: 'ok', detail: tr(`daily + ${s.watchChannels.length} canais observados · ${s.team.length} pessoas`, `daily + ${s.watchChannels.length} watched channels · ${s.team.length} people`) };
+  }
   const d = cfg.discord;
-  if (!d.token) return { ...base, state: 'off', detail: tr('DISCORD_BOT_TOKEN não definido', 'DISCORD_BOT_TOKEN not set'), hint: tr('Crie um bot só com View Channels + Read Message History e Message Content intent.', 'Create a bot with only View Channels + Read Message History and the Message Content intent.') };
+  const label = tr('Discord (bot só leitura)', 'Discord (read-only bot)');
+  if (!d.token) return {
+    ...base, state: 'off', detail: tr('nenhum chat configurado', 'no chat configured'),
+    hint: tr('Discord: bot só com View Channels + Read Message History e Message Content intent (DISCORD_BOT_TOKEN). Slack: app interno com channels:history, groups:history, users:read e usergroups:read (SLACK_BOT_TOKEN).',
+      'Discord: a bot with only View Channels + Read Message History and the Message Content intent (DISCORD_BOT_TOKEN). Slack: an internal app with channels:history, groups:history, users:read and usergroups:read (SLACK_BOT_TOKEN).'),
+  };
   const missing = [!d.guildId && 'DISCORD_GUILD_ID', !d.dailyChannelId && 'DISCORD_DAILY_CHANNEL_ID', !d.myUserId && 'DISCORD_MY_USER_ID'].filter(Boolean);
-  if (missing.length) return { ...base, state: 'warn', detail: `${tr('faltando', 'missing')}: ${missing.join(', ')}` };
-  return { ...base, state: 'ok', detail: tr(`daily + ${d.watchChannels.length} canais observados · ${d.team.length} pessoas`, `daily + ${d.watchChannels.length} watched channels · ${d.team.length} people`) };
+  if (missing.length) return { ...base, label, state: 'warn', detail: `${tr('faltando', 'missing')}: ${missing.join(', ')}` };
+  return { ...base, label, state: 'ok', detail: tr(`daily + ${d.watchChannels.length} canais observados · ${d.team.length} pessoas`, `daily + ${d.watchChannels.length} watched channels · ${d.team.length} people`) };
+}
+
+export function trackerCheck(cfg: Config, tr: Tr): Check {
+  const base = { id: 'tracker', label: tr('Jira e Linear (só leitura)', 'Jira and Linear (read-only)') };
+  const { jira, linear } = cfg.trackers;
+  if (!jira && !linear) return {
+    ...base, state: 'off', detail: tr('só GitHub Issues e Projects', 'GitHub Issues and Projects only'),
+    hint: tr('Jira: JIRA_BASE_URL, JIRA_EMAIL e JIRA_API_TOKEN (conta com acesso de leitura). Linear: LINEAR_API_KEY. As chaves dos projetos (JIRA_PROJECT_KEYS, LINEAR_TEAM_KEYS) ligam os PRs às issues.',
+      'Jira: JIRA_BASE_URL, JIRA_EMAIL and JIRA_API_TOKEN (an account with read access). Linear: LINEAR_API_KEY. The project keys (JIRA_PROJECT_KEYS, LINEAR_TEAM_KEYS) link PRs to issues.'),
+  };
+  const parts = [
+    jira && `Jira (${jira.projectKeys.join(', ') || tr('sem chaves: só a fila', 'no keys: queue only')}${jira.deployDateField ? ` · ${tr('data de deploy', 'deploy date')} ${jira.deployDateField}` : ''})`,
+    linear && `Linear (${linear.teamKeys.join(', ') || tr('sem chaves: só a fila', 'no keys: queue only')}${linear.dueDateIsDeploy ? ` · ${tr('prazo = deploy', 'due date = deploy')}` : ''})`,
+  ].filter(Boolean);
+  return { ...base, state: 'ok', detail: parts.join(' · ') };
 }
 
 function mongoCheck(store: DeckStore, tr: Tr): Check {
@@ -110,7 +138,7 @@ export async function healthRoutes(app: FastifyInstance, opts: { config: Config;
       return { checks: [mongoCheck(opts.store, tr), ...hit.checks.filter(c => c.id !== 'mongo')], limits: opts.config.limits };
     }
     const [claude, github, featmap] = await Promise.all([claudeCheck(tr), githubCheck(opts.config, tr), featMapCheck(opts.featMaps, tr)]);
-    const checks = [mongoCheck(opts.store, tr), github, discordCheck(opts.config, tr), infraCheck(opts.config, tr), claude, featmap, skillsCheck(opts.config, tr), reposCheck(opts.config, tr)];
+    const checks = [mongoCheck(opts.store, tr), github, chatCheck(opts.config, tr), trackerCheck(opts.config, tr), infraCheck(opts.config, tr), claude, featmap, skillsCheck(opts.config, tr), reposCheck(opts.config, tr)];
     cache.set(lang, { at: Date.now(), checks });
     return { checks, limits: opts.config.limits };
   });
