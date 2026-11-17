@@ -24,7 +24,7 @@
 
 1. Crie o secret `ANTHROPIC_API_KEY` no repositório (ou na organização, restrito aos repositórios aprovados).
 2. Copie [`docs/examples/ai-review-caller.yml`](examples/ai-review-caller.yml) para `.github/workflows/ai-review.yml`.
-3. **Fixe a versão** em `uses: …/ai-review.yml@<tag-ou-sha>` e em `lead-deck-ref`, para o comportamento não mudar sem revisão.
+3. **Fixe a versão** em `uses: …/ai-review.yml@<tag-ou-sha>` e em `tldeck-ref`, para o comportamento não mudar sem revisão.
 4. Opcional: crie `.github/ai-review.md` com o guia de review do time (método, severidades, o que ignorar). Sem ele, o script usa `AGENTS.md` ou `CLAUDE.md`.
 
 | Input | Padrão | Uso |
@@ -33,7 +33,7 @@
 | `max-lines` | `2000` | Limite de linhas alteradas |
 | `language` | `pt-BR` | `pt-BR` ou `en` |
 | `skip-label` | `no-ai-review` | Label que pula o PR |
-| `lead-deck-ref` | `main` | Versão do script |
+| `tldeck-ref` | `main` | Versão do script |
 
 ## Custo e qualidade
 

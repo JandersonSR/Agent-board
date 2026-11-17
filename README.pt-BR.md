@@ -1,6 +1,6 @@
-# Lead Deck
+# TLDeck
 
-[![CI](https://github.com/JandersonSR/lead-deck/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/lead-deck/actions/workflows/ci.yml)
+[![CI](https://github.com/JandersonSR/tldeck/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/tldeck/actions/workflows/ci.yml)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
 ![Node 22.13+](https://img.shields.io/badge/node-22.13%2B-339933)
 ![Só local](https://img.shields.io/badge/roda-s%C3%B3%20na%20sua%20m%C3%A1quina-555)
@@ -9,21 +9,21 @@
 
 **O painel local do Tech Lead que trabalha com agentes de IA.** O time, a fila, as entregas e os agentes de IA numa tela só, com a IA sob controle e medida. Tudo roda só na sua máquina.
 
-Se você lidera um time e roda agentes do Claude Code ou do Cursor em paralelo, o seu dia fica espalhado entre Discord, GitHub, terminais e planilhas. O Lead Deck junta tudo:
+Se você lidera um time e roda agentes do Claude Code ou do Cursor em paralelo, o seu dia fica espalhado entre Discord, GitHub, terminais e planilhas. O TLDeck junta tudo:
 
 - **Dia a dia:** a daily do time, os bloqueios com o tempo de cada um, a sua fila (bugs, tickets, menções sem resposta), os reviews pendentes por tamanho e espera, e um bloco **Atenção** com o que está atrasado ou parado.
 - **Entrega e confiabilidade:** acompanhamento de PRs e deploy por issue, fluxo do time, métricas **DORA**, incidentes com postmortem sem culpados, as decisões do time com dono e prazo, e o produto dividido em etapas com dependências, riscos e caminho crítico.
 - **IA sob controle:** todas as sessões de agentes num lugar, reviews de PR e tarefas da issue até o PR em rascunho em segundo plano, com portão humano em cada passo, e a IA **medida** pelos dois lados: o que ela aponta à toa (precisão) e o que deixa passar (recall).
 
-![Lead Deck: um tour de 15 segundos pelo demo](docs/lead-deck-tour.pt-BR.gif)
+![TLDeck: um tour de 15 segundos pelo demo](docs/tldeck-tour.pt-BR.gif)
 
 ## Teste em um minuto
 
 Sem configurar nada. Precisa do Node.js 22.13 ou mais novo.
 
 ```bash
-git clone https://github.com/JandersonSR/lead-deck.git
-cd lead-deck
+git clone https://github.com/JandersonSR/tldeck.git
+cd tldeck
 npm install
 npm run demo        # abre em http://127.0.0.1:9999 com dados fictícios (-- --en para inglês)
 ```
@@ -32,9 +32,9 @@ O demo não usa nenhuma integração real, mesmo que exista um `.env`, e guarda 
 
 ## Por que não X?
 
-Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que você precisa; o Lead Deck é para o Tech Lead que precisa das partes juntas, na própria máquina.
+Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que você precisa; o TLDeck é para o Tech Lead que precisa das partes juntas, na própria máquina.
 
-| Se você só precisa de… | Uma boa escolha | O que o Lead Deck acrescenta |
+| Se você só precisa de… | Uma boa escolha | O que o TLDeck acrescenta |
 | --- | --- | --- |
 | Gerenciar sessões paralelas do Claude Code | O agent view do próprio Claude Code (`claude agents`) | Sessões do Cursor também, aprovação pelo navegador e essas sessões ao lado da fila, dos reviews e do time (a aba **Em segundo plano** lê o `claude agents`) |
 | DORA e métricas de engenharia de muitos times | Apache DevLake, Middleware | Nada para configurar (SQLite local), incidente ligado à mudança que o causou, concentração de conhecimento, decisões e etapas do produto no mesmo lugar |
@@ -93,7 +93,7 @@ Outros detalhes:
 - Toda integração é opcional. Um bloco sem a integração dele diz o que falta e como configurar.
 
 
-![Tela "Hoje" do Lead Deck com dados de exemplo](docs/lead-deck-today.pt-BR.jpg)
+![Tela "Hoje" do TLDeck com dados de exemplo](docs/tldeck-today.pt-BR.jpg)
 
 *Dados de exemplo do demo. A interface está em português e inglês (aperte `L` para trocar).*
 
@@ -135,8 +135,8 @@ As decisões de arquitetura ficam em [`docs/adr/`](docs/adr/).
 ## Instalação para uso real
 
 ```bash
-git clone https://github.com/JandersonSR/lead-deck.git
-cd lead-deck
+git clone https://github.com/JandersonSR/tldeck.git
+cd tldeck
 npm install
 cp .env.example .env      # preencha só o que usar; vazio = integração desligada
 npm run install-hooks     # hooks do Claude Code (o Cursor está mais abaixo)
@@ -339,7 +339,7 @@ npm run build && npm start
 ```
 
 ```
-lead-deck/
+tldeck/
 ├── apps/
 │   ├── server/        # Fastify + Zod: rotas, sincronização GitHub/Discord, MongoDB, execuções, mascaramento
 │   └── web/           # React + Vite + Tailwind + shadcn/ui

@@ -20,8 +20,8 @@ on:
       skip-label:
         type: string
         default: no-ai-review
-      lead-deck-ref:
-        description: Versão do Lead Deck usada (tag ou SHA; fixe para não mudar sem você saber)
+      tldeck-ref:
+        description: Versão do TLDeck usada (tag ou SHA; fixe para não mudar sem você saber)
         type: string
         default: main
     secrets:
@@ -52,9 +52,9 @@ jobs:
       - name: Script de review
         uses: actions/checkout@v4
         with:
-          repository: JandersonSR/lead-deck
-          ref: ${{ inputs.lead-deck-ref }}
-          path: .lead-deck
+          repository: JandersonSR/tldeck
+          ref: ${{ inputs.tldeck-ref }}
+          path: .tldeck
           sparse-checkout: ci
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -71,4 +71,4 @@ jobs:
           MODEL: ${{ inputs.model }}
           MAX_LINES: ${{ inputs.max-lines }}
           LANG_OUT: ${{ inputs.language }}
-        run: node .lead-deck/ci/ai-review.mjs
+        run: node .tldeck/ci/ai-review.mjs

@@ -8,7 +8,7 @@ permissions:
   pull-requests: write
 jobs:
   ai-review:
-    uses: JandersonSR/lead-deck/.github/workflows/ai-review.yml@main # fixe numa tag ou SHA
+    uses: JandersonSR/tldeck/.github/workflows/ai-review.yml@main # fixe numa tag ou SHA
     with:
       language: pt-BR
       max-lines: 2000

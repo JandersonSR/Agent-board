@@ -12,8 +12,8 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
-export const MARKER = '<!-- lead-deck:ai-review -->';
-/** Marcador antigo (antes do nome Lead Deck): o comentário existente continua sendo atualizado. */
+export const MARKER = '<!-- tldeck:ai-review -->';
+/** Marcador antigo (antes do nome TLDeck): o comentário existente continua sendo atualizado. */
 const LEGACY_MARKERS = ['<!-- agent-board:ai-review -->'];
 
 const JSON_CONTRACT = `{

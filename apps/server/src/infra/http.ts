@@ -11,7 +11,7 @@ export async function getJson<T>(fetcher: Fetcher, url: string, headers: Record<
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    const res = await fetcher(url, { headers: { 'User-Agent': 'lead-deck-local (read-only)', Accept: 'application/json', ...headers }, signal: ctrl.signal });
+    const res = await fetcher(url, { headers: { 'User-Agent': 'tldeck-local (read-only)', Accept: 'application/json', ...headers }, signal: ctrl.signal });
     if (!res.ok) {
       const hint = res.status === 401 || res.status === 403 ? 'token sem permissão ou expirado' : res.status === 429 ? 'limite de requisições' : `HTTP ${res.status}`;
       throw new InfraHttpError(`${new URL(url).host}: ${hint}`, res.status);

@@ -57,7 +57,7 @@ export class PainelStore {
     this.connecting ??= (async () => {
       try {
         this.status = { state: 'connecting' };
-        const client = new MongoClient(this.cfg.uri!, { serverSelectionTimeoutMS: 10_000, appName: 'lead-deck' });
+        const client = new MongoClient(this.cfg.uri!, { serverSelectionTimeoutMS: 10_000, appName: 'tldeck' });
         await client.connect();
         this.client = client;
         this.db = this.cfg.dbName ? client.db(this.cfg.dbName) : client.db();

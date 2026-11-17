@@ -1,6 +1,6 @@
 # Security policy
 
-Lead Deck runs on your machine, reads your GitHub and Discord with your credentials and can start AI agents, so security reports are taken seriously.
+TLDeck runs on your machine, reads your GitHub and Discord with your credentials and can start AI agents, so security reports are taken seriously.
 
 ## Reporting a vulnerability
 
