@@ -2,7 +2,7 @@
 // Keep the same {variables} as the key. i18n.test.ts checks both things.
 export const EN: Record<string, string> = {
   // App shell, navigation and command palette
-  'painel do Tech Lead': 'Tech Lead cockpit',
+  'painel do TL': 'Tech Lead deck',
   'Navegação principal': 'Main navigation',
   'Navegação': 'Navigation',
   'Hoje': 'Today',
