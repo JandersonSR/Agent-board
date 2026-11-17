@@ -5,7 +5,7 @@
 // deck's own tracking (sustained CPU/memory), in tracker.ts.
 import { z } from 'zod';
 import { getJson, isScopeError, type Fetcher } from './http.js';
-import { pct, type InfraDeploy, type InfraProvider, type InfraResource, type ResourceStatus } from './types.js';
+import { pct, type InfraComponent, type InfraDeploy, type InfraProvider, type InfraResource, type ResourceStatus } from './types.js';
 
 const API = 'https://api.digitalocean.com';
 const Series = z.object({
@@ -68,11 +68,53 @@ export function deployPhase(phase: string | undefined): InfraDeploy['status'] {
   return 'in_progress';
 }
 
+/** App Platform components (services, workers, jobs, static sites) with instance size and count, from the app spec. */
+export function appComponents(spec: Record<string, unknown>): InfraComponent[] {
+  const out: InfraComponent[] = [];
+  const kinds = [['services', 'service'], ['workers', 'worker'], ['jobs', 'job'], ['static_sites', 'static']] as const;
+  for (const [key, type] of kinds) {
+    const list = Array.isArray(spec[key]) ? (spec[key] as Array<Record<string, unknown>>) : [];
+    for (const c of list) {
+      const size = typeof c.instance_size_slug === 'string' ? c.instance_size_slug : undefined;
+      const count = typeof c.instance_count === 'number' ? c.instance_count : 1;
+      out.push({ type: typeof c.name === 'string' ? `${type} ${c.name}` : type, ...(size ? { size } : {}), count });
+    }
+  }
+  return out;
+}
+
+/** Highest last value across the series (the busiest instance), as a percentage. */
+export function peakPercent(s: SeriesT): number | undefined {
+  let best: number | undefined;
+  for (const r of s.data.result) {
+    const n = r.values.length ? Number(r.values[r.values.length - 1]![1]) : NaN;
+    if (Number.isFinite(n)) best = best === undefined ? n : Math.max(best, n);
+  }
+  return best === undefined ? undefined : pct(best);
+}
+
+/** App CPU/memory are read at most every 5 min (rate limit: 5,000 requests/hour); without monitoring:read, re-checked every 30 min. */
+const APP_METRICS_EVERY_MS = 5 * 60_000;
+const APP_METRICS_RECHECK_MS = 30 * 60_000;
+
+async function inBatches<T>(items: T[], size: number, fn: (x: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < items.length; i += size) await Promise.all(items.slice(i, i + size).map(fn));
+}
+
 export function digitalOceanProvider(opts: { token: string; tag?: string | undefined; fetcher?: Fetcher }): InfraProvider {
   const fetcher = opts.fetcher ?? fetch;
   const h = { Authorization: `Bearer ${opts.token}` };
+  const range = (now: number) => `start=${Math.floor(now / 1000) - 600}&end=${Math.floor(now / 1000)}`;
   const metric = (name: string, id: number, now: number) =>
-    getJson(fetcher, `${API}/v2/monitoring/metrics/droplet/${name}?host_id=${id}&start=${Math.floor(now / 1000) - 600}&end=${Math.floor(now / 1000)}`, h, Series);
+    getJson(fetcher, `${API}/v2/monitoring/metrics/droplet/${name}?host_id=${id}&${range(now)}`, h, Series);
+  const appMetric = (name: string, id: string, now: number) =>
+    getJson(fetcher, `${API}/v2/monitoring/metrics/apps/${name}?app_id=${encodeURIComponent(id)}&${range(now)}`, h, Series);
+
+  // State across polls: app metrics (throttled) and each app's deployments (refetched only when its deploy changes).
+  const appMetrics = new Map<string, InfraResource['metrics']>();
+  let appMetricsAt = Number.NEGATIVE_INFINITY;
+  let appMetricsScope: boolean | null = null;
+  const deploysCache = new Map<string, { sig: string; list: z.infer<typeof Deployments>['deployments'] }>();
 
   return {
     id: 'digitalocean', label: 'DigitalOcean',
@@ -87,7 +129,7 @@ export function digitalOceanProvider(opts: { token: string; tag?: string | undef
       const part = <T>(p: Promise<T>, what: string, scope: string, empty: T): Promise<T> => p.catch((e: unknown) => {
         if (!isScopeError(e)) throw e;
         scopeErrors.push(e);
-        warnings.push(`${what}: token sem escopo ${scope}`);
+        warnings.push(`${what}: token missing scope ${scope}`);
         return empty;
       });
       const [d, apps] = await Promise.all([
@@ -108,17 +150,49 @@ export function digitalOceanProvider(opts: { token: string; tag?: string | undef
         resources.push({ id: `digitalocean:droplet:${drop.id}`, provider: 'digitalocean', kind: 'droplet', name: drop.name, status: st.status, statusText: st.text, metrics, region: drop.region?.slug });
       }));
 
-      await Promise.all(apps.apps.map(async app => {
+      // App CPU/memory need monitoring:read. One probe decides; a 403 turns them off (with a warning) until the next re-check.
+      const live = apps.apps.filter(a => a.active_deployment);
+      const due = now - appMetricsAt >= (appMetricsScope === false ? APP_METRICS_RECHECK_MS : APP_METRICS_EVERY_MS);
+      if (live.length && due) {
+        appMetricsAt = now;
+        const read = async (app: (typeof live)[number]) => {
+          const [cpu, mem] = await Promise.all([appMetric('cpu_percentage', app.id, now), appMetric('memory_percentage', app.id, now)]);
+          appMetrics.set(app.id, { cpu: peakPercent(cpu), memory: peakPercent(mem) });
+        };
+        try {
+          await read(live[0]!);
+          appMetricsScope = true;
+          await inBatches(live.slice(1), 5, app => read(app).catch(() => { appMetrics.delete(app.id); }));
+        } catch (e) {
+          // Any other failure on the probe (network, 429): keep the last values and try again next time.
+          if (isScopeError(e)) { appMetricsScope = false; appMetrics.clear(); } else appMetricsAt = Number.NEGATIVE_INFINITY;
+        }
+      }
+      if (appMetricsScope === false && live.length) warnings.push('app CPU/memory: token missing scope monitoring:read');
+
+      await inBatches(apps.apps, 10, async app => {
         const active = app.active_deployment;
         const inProgress = app.in_progress_deployment;
         const status: ResourceStatus = active ? (deployPhase(inProgress?.phase) === 'failed' ? 'warn' : 'ok') : inProgress ? 'warn' : 'unknown';
         const id = `digitalocean:app:${app.id}`;
-        resources.push({ id, provider: 'digitalocean', kind: 'app', name: app.spec.name, status, statusText: inProgress ? `deploy ${inProgress.phase?.toLowerCase() ?? ''}`.trim() : active ? 'active' : 'no active deploy', region: app.region?.slug, url: app.live_url });
-        const list = await getJson(fetcher, `${API}/v2/apps/${app.id}/deployments?per_page=10`, h, Deployments).catch(() => ({ deployments: [] }));
-        for (const dep of list.deployments) {
+        const components = appComponents(app.spec);
+        resources.push({
+          id, provider: 'digitalocean', kind: 'app', name: app.spec.name, status,
+          statusText: inProgress ? `deploy ${inProgress.phase?.toLowerCase() ?? ''}`.trim() : active ? 'active' : 'no active deploy',
+          region: app.region?.slug, url: app.live_url, metrics: active ? appMetrics.get(app.id) : undefined,
+          ...(components.length ? { components } : {}),
+        });
+        // Deployments only change with a new deploy: refetch when the active/in-progress deploy changes.
+        const sig = `${active?.id ?? ''}|${inProgress?.id ?? ''}|${inProgress?.phase ?? ''}`;
+        let cached = deploysCache.get(app.id);
+        if (!cached || cached.sig !== sig) {
+          const list = await getJson(fetcher, `${API}/v2/apps/${app.id}/deployments?per_page=10`, h, Deployments).then(r => r.deployments).catch(() => null);
+          if (list) { cached = { sig, list }; deploysCache.set(app.id, cached); }
+        }
+        for (const dep of cached?.list ?? []) {
           deploys.push({ key: `digitalocean:${app.id}:${dep.id}`, provider: 'digitalocean', resourceId: id, resourceName: app.spec.name, version: dep.id.slice(0, 8), status: deployPhase(dep.phase), at: dep.created_at ?? dep.updated_at ?? new Date(now).toISOString(), description: dep.cause });
         }
-      }));
+      });
       return { resources, alerts: [], deploys, ...(warnings.length ? { warnings } : {}) };
     },
   };

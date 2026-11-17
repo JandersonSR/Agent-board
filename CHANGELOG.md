@@ -9,8 +9,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 - **Jira Cloud and Linear**, read-only: issues assigned to you in your queue, and PRs that mention an issue key grouped under that issue in PRs and deploys, with its title, state and deploy date (a Jira date field or Linear's due date). Track an issue by key or link.
 - Chat and trackers are adapters (`sources/chat.ts`, `sources/trackers.ts`); GitHub Issues and Projects keep working as before.
 - Slack, Linear and Jira tokens are masked like the other secrets.
+- **Infra filters:** one tab per active provider (with its resource count and read health), filter by name, state (several at once) and kind, and sort by state, name, CPU or memory. Alerts and the timeline follow the chosen provider.
+- **What runs each app:** Heroku dynos per process type (how many are up, size) and DigitalOcean App Platform components (instance size and count).
+- **Agents by tool:** Claude Code and Cursor apart (All · Claude Code · Cursor, with counts) on the board and the task view. The demo has a Cursor session too.
+- **DigitalOcean app CPU and memory** (with `monitoring:read`), read at most every 5 minutes; without the scope the provider shows *partial* and the cards show sizes instead.
 
 ### Changed
+- DigitalOcean deployments are fetched again only when an app's deploy changes (fewer requests against the 5,000/hour limit).
 - **Code and data in English.** Comments, test names, log and error messages, agent prompts and the interface's source texts are now in English; the Portuguese interface comes from `i18n-pt.ts`. Fixed server errors are still shown in Portuguese when that is the language chosen.
 - **Collections renamed** from `painel_*` to `deck_*` (`painel_sessoes` → `deck_runs`, `painel_avaliacoes` → `deck_evals`, …). The first start renames them in place, in SQLite and MongoDB; nothing is copied or lost. If both an old and a new collection hold data, the old one is left untouched and a warning is logged.
 - **`CONTENT_LANG`** (`en` by default, or `pt-BR`) sets the language of what the deck writes by itself: agent answers, the PENDING review and draft PR bodies, alert titles and incident timelines. It replaces `INFRA_LANG`, which is still accepted. The CI pre-review defaults to English too (`language: pt-BR` to keep Portuguese).
@@ -24,6 +29,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 - **"In production" deploy status:** a PR merged into a production branch (`DEPLOY_PROD_BRANCHES`, default `production,production-*`) becomes *In production*; an issue with every PR delivered and at least one in production does too. *Merged* and *In production* can also be set by hand. A card in production leaves automatic tracking (setting it back to automatic resumes it).
 
 ### Fixed
+- **Cursor on Windows:** sessions never showed up. Cursor runs hooks through Windows PowerShell 5.1, which puts a UTF-8 BOM in front of stdin (the JSON failed to parse and the hook quit silently) and reads the UTF-8 payload as Windows-1252 (accents arrived as `Ã©`). Both are undone in `lib/encoding.js`; the `/C:/…` workspace path is normalized too.
 - **DigitalOcean with a custom-scope token:** a part the token cannot read (e.g. droplets with an `app:read`-only token) no longer fails the whole provider. The rest is read and the provider shows *partial* with the missing scope; it only fails when nothing is readable.
 
 ## [0.4.0] - 2026-11-16

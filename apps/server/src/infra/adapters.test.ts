@@ -1,9 +1,9 @@
 // Adapters with simulated API responses (no real calls).
 import { describe, expect, it } from 'vitest';
 import { azureProvider, azureSeverity, healthStatus, resourceFromHealthId } from './azure.js';
-import { cpuUsage, deployPhase, digitalOceanProvider, memoryUsage } from './digitalocean.js';
+import { appComponents, cpuUsage, deployPhase, digitalOceanProvider, memoryUsage, peakPercent } from './digitalocean.js';
 import { grafanaProvider, grafanaSeverity } from './grafana.js';
-import { appStatus, herokuProvider } from './heroku.js';
+import { appStatus, dynoComponents, herokuProvider } from './heroku.js';
 import type { Fetcher } from './http.js';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -58,7 +58,7 @@ describe('DigitalOcean', () => {
     };
     const snap = await digitalOceanProvider({ token: 't0k', fetcher: f }).poll(0);
     expect(snap.resources.map(r => r.name)).toEqual(['web-prod']);
-    expect(snap.warnings).toEqual(['droplets: token sem escopo droplet:read']);
+    expect(snap.warnings).toEqual(['droplets: token missing scope droplet:read']);
   });
 
   it('no part accessible (invalid token) or a non-scope error: fails', async () => {
@@ -67,6 +67,55 @@ describe('DigitalOcean', () => {
     const limited: Fetcher = async (url) => (/\/v2\/droplets/.test(url) ? json({}, 429) : json({ apps: [] }));
     await expect(digitalOceanProvider({ token: 'x', fetcher: limited }).poll(0)).rejects.toThrow(/rate limit/);
   });
+  it('App Platform components and the busiest instance', () => {
+    expect(appComponents({ services: [{ name: 'api', instance_size_slug: 'apps-s-1vcpu-1gb', instance_count: 2 }], workers: [{ name: 'queue' }], static_sites: [{ name: 'site' }] }))
+      .toEqual([{ type: 'service api', size: 'apps-s-1vcpu-1gb', count: 2 }, { type: 'worker queue', count: 1 }, { type: 'static site', count: 1 }]);
+    expect(peakPercent(series([[{ instance: 'a' }, [[0, '12.34']]], [{ instance: 'b' }, [[0, '40']]]]) as never)).toBe(40);
+    expect(peakPercent(series([]) as never)).toBeUndefined();
+  });
+
+  /** Fetcher for one live app; `metrics` answers the App Platform metrics endpoints. */
+  function oneApp(metrics: (url: string) => Response, deployId = 'd1') {
+    const calls: string[] = [];
+    const f: Fetcher = async (url) => {
+      calls.push(url);
+      if (/\/v2\/droplets/.test(url)) return json({ droplets: [] });
+      if (/monitoring\/metrics\/apps/.test(url)) return metrics(url);
+      if (/\/deployments/.test(url)) return json({ deployments: [{ id: deployId, phase: 'ACTIVE' }] });
+      if (/\/v2\/apps/.test(url)) return json({ apps: [{ id: 'a1', spec: { name: 'web-prod', services: [{ name: 'web', instance_size_slug: 'basic-xxs', instance_count: 1 }] }, active_deployment: { id: deployId, phase: 'ACTIVE' } }] });
+      return json({}, 404);
+    };
+    return { f, calls };
+  }
+
+  it('app CPU/memory with monitoring:read, read at most every 5 min; deployments only refetched on a new deploy', async () => {
+    const { f, calls } = oneApp(url => json(series([[{}, [[0, url.includes('cpu') ? '35.5' : '61']]]])));
+    const p = digitalOceanProvider({ token: 't', fetcher: f });
+    const snap = await p.poll(0);
+    expect(snap.resources[0]).toMatchObject({ metrics: { cpu: 35.5, memory: 61 }, components: [{ type: 'service web', size: 'basic-xxs', count: 1 }] });
+    expect(snap.warnings).toBeUndefined();
+    const metricCalls = () => calls.filter(u => u.includes('monitoring')).length;
+    const deployCalls = () => calls.filter(u => u.includes('/deployments')).length;
+    expect([metricCalls(), deployCalls()]).toEqual([2, 1]);
+    const again = await p.poll(60_000); // 1 min later: cached values, no new calls
+    expect(again.resources[0]?.metrics).toEqual({ cpu: 35.5, memory: 61 });
+    expect(again.deploys).toHaveLength(1);
+    expect([metricCalls(), deployCalls()]).toEqual([2, 1]);
+    await p.poll(5 * 60_000);
+    expect(metricCalls()).toBe(4);
+  });
+
+  it('without monitoring:read: one probe, a warning, and no per-app metric calls until the re-check', async () => {
+    const { f, calls } = oneApp(() => json({ id: 'forbidden' }, 403));
+    const p = digitalOceanProvider({ token: 't', fetcher: f });
+    const snap = await p.poll(0);
+    expect(snap.resources[0]?.metrics).toBeUndefined();
+    expect(snap.warnings).toEqual(['app CPU/memory: token missing scope monitoring:read']);
+    const probes = calls.filter(u => u.includes('monitoring')).length;
+    await p.poll(10 * 60_000);
+    expect(calls.filter(u => u.includes('monitoring')).length).toBe(probes);
+    expect((await p.poll(10 * 60_000)).warnings).toEqual(['app CPU/memory: token missing scope monitoring:read']);
+  });
 });
 
 describe('Heroku', () => {
@@ -74,6 +123,14 @@ describe('Heroku', () => {
     expect(appStatus([{ name: 'web.1', type: 'web', state: 'up' }, { name: 'web.2', type: 'web', state: 'crashed' }])).toMatchObject({ status: 'warn' });
     expect(appStatus([{ name: 'web.1', type: 'web', state: 'crashed' }])).toMatchObject({ status: 'down' });
     expect(appStatus([])).toMatchObject({ status: 'unknown' });
+  });
+
+  it('dynos by process type, web first', () => {
+    expect(dynoComponents([
+      { name: 'worker.1', type: 'worker', state: 'crashed', size: 'Standard-1X' },
+      { name: 'web.1', type: 'web', state: 'up', size: 'Standard-2X' },
+      { name: 'web.2', type: 'web', state: 'idle', size: 'Standard-2X' },
+    ])).toEqual([{ type: 'web', count: 2, up: 2, size: 'Standard-2X' }, { type: 'worker', count: 1, up: 0, size: 'Standard-1X' }]);
   });
 
   it('v3 header, app filter and latest releases', async () => {

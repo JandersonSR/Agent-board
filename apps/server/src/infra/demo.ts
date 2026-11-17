@@ -15,16 +15,20 @@ export function demoInfraProvider(startedAt = Date.now(), lang: 'pt-BR' | 'en' =
     id: 'demo', label: 'Demo',
     async poll(now) {
       const hot = now >= hotFrom;
+      // Each resource says which provider it imitates, so the provider tabs work in the demo too.
       const resources: InfraResource[] = [
-        { id: 'demo:droplet:api-prod', provider: 'demo', kind: 'droplet', name: 'api-prod', status: 'ok', statusText: 'active', region: 'nyc1',
+        { id: 'demo:droplet:api-prod', provider: 'digitalocean', kind: 'droplet', name: 'api-prod', status: 'ok', statusText: 'active', region: 'nyc1',
           metrics: { cpu: hot ? 92 + 5 * wave(now, 7 * MIN) : 40 + 20 * wave(now, 9 * MIN), memory: 71 + 6 * wave(now, 13 * MIN) } },
-        { id: 'demo:droplet:worker-prod', provider: 'demo', kind: 'droplet', name: 'worker-prod', status: 'ok', statusText: 'active', region: 'nyc1',
+        { id: 'demo:droplet:worker-prod', provider: 'digitalocean', kind: 'droplet', name: 'worker-prod', status: 'ok', statusText: 'active', region: 'nyc1',
           metrics: { cpu: 30 + 25 * wave(now, 11 * MIN, 1), memory: 48 + 8 * wave(now, 17 * MIN, 2) } },
-        { id: 'demo:app:loans-api-prod', provider: 'demo', kind: 'app', name: 'loans-api-prod', status: 'ok', statusText: 'active', region: 'nyc', url: 'https://example.com' },
-        { id: 'demo:heroku:payments-prod', provider: 'demo', kind: 'app', name: 'payments-prod', status: 'warn', statusText: '1/2 up · 1 crashed', region: 'us' },
-        { id: 'demo:heroku:admin-staging', provider: 'demo', kind: 'app', name: 'admin-staging', status: 'ok', statusText: '1/1 up', region: 'us' },
-        { id: 'demo:azure:loans-db', provider: 'demo', kind: 'databases', name: 'loans-db', status: 'warn', statusText: 'Degraded', region: 'brazilsouth' },
-        { id: 'demo:azure:portal-prod', provider: 'demo', kind: 'sites', name: 'portal-prod', status: 'ok', statusText: 'Available', region: 'brazilsouth' },
+        { id: 'demo:app:loans-api-prod', provider: 'digitalocean', kind: 'app', name: 'loans-api-prod', status: 'ok', statusText: 'active', region: 'nyc', url: 'https://example.com',
+          metrics: { cpu: 35 + 15 * wave(now, 8 * MIN, 3), memory: 62 + 5 * wave(now, 15 * MIN, 1) }, components: [{ type: 'service api', size: 'apps-s-1vcpu-1gb', count: 2 }, { type: 'worker queue', size: 'apps-s-1vcpu-0.5gb', count: 1 }] },
+        { id: 'demo:heroku:payments-prod', provider: 'heroku', kind: 'app', name: 'payments-prod', status: 'warn', statusText: '1/2 up · 1 crashed', region: 'us',
+          components: [{ type: 'web', size: 'Standard-2X', count: 2, up: 1 }, { type: 'worker', size: 'Standard-1X', count: 1, up: 1 }] },
+        { id: 'demo:heroku:admin-staging', provider: 'heroku', kind: 'app', name: 'admin-staging', status: 'ok', statusText: '1/1 up', region: 'us',
+          components: [{ type: 'web', size: 'Basic', count: 1, up: 1 }] },
+        { id: 'demo:azure:loans-db', provider: 'azure', kind: 'databases', name: 'loans-db', status: 'warn', statusText: 'Degraded', region: 'brazilsouth' },
+        { id: 'demo:azure:portal-prod', provider: 'azure', kind: 'sites', name: 'portal-prod', status: 'ok', statusText: 'Available', region: 'brazilsouth' },
       ];
       const deploys: InfraDeploy[] = [];
       // Production deploys over the last 30 days (2 to 3 a week) and one 25 min before the latency alert.

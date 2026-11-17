@@ -10,7 +10,7 @@ const store = require('./lib/store');
 
 const HOOK = path.join(__dirname, 'hook.js');
 const ID = n => `demo-${n}`;
-const IDS = [1, 2, 3, 4].map(ID);
+const IDS = [1, 2, 3, 4, 5].map(ID);
 
 if (process.argv.includes('--clear')) {
   for (const id of IDS) {
@@ -24,6 +24,11 @@ const root = path.join(require('os').tmpdir(), 'agent-board-demo');
 const send = (id, cwd, ev) => execFileSync(process.execPath, [HOOK], {
   input: JSON.stringify({ session_id: id, cwd, ...ev }),
   env: { ...process.env, AGENT_BOARD_APPROVAL_WAIT: '0', AGENT_BOARD_NTFY: '' },
+});
+// Cursor sends its own format (conversation_id, workspace_roots, camelCase events); the hook translates it.
+const sendCursor = (id, cwd, ev) => execFileSync(process.execPath, [HOOK], {
+  input: JSON.stringify({ conversation_id: id, workspace_roots: [cwd], ...ev }),
+  env: { ...process.env, AGENT_BOARD_NTFY: '' },
 });
 const dir = name => { const d = path.join(root, name); fs.mkdirSync(d, { recursive: true }); return d; };
 
@@ -51,4 +56,11 @@ send(ID(3), web, { hook_event_name: 'PostToolUse', tool_name: 'Bash', tool_input
 // 4. Ociosa
 send(ID(4), dir('infra'), { hook_event_name: 'SessionStart', source: 'startup' });
 
-console.log('4 sample cards created. Remove them with: npm run demo -- --clear');
+// 5. Cursor, ready for review
+const docs = dir('docs-site');
+sendCursor(ID(5), docs, { hook_event_name: 'beforeSubmitPrompt', prompt: 'DOC-7 Update the setup guide for Node 22' });
+sendCursor(ID(5), docs, { hook_event_name: 'afterFileEdit', file_path: path.join(docs, 'guide', 'setup.md') });
+sendCursor(ID(5), docs, { hook_event_name: 'afterAgentResponse', text: 'Setup guide updated: Node 22.13+, npm 10 and the new install command.' });
+sendCursor(ID(5), docs, { hook_event_name: 'stop', status: 'completed' });
+
+console.log('5 sample cards created. Remove them with: npm run demo -- --clear');

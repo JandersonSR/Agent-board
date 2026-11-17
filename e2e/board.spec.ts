@@ -108,3 +108,38 @@ test('infra: real-time alerts, possible cause and an incident opened by the rule
   await expect(page.getByText('High p95 latency on loans-api-prod').first()).toBeVisible();
   expect(errors).toEqual([]);
 });
+
+test('infra: filter resources by provider, name and state; dynos and app sizes on the cards', async ({ page }) => {
+  const errors = await open(page, 'infra');
+  const cards = page.getByTestId('infra-resource');
+  await expect(cards.first()).toBeVisible();
+  await page.getByRole('tab', { name: /Heroku/ }).click();
+  await expect(cards).toHaveCount(2);
+  await expect(cards.filter({ hasText: 'payments-prod' }).getByText('1/2', { exact: true })).toBeVisible(); // web dynos up/total
+  await page.getByRole('button', { name: /attention/ }).click();
+  await expect(cards).toHaveCount(1);
+  await page.getByRole('button', { name: 'Clear' }).click();
+  await page.getByRole('tab', { name: /DigitalOcean/ }).click();
+  await page.getByRole('textbox', { name: 'Filter by name' }).fill('LOANS');
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first().getByText('apps-s-1vcpu-1gb')).toBeVisible();
+  await expect(page.getByText('1 of 3')).toBeVisible();
+  await expect(page.getByTestId('infra-alert').filter({ hasText: 'High p95 latency on loans-api-prod' })).toBeVisible(); // alert follows its resource
+  await page.getByRole('textbox', { name: 'Filter by name' }).fill('');
+  await page.screenshot({ path: process.env.E2E_SHOT ?? 'test-results/infra-filters.png', fullPage: true });
+  expect(errors).toEqual([]);
+});
+
+test('agents: Claude Code and Cursor sessions apart', async ({ page }) => {
+  const errors = await open(page, 'agents');
+  const tools = page.getByRole('tablist', { name: 'Agent tool' });
+  await expect(tools.getByRole('tab', { name: /All\s*5/ })).toBeVisible();
+  await tools.getByRole('tab', { name: /Cursor\s*1/ }).click();
+  await expect(page.getByText('DOC-7 Update the setup guide for Node 22').first()).toBeVisible();
+  await expect(page.getByText('FEAT-101 Implement JWT login with tests', { exact: false })).toHaveCount(0);
+  await page.screenshot({ path: process.env.E2E_SHOT_AGENTS ?? 'test-results/agents-cursor.png' });
+  await tools.getByRole('tab', { name: /Claude Code\s*4/ }).click();
+  await expect(page.getByText('FEAT-101 Implement JWT login with tests', { exact: false }).first()).toBeVisible();
+  await expect(page.getByText('DOC-7 Update the setup guide for Node 22')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -13,8 +13,16 @@ import { SessionCard } from './session-card';
 import { COLUMNS, groupByColumn, groupByTask } from './session-meta';
 import { BackgroundSessions, useBackgroundSessions } from './background-sessions';
 
+type ToolFilter = 'all' | 'claude' | 'cursor';
+const TOOL_LABEL: Record<Exclude<ToolFilter, 'all'>, string> = { claude: 'Claude Code', cursor: 'Cursor' };
+const toolOf = (s: { tool?: 'claude' | 'cursor' }) => s.tool ?? 'claude';
+
 export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: () => void }) {
-  const { sessions, flashed } = useAgentSessionsContext();
+  const { sessions: all, flashed } = useAgentSessionsContext();
+  // Claude Code and Cursor apart: the chosen tool filters the board and the task view (Background is Claude Code only).
+  const [tool, setTool] = usePref<ToolFilter>('agents.tool', 'all');
+  const counts = { all: all.length, claude: all.filter(s => toolOf(s) === 'claude').length, cursor: all.filter(s => toolOf(s) === 'cursor').length };
+  const sessions = tool === 'all' ? all : all.filter(s => toolOf(s) === tool);
   const [layout, setLayout] = usePref<'board' | 'tasks' | 'background'>('agents.layout', 'board');
   const bg = useBackgroundSessions().data;
   const bgBlocked = bg?.available ? bg.sessions.filter(s => s.state === 'blocked').length : 0;
@@ -22,7 +30,7 @@ export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: (
     mutationFn: () => api.post('/api/clear-ended'),
     onSuccess: () => toast.success(t('Ended sessions archived')),
   });
-  const ended = sessions.filter(s => s.state === 'ended').length;
+  const ended = all.filter(s => s.state === 'ended').length;
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
@@ -34,12 +42,28 @@ export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: (
             <TabsTrigger value="background">{t('Background')}{bgBlocked > 0 && <Pill tone="danger" className="ml-1.5">{bgBlocked}</Pill>}</TabsTrigger>
           </TabsList>
         </Tabs>
+        {layout !== 'background' && (
+          <Tabs value={tool} onValueChange={v => setTool(v as ToolFilter)}>
+            <TabsList aria-label={t('Agent tool')}>
+              <TabsTrigger value="all">{t('All')}<span className="ml-1.5 tabular-nums text-muted-foreground">{counts.all}</span></TabsTrigger>
+              {(['claude', 'cursor'] as const).map(x => (
+                <TabsTrigger key={x} value={x}>{TOOL_LABEL[x]}<span className="ml-1.5 tabular-nums text-muted-foreground">{counts[x]}</span></TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        )}
         <div className="ml-auto flex items-center gap-2">
           {ended > 0 && <Button size="sm" variant="ghost" disabled={clear.isPending} onClick={() => clear.mutate()}><Eraser /> {t('Archive ended ({n})', { n: ended })}</Button>}
         </div>
       </div>
 
-      {layout === 'background' ? <BackgroundSessions /> : sessions.length === 0 ? (
+      {layout === 'background' ? <BackgroundSessions /> : sessions.length === 0 && all.length > 0 ? (
+        <div className="rounded-xl border border-dashed">
+          <EmptyState icon={Bot} title={t('No {tool} sessions', { tool: tool === 'all' ? '' : TOOL_LABEL[tool] })}
+            description={tool === 'cursor' ? t('Cursor sessions show up after the Cursor hooks are installed (npm run install-cursor) and Cursor is restarted.') : t('Sessions of the other tool are in the All tab.')}
+            action={<Button size="sm" variant="outline" onClick={() => setTool('all')}>{t('Show all')}</Button>} />
+        </div>
+      ) : sessions.length === 0 ? (
         <div className="rounded-xl border border-dashed">
           <EmptyState icon={Bot} title={t('No agent sessions')}
             description={<>{t('Claude Code and Cursor sessions show up here as soon as they start (hooks installed with')} <code className="font-mono">npm run install-hooks</code>).</>}

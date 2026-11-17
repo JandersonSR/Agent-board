@@ -94,7 +94,10 @@ export class InfraService {
       }
     });
     // Texts coming from outside are masked.
-    merged.resources = merged.resources.map(r => ({ ...r, name: this.mask(r.name).text, ...(r.statusText ? { statusText: this.mask(r.statusText).text } : {}) }));
+    merged.resources = merged.resources.map(r => ({
+      ...r, name: this.mask(r.name).text, ...(r.statusText ? { statusText: this.mask(r.statusText).text } : {}),
+      ...(r.components ? { components: r.components.map(c => ({ ...c, type: this.mask(c.type).text })) } : {}),
+    }));
     merged.alerts = merged.alerts.map(a => ({ ...a, title: this.mask(a.title).text }));
 
     for (const r of merged.resources) {

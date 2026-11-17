@@ -7,6 +7,9 @@ export type AlertSeverity = 'critical' | 'warning' | 'info';
 
 export interface InfraMetrics { cpu?: number | undefined; memory?: number | undefined; disk?: number | undefined } // 0–100
 
+/** What runs the resource: dyno type, App Platform component… (`up` = instances running, when known). */
+export interface InfraComponent { type: string; size?: string | undefined; count: number; up?: number | undefined }
+
 export interface InfraResource {
   /** Unique across providers: "<provider>:<native id>". */
   id: string;
@@ -18,6 +21,7 @@ export interface InfraResource {
   metrics?: InfraMetrics | undefined;
   region?: string | undefined;
   url?: string | undefined;
+  components?: InfraComponent[] | undefined;
 }
 
 export interface InfraAlert {

@@ -3,11 +3,11 @@
 // a log drain in the future.
 import { z } from 'zod';
 import { getJson, type Fetcher } from './http.js';
-import type { InfraDeploy, InfraProvider, InfraResource, ResourceStatus } from './types.js';
+import type { InfraComponent, InfraDeploy, InfraProvider, InfraResource, ResourceStatus } from './types.js';
 
 const API = 'https://api.heroku.com';
 const Apps = z.array(z.object({ id: z.string(), name: z.string(), web_url: z.string().nullable().optional(), region: z.object({ name: z.string() }).partial().nullable().optional() }));
-const Dynos = z.array(z.object({ name: z.string(), type: z.string(), state: z.string(), updated_at: z.string().optional() }));
+const Dynos = z.array(z.object({ name: z.string(), type: z.string(), state: z.string(), size: z.string().optional(), updated_at: z.string().optional() }));
 const Releases = z.array(z.object({ version: z.number(), status: z.string(), created_at: z.string(), description: z.string().nullable().optional(), current: z.boolean().optional() }));
 
 /** App state from its dynos: crashed = down; restarting = warning. */
@@ -20,6 +20,18 @@ export function appStatus(dynos: z.infer<typeof Dynos>): { status: ResourceStatu
   if (crashed && !up) return { status: 'down', text };
   if (crashed || starting) return { status: 'warn', text };
   return { status: 'ok', text };
+}
+
+/** Dynos grouped by process type: how many, how many up, and the size. */
+export function dynoComponents(dynos: z.infer<typeof Dynos>): InfraComponent[] {
+  const by = new Map<string, InfraComponent>();
+  for (const d of dynos) {
+    const c = by.get(d.type) ?? { type: d.type, count: 0, up: 0, ...(d.size ? { size: d.size } : {}) };
+    c.count += 1;
+    if (d.state === 'up' || d.state === 'idle') c.up = (c.up ?? 0) + 1;
+    by.set(d.type, c);
+  }
+  return [...by.values()].sort((a, b) => (a.type === 'web' ? -1 : b.type === 'web' ? 1 : a.type.localeCompare(b.type)));
 }
 
 export function releaseStatus(s: string): InfraDeploy['status'] {
@@ -43,7 +55,8 @@ export function herokuProvider(opts: { token: string; apps: string[]; fetcher?: 
         ]);
         const st = appStatus(dynos);
         const id = `heroku:app:${app.id}`;
-        resources.push({ id, provider: 'heroku', kind: 'app', name: app.name, status: st.status, statusText: st.text, region: app.region?.name, url: app.web_url ?? undefined });
+        const components = dynoComponents(dynos);
+        resources.push({ id, provider: 'heroku', kind: 'app', name: app.name, status: st.status, statusText: st.text, region: app.region?.name, url: app.web_url ?? undefined, ...(components.length ? { components } : {}) });
         for (const r of releases) {
           deploys.push({ key: `heroku:${app.id}:v${r.version}`, provider: 'heroku', resourceId: id, resourceName: app.name, version: `v${r.version}`, status: releaseStatus(r.status), at: r.created_at, description: r.description ?? undefined });
         }
