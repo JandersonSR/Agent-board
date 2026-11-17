@@ -1,8 +1,10 @@
-// Acesso ao MongoDB restrito às coleções PRÓPRIAS do painel (prefixo painel_).
+// Armazenamento do painel restrito às coleções PRÓPRIAS (prefixo painel_).
+// Padrão: arquivo SQLite local (sqlite-store.ts), sem servidor. Com MONGO_URI: MongoDB.
 // Regra do projeto: nada é escrito fora desta lista; coleções da empresa só são lidas
-// pela migração única (readLegacyCollection), que nunca escreve.
+// pela migração única (readLegacyCollection, só MongoDB), que nunca escreve.
 import { MongoClient, type Collection, type Db, type Document } from 'mongodb';
 import type { Config } from '../config.js';
+import { SqliteDatabase } from './sqlite-store.js';
 
 export const OWN_COLLECTIONS = [
   'painel_resumos', 'painel_sessoes', 'painel_prs',
@@ -19,23 +21,38 @@ export function assertOwnCollection(name: string): asserts name is OwnCollection
 export type MongoStatus =
   | { state: 'not_configured' }
   | { state: 'connecting' }
-  | { state: 'connected'; db: string }
+  | { state: 'connected'; db: string; kind?: 'sqlite' | 'mongo' }
   | { state: 'error'; message: string };
 
 export class PainelStore {
   private client: MongoClient | undefined;
   private db: Db | undefined;
   private connecting: Promise<void> | undefined;
+  private sqlite: SqliteDatabase | undefined;
   status: MongoStatus;
+  readonly kind: 'sqlite' | 'mongo' | 'none';
 
   constructor(private readonly cfg: Config['mongo']) {
-    this.status = cfg.uri ? { state: 'connecting' } : { state: 'not_configured' };
+    this.kind = cfg.storage ?? (cfg.uri ? 'mongo' : 'none');
+    if (this.kind === 'mongo' && !cfg.uri) this.kind = 'none';
+    this.status = this.kind === 'none' ? { state: 'not_configured' } : { state: 'connecting' };
   }
 
-  get configured(): boolean { return !!this.cfg.uri; }
+  get configured(): boolean { return this.kind !== 'none'; }
 
   async connect(): Promise<void> {
-    if (!this.cfg.uri) return;
+    if (this.kind === 'none') return;
+    if (this.kind === 'sqlite') {
+      if (this.sqlite) return;
+      try {
+        this.sqlite = new SqliteDatabase(this.cfg.sqliteFile ?? ':memory:');
+        this.status = { state: 'connected', db: this.cfg.sqliteFile ?? ':memory:', kind: 'sqlite' };
+      } catch (e) {
+        this.status = { state: 'error', message: (e as Error).message.split('\n')[0]! };
+        throw e;
+      }
+      return;
+    }
     if (this.db) return;
     this.connecting ??= (async () => {
       try {
@@ -45,7 +62,7 @@ export class PainelStore {
         this.client = client;
         this.db = this.cfg.dbName ? client.db(this.cfg.dbName) : client.db();
         await this.ensureIndexes();
-        this.status = { state: 'connected', db: this.db.databaseName };
+        this.status = { state: 'connected', db: this.db.databaseName, kind: 'mongo' };
       } catch (e) {
         // A mensagem do driver pode conter o host do cluster; mantemos só o tipo/código.
         const err = e as { codeName?: string; name?: string };
@@ -59,6 +76,8 @@ export class PainelStore {
 
   collection<T extends Document = Document>(name: OwnCollection): Collection<T> {
     assertOwnCollection(name);
+    // O SQLite implementa o mesmo subconjunto da API que os repositórios usam.
+    if (this.sqlite) return this.sqlite.collection(name) as unknown as Collection<T>;
     if (!this.db) throw Object.assign(new Error('MongoDB não conectado'), { statusCode: 503 });
     return this.db.collection<T>(name);
   }
@@ -93,11 +112,13 @@ export class PainelStore {
 
   /** Leitura única e somente leitura da coleção do painel de PRs anterior (migração). */
   async readLegacyCollection(db: string, collection: string): Promise<Document[]> {
-    if (!this.client) throw new Error('MongoDB não conectado');
+    if (!this.client) throw new Error('a migração do painel anterior exige MongoDB (MONGO_URI)');
     return this.client.db(db).collection(collection).find({}, { readPreference: 'secondaryPreferred' }).toArray();
   }
 
   async close(): Promise<void> {
+    this.sqlite?.close();
+    this.sqlite = undefined;
     await this.client?.close();
     this.client = undefined;
     this.db = undefined;

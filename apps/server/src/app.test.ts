@@ -14,7 +14,7 @@ const HOST = '127.0.0.1:9999';
 beforeAll(async () => {
   const { buildApp } = await import('./app.js');
   const { parseConfig } = await import('./config.js');
-  app = await buildApp({ config: parseConfig({}), serveWeb: false });
+  app = await buildApp({ config: parseConfig({ STORAGE: 'none' }), serveWeb: false });
   fs.mkdirSync(process.env.AGENT_BOARD_DIR!, { recursive: true });
   fs.writeFileSync(path.join(process.env.AGENT_BOARD_DIR!, 's1.json'), JSON.stringify({
     id: 's1', state: 'needs_you', createdAt: 1, updatedAt: 2,

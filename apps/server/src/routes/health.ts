@@ -46,12 +46,13 @@ export function discordCheck(cfg: Config, tr: Tr): Check {
 }
 
 function mongoCheck(store: PainelStore, tr: Tr): Check {
-  const base = { id: 'mongo', label: tr('MongoDB (coleções painel_*)', 'MongoDB (painel_* collections)') };
+  const sqlite = store.kind === 'sqlite';
+  const base = { id: 'mongo', label: sqlite ? tr('Dados do painel (SQLite local)', 'Board data (local SQLite)') : tr('MongoDB (coleções painel_*)', 'MongoDB (painel_* collections)') };
   const s = store.status;
   switch (s.state) {
-    case 'not_configured': return { ...base, state: 'off', detail: tr('MONGO_* não definidos', 'MONGO_* not set'), hint: tr('Preencha MONGO_URI ou MONGO_DATABASE_* no .env (banco próprio do painel).', 'Fill MONGO_URI or MONGO_DATABASE_* in .env (a database just for the board).') };
+    case 'not_configured': return { ...base, state: 'off', detail: tr('STORAGE=none: nada é guardado', 'STORAGE=none: nothing is stored'), hint: tr('Tire STORAGE=none para usar o arquivo local, ou preencha MONGO_URI.', 'Remove STORAGE=none to use the local file, or set MONGO_URI.') };
     case 'connecting': return { ...base, state: 'warn', detail: tr('conectando…', 'connecting…') };
-    case 'connected': return { ...base, state: 'ok', detail: `${tr('banco', 'database')} ${s.db}` };
+    case 'connected': return { ...base, state: 'ok', detail: sqlite ? `${tr('arquivo', 'file')} ${s.db}` : `${tr('banco', 'database')} ${s.db}` };
     case 'error': return { ...base, state: 'error', detail: `${tr('falha', 'failed')}: ${s.message}` };
   }
 }

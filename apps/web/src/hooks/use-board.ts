@@ -8,7 +8,7 @@ import type { DailySummary, OpenBlocker, QueueItem, ReviewItem, Sources, SourceS
 const every = 60_000;
 
 export const useBoardStatus = () =>
-  useQuery({ queryKey: ['board-status'], queryFn: () => api.get<{ sources: Sources }>('/api/board/status'), refetchInterval: 15_000 });
+  useQuery({ queryKey: ['board-status'], queryFn: () => api.get<{ sources: Sources; demo?: boolean }>('/api/board/status'), refetchInterval: 15_000 });
 
 export const useQueue = () =>
   useQuery({ queryKey: ['queue'], queryFn: () => api.get<{ source: { github: SourceState; discord: SourceState }; items: QueueItem[] }>('/api/queue'), refetchInterval: every });

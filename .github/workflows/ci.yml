@@ -21,10 +21,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        node: [22]
-        include:
-          - os: ubuntu-latest
-            node: 20
+        node: ['22.13', 24]
+        exclude:
+          - os: windows-latest
+            node: '22.13'
+          - os: macos-latest
+            node: '22.13'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -16,13 +16,14 @@
     "test": "npm run test:hooks && npm run test -w apps/server && npm run test -w apps/web",
     "test:hooks": "node --test test/hook.test.js test/launch.test.js test/state.test.js test/usage.test.js ci/ai-review.test.mjs",
     "start:legacy": "node server.js",
-    "demo": "node demo.js",
+    "demo": "node scripts/demo.mjs",
     "install-hooks": "node install.js",
     "uninstall-hooks": "node install.js --uninstall",
     "install-cursor": "node install.js --cursor",
-    "uninstall-cursor": "node install.js --cursor --uninstall"
+    "uninstall-cursor": "node install.js --cursor --uninstall",
+    "demo:sessions": "node demo.js"
   },
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22.13"
   }
 }

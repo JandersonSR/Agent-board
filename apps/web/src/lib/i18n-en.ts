@@ -793,6 +793,9 @@ export const EN: Record<string, string> = {
   '{n}/semana': '{n}/week',
   '{pct} das ações concluídas': '{pct} of actions done',
 
+  'modo demonstração': 'demo mode',
+  'Dados fictícios. Nenhuma integração real está ligada e nada sai da sua máquina.': 'Fictitious data. No real integration is on and nothing leaves your machine.',
+
   // Formatting
   'agora': 'now',
 };

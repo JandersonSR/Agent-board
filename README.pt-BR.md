@@ -77,15 +77,28 @@ As decisões de arquitetura ficam em [`docs/adr/`](docs/adr/).
 
 | Requisito | Para quê | Como conferir |
 | --- | --- | --- |
-| Node.js 20.12 ou mais novo | Tudo | `node --version` |
+| Node.js 22.13 ou mais novo | Tudo (inclui o SQLite embutido) | `node --version` |
 | Claude Code e/ou Cursor | Sessões de agentes e execuções em segundo plano | `claude --version` |
 | GitHub CLI, logado | Fila, reviews, PRs, PRs em rascunho | `gh auth status` |
-| MongoDB | PRs e deploy, execuções, resumos | Um banco só do painel |
+| MongoDB (opcional) | Só se quiser um banco compartilhado; o padrão é um arquivo SQLite local | Um banco só do painel |
 | Um bot do Discord (só leitura) | Daily, bloqueios, menções no Discord | Veja [Discord](#discord) |
 
 ---
 
 ## Começo rápido
+
+**Teste em um minuto, sem configurar nada:**
+
+```bash
+git clone https://github.com/JandersonSR/agent-board.git
+cd agent-board
+npm install
+npm run demo              # http://127.0.0.1:9999 com dados fictícios (use -- --pt ou -- --en)
+```
+
+O demo não usa nenhuma integração real, mesmo que exista um `.env`, e guarda os dados numa pasta temporária.
+
+**Para usar de verdade:**
 
 ```bash
 git clone https://github.com/JandersonSR/agent-board.git
@@ -99,7 +112,7 @@ npm start                 # http://localhost:9999
 
 Os hooks apontam para o caminho absoluto desta pasta. Deixe o projeto num lugar fixo e rode `npm run install-hooks` de novo se mudar a pasta de lugar.
 
-Para ver o painel sem sessões reais, rode `npm run demo` num segundo terminal. Quatro cards de exemplo aparecem em **Agentes**. Remova com `npm run demo -- --clear`.
+Para colocar cards de agentes de exemplo num painel real, rode `npm run demo:sessions` num segundo terminal. Remova com `npm run demo:sessions -- --clear`.
 
 ---
 
@@ -121,9 +134,11 @@ O painel lê o Discord por um bot privado com permissões **só de leitura**. El
 4. Um admin do servidor abre a URL e adiciona o bot.
 5. Com o Modo desenvolvedor ligado, copie os IDs do servidor, dos canais e do seu usuário para o `.env` (`DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS`).
 
-### MongoDB
+### Dados: SQLite local ou MongoDB
 
-O painel só escreve nas próprias coleções, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` e `painel_avaliacoes`, e o código impõe isso com uma lista permitida. Use um banco e um usuário só do painel (`MONGO_URI` ou `MONGO_DATABASE_*`). O painel sobe sem MongoDB; os blocos que dependem dele avisam.
+Por padrão o painel guarda os dados num arquivo SQLite local (`~/.agent-board/data.db`, ou `AGENT_BOARD_DB`). Sem servidor e sem instalar nada. Preencha `MONGO_URI` (ou `MONGO_DATABASE_*`) para usar MongoDB, por exemplo para compartilhar os dados entre máquinas.
+
+O painel só escreve nas próprias coleções, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` e `painel_avaliacoes`, e o código impõe isso com uma lista permitida. Com MongoDB, use um banco e um usuário só do painel.
 
 ### RAGs de features e skills
 
@@ -213,7 +228,7 @@ Toda a configuração fica no `.env`. O [`.env.example`](.env.example) lista cad
 | Grupo | Principais variáveis |
 | --- | --- |
 | Servidor | `AGENT_BOARD_PORT` (padrão 9999), `AGENT_BOARD_DIR`, `AGENT_BOARD_APPROVAL_WAIT`, `AGENT_BOARD_TASK_RE`, `AGENT_BOARD_NTFY` |
-| MongoDB | `MONGO_URI` ou `MONGO_DATABASE_NAME/USER/PASS/CLUSTERNAME` |
+| Dados | `STORAGE`, `AGENT_BOARD_DB`, `MONGO_URI` ou `MONGO_DATABASE_NAME/USER/PASS/CLUSTERNAME` |
 | GitHub | `GITHUB_TOKEN`, `GITHUB_ORG`, `GITHUB_LOGIN`, `TEAM_GITHUB_LOGINS`, `GITHUB_PROJECTS`, `DEPLOY_*` |
 | Discord | `DISCORD_BOT_TOKEN`, `DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS` |
 | Time e fila | `TEAM_TZ_OFFSET_MIN`, `HOLIDAYS`, `QUEUE_TYPE_ORDER` |
