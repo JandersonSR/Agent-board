@@ -1,5 +1,5 @@
-// Infraestrutura fictícia para o modo demonstração: valores que variam com o tempo, um servidor com CPU alta,
-// um dyno travado, um banco degradado, alertas do Grafana e do Azure e deploys dos últimos 30 dias.
+// Fictitious infrastructure for demo mode: values that change over time, a server with high CPU,
+// a crashed dyno, a degraded database, Grafana and Azure alerts and deploys from the last 30 days.
 import type { InfraDeploy, InfraProvider, InfraResource } from './types.js';
 
 const MIN = 60_000;
@@ -8,7 +8,7 @@ const wave = (now: number, period: number, phase = 0) => (Math.sin((now / period
 
 export function demoInfraProvider(startedAt = Date.now(), lang: 'pt-BR' | 'en' = 'pt-BR'): InfraProvider {
   const L = (pt: string, en: string) => (lang === 'en' ? en : pt);
-  // A CPU do api-prod sobe 14 min antes de o demo abrir e fica alta: alerta crítico sustentado.
+  // api-prod's CPU rises 14 min before the demo opens and stays high: a sustained critical alert.
   const hotFrom = startedAt - 14 * MIN;
   const latencyFrom = new Date(startedAt - 12 * MIN).toISOString();
   return {
@@ -27,7 +27,7 @@ export function demoInfraProvider(startedAt = Date.now(), lang: 'pt-BR' | 'en' =
         { id: 'demo:azure:portal-prod', provider: 'demo', kind: 'sites', name: 'portal-prod', status: 'ok', statusText: 'Available', region: 'brazilsouth' },
       ];
       const deploys: InfraDeploy[] = [];
-      // Deploys de produção nos últimos 30 dias (2 a 3 por semana) e um 25 min antes do alerta de latência.
+      // Production deploys over the last 30 days (2 to 3 a week) and one 25 min before the latency alert.
       for (let d = 30; d >= 1; d -= 3) {
         const at = new Date(startedAt - d * DAY + 15 * 3_600_000);
         deploys.push({ key: `demo:loans-api-prod:${d}`, provider: 'demo', resourceId: 'demo:app:loans-api-prod', resourceName: 'loans-api-prod', version: `#${120 - d}`, status: d === 12 ? 'failed' : 'succeeded', at: at.toISOString() });

@@ -3,9 +3,9 @@ import { execFile } from 'node:child_process';
 export interface ExecResult { ok: boolean; stdout: string; stderr: string; code: number | null }
 
 /**
- * Executa um binário com argumentos fixos (nunca concatena entrada do usuário em shell).
- * No Windows, CLIs instaladas via npm são .cmd e exigem shell; por isso os args são sempre
- * constantes ou validados por quem chama.
+ * Runs a binary with fixed arguments (never concatenates user input into a shell).
+ * On Windows, CLIs installed through npm are .cmd files and need a shell; that is why the args are always
+ * constants or validated by the caller.
  */
 export function execCmd(cmd: string, args: string[], opts: { cwd?: string; timeoutMs?: number; env?: NodeJS.ProcessEnv } = {}): Promise<ExecResult> {
   return new Promise(resolve => {

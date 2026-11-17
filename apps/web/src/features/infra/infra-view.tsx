@@ -1,5 +1,5 @@
-// Infraestrutura em tempo real: estado dos servidores e apps, alertas disparados (com possível causa),
-// deploys e a linha do tempo de eventos. Tudo só leitura, com tokens de leitura dos provedores.
+// Real-time infrastructure: state of servers and apps, firing alerts (with a possible cause),
+// deploys and the event timeline. All read-only, with the providers' read-only tokens.
 import { useState } from 'react';
 import { Activity, AlertTriangle, ExternalLink, Loader2, RefreshCw, Rocket, Server, Siren } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,10 @@ import { k, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
 const STATUS: Record<ResourceStatus, { label: string; tone: Tone }> = {
-  ok: { label: k('ok'), tone: 'success' }, warn: { label: k('atenção'), tone: 'warning' }, down: { label: k('fora do ar'), tone: 'danger' }, unknown: { label: k('sem dados'), tone: 'neutral' },
+  ok: { label: k('ok'), tone: 'success' }, warn: { label: k('attention'), tone: 'warning' }, down: { label: k('down'), tone: 'danger' }, unknown: { label: k('no data'), tone: 'neutral' },
 };
 const SEV_TONE = { critical: 'danger', warning: 'warning', info: 'info' } as const;
-const SEV_LABEL = { critical: k('crítico'), warning: k('aviso'), info: k('info') } as const;
+const SEV_LABEL = { critical: k('critical'), warning: k('warning'), info: k('info') } as const;
 
 function Sparkline({ points, field, crit }: { points: MetricPoint[]; field: 'cpu' | 'memory'; crit: number }) {
   const vals = points.map(p => p[field]).filter((v): v is number => typeof v === 'number');
@@ -48,13 +48,13 @@ function ResourceCard({ r, cpuCrit, memCrit }: { r: InfraResourceView; cpuCrit: 
         <Dot tone={s.tone} pulse={r.status === 'down'} />
         <span className="min-w-0 flex-1 truncate text-[13px] font-medium" title={r.name}>{r.name}</span>
         {r.production && <Pill tone="info">prod</Pill>}
-        {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" aria-label={t('Abrir')}><ExternalLink className="size-3.5" /></a>}
+        {r.url && <a href={r.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" aria-label={t('Open')}><ExternalLink className="size-3.5" /></a>}
       </div>
       <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{r.provider} · {r.kind}{r.region ? ` · ${r.region}` : ''} · {r.statusText ?? t(s.label)}</p>
       {(r.metrics?.cpu !== undefined || r.metrics?.memory !== undefined) && (
         <div className="mt-2 flex gap-3">
           <Metric label="CPU" value={r.metrics?.cpu} points={r.history} field="cpu" crit={cpuCrit} />
-          <Metric label={t('Memória')} value={r.metrics?.memory} points={r.history} field="memory" crit={memCrit} />
+          <Metric label={t('Memory')} value={r.metrics?.memory} points={r.history} field="memory" crit={memCrit} />
         </div>
       )}
     </div>
@@ -63,7 +63,7 @@ function ResourceCard({ r, cpuCrit, memCrit }: { r: InfraResourceView; cpuCrit: 
 
 function eventText(e: InfraEvent): string {
   if (e.kind === 'deploy') return e.title;
-  if (e.kind === 'alert_resolved') return `${t('Resolvido')}: ${e.title}${e.durationMs ? ` (${dur(e.durationMs)})` : ''}`;
+  if (e.kind === 'alert_resolved') return `${t('Resolved')}: ${e.title}${e.durationMs ? ` (${dur(e.durationMs)})` : ''}`;
   if (e.kind === 'status') {
     const label = (x?: string) => t((STATUS[x as ResourceStatus] ?? STATUS.unknown).label);
     return `${e.resourceName ?? ''}: ${label(e.from)} → ${label(e.to)}`;
@@ -82,26 +82,26 @@ export function InfraView({ goToIncidents }: { goToIncidents: () => void }) {
   const d = q.data;
 
   if (q.isLoading) return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-24" />)}</div>;
-  if (q.isError) return <EmptyState icon={AlertTriangle} title={t('Não foi possível carregar')} description={(q.error as Error).message} />;
+  if (q.isError) return <EmptyState icon={AlertTriangle} title={t('Could not load')} description={(q.error as Error).message} />;
   if (!d?.configured) return (
-    <div className="rounded-xl border border-dashed"><EmptyState icon={Server} title={t('Nenhum provedor de infra configurado')}
-      description={t('Use tokens só de leitura: DIGITALOCEAN_TOKEN, HEROKU_API_KEY, AZURE_* (service principal com Monitoring Reader) ou GRAFANA_URL + GRAFANA_TOKEN (Viewer). Veja o README.')} /></div>
+    <div className="rounded-xl border border-dashed"><EmptyState icon={Server} title={t('No infra provider configured')}
+      description={t('Use read-only tokens: DIGITALOCEAN_TOKEN, HEROKU_API_KEY, AZURE_* (service principal with Monitoring Reader) or GRAFANA_URL + GRAFANA_TOKEN (Viewer). See the README.')} /></div>
   );
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {d.providers.map(p => (
-          <Pill key={p.id} tone={p.ok === false ? 'danger' : p.ok && p.warning ? 'warning' : p.ok ? 'success' : 'neutral'} title={p.error ?? p.warning ?? (p.lastPoll ? ago(Date.parse(p.lastPoll)) : '')}>{p.label}{p.ok === false ? ` · ${t('falhou')}` : p.ok && p.warning ? ` · ${t('parcial')}` : ''}</Pill>
+          <Pill key={p.id} tone={p.ok === false ? 'danger' : p.ok && p.warning ? 'warning' : p.ok ? 'success' : 'neutral'} title={p.error ?? p.warning ?? (p.lastPoll ? ago(Date.parse(p.lastPoll)) : '')}>{p.label}{p.ok === false ? ` · ${t('failed')}` : p.ok && p.warning ? ` · ${t('partial')}` : ''}</Pill>
         ))}
-        <span className="text-xs text-muted-foreground">{d.lastPoll ? t('lido {when} · a cada {n} s', { when: ago(Date.parse(d.lastPoll)), n: d.pollSec }) : t('lendo…')}</span>
+        <span className="text-xs text-muted-foreground">{d.lastPoll ? t('read {when} · every {n} s', { when: ago(Date.parse(d.lastPoll)), n: d.pollSec }) : t('reading…')}</span>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => refresh.mutate()} disabled={refresh.isPending}>
-          {refresh.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />} {t('Ler agora')}
+          {refresh.isPending ? <Loader2 className="animate-spin" /> : <RefreshCw />} {t('Read now')}
         </Button>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {([['critical', t('Alertas críticos'), 'danger'], ['warning', t('Avisos'), 'warning'], ['down', t('Fora do ar'), 'danger'], ['warn', t('Com atenção'), 'warning'], ['ok', t('Saudáveis'), 'success']] as const).map(([key, label, tone]) => (
+        {([['critical', t('Critical alerts'), 'danger'], ['warning', t('Warnings'), 'warning'], ['down', t('Down'), 'danger'], ['warn', t('Needs attention'), 'warning'], ['ok', t('Healthy'), 'success']] as const).map(([key, label, tone]) => (
           <div key={key} className="rounded-xl border bg-card p-3 shadow-xs">
             <p className="text-[11px] text-muted-foreground">{label}</p>
             <p className={cn('text-2xl font-semibold tabular-nums', d.summary[key] > 0 && tone === 'danger' && 'text-destructive')}>{d.summary[key]}</p>
@@ -109,8 +109,8 @@ export function InfraView({ goToIncidents }: { goToIncidents: () => void }) {
         ))}
       </div>
 
-      <section aria-label={t('Alertas disparados')} className="rounded-xl border bg-card shadow-xs">
-        <header className="flex h-11 items-center gap-2 border-b px-3.5"><Siren className="size-4 text-muted-foreground" /><h2 className="text-[13px] font-semibold">{t('Alertas disparados')}</h2>{d.firing.length > 0 && <Pill tone={d.summary.critical ? 'danger' : 'warning'}>{d.firing.length}</Pill>}</header>
+      <section aria-label={t('Firing alerts')} className="rounded-xl border bg-card shadow-xs">
+        <header className="flex h-11 items-center gap-2 border-b px-3.5"><Siren className="size-4 text-muted-foreground" /><h2 className="text-[13px] font-semibold">{t('Firing alerts')}</h2>{d.firing.length > 0 && <Pill tone={d.summary.critical ? 'danger' : 'warning'}>{d.firing.length}</Pill>}</header>
         {d.firing.length ? (
           <ul className="divide-y">
             {d.firing.map(f => (
@@ -119,28 +119,28 @@ export function InfraView({ goToIncidents }: { goToIncidents: () => void }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate">{f.title}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {f.provider} · {t('há {d}', { d: dur(Date.now() - Date.parse(f.startedAt)) })}
-                    {f.suspect && <> · <span className="text-warning">{t('possível causa')}: {f.suspect.title} ({ago(Date.parse(f.suspect.at))})</span></>}
+                    {f.provider} · {t('for {d}', { d: dur(Date.now() - Date.parse(f.startedAt)) })}
+                    {f.suspect && <> · <span className="text-warning">{t('possible cause')}: {f.suspect.title} ({ago(Date.parse(f.suspect.at))})</span></>}
                   </p>
                 </div>
-                {f.url && <a href={f.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" aria-label={t('Abrir')}><ExternalLink className="size-3.5" /></a>}
+                {f.url && <a href={f.url} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground" aria-label={t('Open')}><ExternalLink className="size-3.5" /></a>}
                 {f.incidentId
-                  ? <Button size="sm" variant="ghost" onClick={goToIncidents}>{t('Ver incidente')}</Button>
-                  : <Button size="sm" variant="outline" onClick={() => toIncident.mutate(f.fingerprint)} disabled={toIncident.isPending}>{t('Abrir incidente')}</Button>}
+                  ? <Button size="sm" variant="ghost" onClick={goToIncidents}>{t('View incident')}</Button>
+                  : <Button size="sm" variant="outline" onClick={() => toIncident.mutate(f.fingerprint)} disabled={toIncident.isPending}>{t('Open incident')}</Button>}
               </li>
             ))}
           </ul>
-        ) : <p className="px-3.5 py-6 text-xs text-muted-foreground">{t('Nenhum alerta disparado agora.')}</p>}
+        ) : <p className="px-3.5 py-6 text-xs text-muted-foreground">{t('No alerts firing right now.')}</p>}
       </section>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
         {d.resources.map(r => <ResourceCard key={r.id} r={r} cpuCrit={d.rules.cpuCrit} memCrit={d.rules.memCrit} />)}
       </div>
 
-      <section aria-label={t('Linha do tempo')} className="rounded-xl border bg-card shadow-xs">
+      <section aria-label={t('Timeline')} className="rounded-xl border bg-card shadow-xs">
         <header className="flex h-11 items-center gap-2 border-b px-3.5">
-          <Activity className="size-4 text-muted-foreground" /><h2 className="text-[13px] font-semibold">{t('Linha do tempo')}</h2>
-          <div className="ml-auto flex gap-1">{[1, 7, 30].map(n => <Button key={n} size="sm" variant={days === n ? 'secondary' : 'ghost'} onClick={() => setDays(n)}>{n === 1 ? t('24 h') : t('{n} dias', { n })}</Button>)}</div>
+          <Activity className="size-4 text-muted-foreground" /><h2 className="text-[13px] font-semibold">{t('Timeline')}</h2>
+          <div className="ml-auto flex gap-1">{[1, 7, 30].map(n => <Button key={n} size="sm" variant={days === n ? 'secondary' : 'ghost'} onClick={() => setDays(n)}>{n === 1 ? t('24 h') : t('{n} days', { n })}</Button>)}</div>
         </header>
         {ev.data?.items.length ? (
           <ul className="max-h-96 divide-y overflow-auto">
@@ -152,9 +152,9 @@ export function InfraView({ goToIncidents }: { goToIncidents: () => void }) {
               </li>
             ))}
           </ul>
-        ) : <p className="px-3.5 py-6 text-xs text-muted-foreground">{t('Sem eventos no período. Mudanças de estado, alertas e deploys aparecem aqui.')}</p>}
+        ) : <p className="px-3.5 py-6 text-xs text-muted-foreground">{t('No events in this period. Status changes, alerts and deploys show up here.')}</p>}
       </section>
-      <p className="text-[11px] text-muted-foreground">{t('Regras: CPU acima de {c}% ou memória acima de {m}% por {s} min vira alerta crítico. Alerta crítico em produção abre incidente: {auto}.', { c: d.rules.cpuCrit, m: d.rules.memCrit, s: d.rules.sustainMin, auto: d.rules.autoIncident === 'critical' ? t('ligado') : t('desligado') })}</p>
+      <p className="text-[11px] text-muted-foreground">{t('Rules: CPU above {c}% or memory above {m}% for {s} min becomes a critical alert. Critical alert in production opens an incident: {auto}.', { c: d.rules.cpuCrit, m: d.rules.memCrit, s: d.rules.sustainMin, auto: d.rules.autoIncident === 'critical' ? t('on') : t('off') })}</p>
     </div>
   );
 }

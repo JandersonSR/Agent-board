@@ -4,29 +4,30 @@ import path from 'node:path';
 import { ObjectId } from 'mongodb';
 import { describe, expect, it } from 'vitest';
 import { matches, SqliteDatabase } from './sqlite-store.js';
+import { RENAMED_COLLECTIONS } from './store.js';
 
 const D = (s: string) => new Date(s);
 
-describe('matches (operadores usados pelo painel)', () => {
+describe('matches (operators the deck uses)', () => {
   const doc = {
     status: 'merged', deployDate: '2026-11-10', archived: false, mergedAt: D('2026-11-09T10:00:00Z'),
     prs: [{ url: 'a', mergedAt: D('2026-11-01T00:00:00Z'), state: 'merged' }, { url: 'b', mergedAt: null, state: 'open' }],
     task: { phase: 'ready' }, reference: 'https://github.com/o/r/issues/12',
   };
-  it('igualdade, $ne com campo ausente, $exists e caminhos com pontos', () => {
+  it('equality, $ne with a missing field, $exists and dotted paths', () => {
     expect(matches(doc, { status: 'merged', 'task.phase': 'ready' })).toBe(true);
     expect(matches(doc, { archived: { $ne: true } })).toBe(true);
     expect(matches({}, { archived: { $ne: true } })).toBe(true);
     expect(matches(doc, { evalCaseId: { $exists: false } })).toBe(true);
     expect(matches(doc, { 'task.phase': { $exists: true } })).toBe(true);
   });
-  it('datas, $gte/$lt e arrays de subdocumentos', () => {
+  it('dates, $gte/$lt and arrays of subdocuments', () => {
     expect(matches(doc, { mergedAt: { $gte: D('2026-11-09T00:00:00Z') } })).toBe(true);
     expect(matches(doc, { 'prs.mergedAt': { $gte: D('2026-10-31T00:00:00Z') } })).toBe(true);
     expect(matches(doc, { 'prs.mergedAt': { $gte: D('2026-11-05T00:00:00Z') } })).toBe(false);
     expect(matches(doc, { 'prs.url': { $in: ['x', 'b'] } })).toBe(true);
     expect(matches(doc, { deployDate: { $gte: '2026-11-01' } })).toBe(true);
-    expect(matches(doc, { mergedAt: { $gte: '2026-01-01' } })).toBe(false); // tipos diferentes não se comparam
+    expect(matches(doc, { mergedAt: { $gte: '2026-01-01' } })).toBe(false); // different types do not compare
   });
   it('$or, $regex, null e ObjectId', () => {
     expect(matches(doc, { $or: [{ status: { $ne: 'merged' } }, { mergedAt: { $gte: D('2026-11-01T00:00:00Z') } }] })).toBe(true);
@@ -36,16 +37,16 @@ describe('matches (operadores usados pelo painel)', () => {
     const id = new ObjectId();
     expect(matches({ _id: id }, { _id: new ObjectId(id.toHexString()) })).toBe(true);
   });
-  it('operador desconhecido falha alto (não ignora em silêncio)', () => {
-    expect(() => matches(doc, { status: { $where: 'x' } })).toThrow(/não suportado/);
+  it('an unknown operator fails loudly (does not silently ignore)', () => {
+    expect(() => matches(doc, { status: { $where: 'x' } })).toThrow(/not supported/);
   });
 });
 
 describe('SqliteDatabase', () => {
-  it('CRUD, upsert, $push com $slice, projeção e persistência no arquivo', async () => {
+  it('CRUD, upsert, $push with $slice, projection and file persistence', async () => {
     const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ld-')), 'data.db');
     const db = new SqliteDatabase(file);
-    const runs = db.collection('painel_sessoes');
+    const runs = db.collection('deck_runs');
     const r = await runs.insertOne({ kind: 'review', status: 'running', startedAt: D('2026-11-16T10:00:00Z'), log: [], promptMasked: 'p' });
     const id = r.insertedId as ObjectId;
     await runs.insertOne({ kind: 'task', status: 'running', startedAt: D('2026-11-16T11:00:00Z'), log: [], task: { phase: 'planning' } });
@@ -63,7 +64,7 @@ describe('SqliteDatabase', () => {
     expect(listed[1]!.log).toEqual([{ i: 5 }]);
     expect(await runs.countDocuments({ startedAt: { $gte: D('2026-11-16T10:30:00Z') } })).toBe(1);
 
-    const dec = db.collection('painel_decisoes');
+    const dec = db.collection('deck_decisions');
     const up = await dec.updateOne({ source: 'repo', repo: 'api', path: 'docs/adr/1.md' }, { $set: { title: 'A' }, $setOnInsert: { createdAt: D('2026-11-16T00:00:00Z') } }, { upsert: true });
     expect(up.upsertedCount).toBe(1);
     const again = await dec.updateOne({ source: 'repo', repo: 'api', path: 'docs/adr/1.md' }, { $set: { title: 'B' }, $setOnInsert: { createdAt: D('2020-01-01T00:00:00Z') } }, { upsert: true });
@@ -81,17 +82,43 @@ describe('SqliteDatabase', () => {
     db.close();
 
     const reopened = new SqliteDatabase(file);
-    expect(await reopened.collection('painel_sessoes').countDocuments()).toBe(2);
-    expect(await reopened.collection('painel_decisoes').countDocuments()).toBe(0);
+    expect(await reopened.collection('deck_runs').countDocuments()).toBe(2);
+    expect(await reopened.collection('deck_decisions').countDocuments()).toBe(0);
     reopened.close();
   });
 
-  it('insertOne preenche o _id do objeto de entrada e recusa _id repetido', async () => {
+  it('insertOne fills the input object\'s _id and refuses a repeated _id', async () => {
     const db = new SqliteDatabase(':memory:');
-    const c = db.collection('painel_prs');
+    const c = db.collection('deck_prs');
     const doc: Record<string, unknown> = { key: 'k' };
     await c.insertOne(doc);
     expect(doc._id).toBeInstanceOf(ObjectId);
     await expect(c.insertOne({ _id: doc._id, key: 'x' })).rejects.toThrow(/duplicate/);
+  });
+});
+
+describe('renaming the old collections (v0.4 → v0.5)', () => {
+  it('renames old tables, keeps their data and leaves conflicts alone', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tldeck-rename-'));
+    const file = path.join(dir, 'deck.db');
+    const old = new SqliteDatabase(file);
+    await old.collection('painel_prs').insertOne({ key: 'a' });
+    await old.collection('painel_incidentes').insertOne({ title: 'x' });
+    await old.collection('deck_incidents').insertOne({ title: 'already here' });
+    await old.collection('deck_runs').countDocuments({}); // empty new table: gets replaced
+    await old.collection('painel_sessoes').insertOne({ status: 'done' });
+    old.close();
+
+    const db = new SqliteDatabase(file);
+    const r = db.renameTables(RENAMED_COLLECTIONS);
+    expect(r.renamed.sort()).toEqual(['painel_prs → deck_prs', 'painel_sessoes → deck_runs']);
+    expect(r.conflicts).toEqual(['painel_incidentes → deck_incidents']);
+    expect(await db.collection('deck_prs').findOne({})).toMatchObject({ key: 'a' });
+    expect(await db.collection('deck_runs').countDocuments({})).toBe(1);
+    expect(await db.collection('deck_incidents').findOne({})).toMatchObject({ title: 'already here' });
+    db.close();
+    const again = new SqliteDatabase(file);
+    expect(again.renameTables(RENAMED_COLLECTIONS)).toEqual({ renamed: [], conflicts: ['painel_incidentes → deck_incidents'] }); // idempotent
+    again.close();
   });
 });

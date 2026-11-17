@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseDaily, summarizeDaily, type DailyMessage } from './daily.js';
 
-// Textos fictícios no formato do template do time.
+// Fictitious texts in the team template's format.
 const TEMPLATE = `Bom dia @equipe
 
 ## Ontem - sexta-feira (2026-11-13)
@@ -17,7 +17,7 @@ const TEMPLATE = `Bom dia @equipe
 Confiança: 2/5`;
 
 describe('parseDaily', () => {
-  it('lê o template completo', () => {
+  it('reads the full template', () => {
     const d = parseDaily(TEMPLATE);
     expect(d.isDaily).toBe(true);
     expect(d.yesterday).toEqual(['Ajustei o retry do consumer', 'Revisei PR #9830']);
@@ -27,19 +27,19 @@ describe('parseDaily', () => {
     expect(d.blockers[0]).toMatchObject({ issue: '8406', since: '09:30', dependsOn: '@diego', inferred: false });
   });
 
-  it('"- nenhum" significa sem bloqueios (e não usa fallback)', () => {
+  it('"- nenhum" means no blockers (and does not use the fallback)', () => {
     const d = parseDaily('## Hoje - x\n- Corrigir travado o layout? não\n## Bloqueios\n- nenhum\nConfiança: 5/5');
     expect(d.blockers).toEqual([]);
     expect(d.confidence).toBe(5);
   });
 
-  it('fallback por palavra-chave quando não há seção de bloqueios', () => {
+  it('keyword fallback when there is no blockers section', () => {
     const d = parseDaily('Ontem:\n- Subi o PR\nHoje:\n- Continuo bloqueado esperando acesso à VPN #812');
     expect(d.blockers).toHaveLength(1);
     expect(d.blockers[0]).toMatchObject({ issue: '812', inferred: true });
   });
 
-  it('aceita variações: negrito, "Bloqueios: nenhum" na linha, confiança sem /5', () => {
+  it('accepts variations: bold, "Bloqueios: nenhum" on the line, confidence without /5', () => {
     const d = parseDaily('**Ontem**\n- a\n**Hoje**\n- b\nBloqueios: nenhum\n**Confiança:** 3');
     expect(d.yesterday).toEqual(['a']);
     expect(d.today).toEqual(['b']);
@@ -47,12 +47,12 @@ describe('parseDaily', () => {
     expect(d.confidence).toBe(3);
   });
 
-  it('item sem marcador começando com "Hoje" não vira cabeçalho', () => {
+  it('an item without a bullet starting with "Hoje" does not become a header', () => {
     const d = parseDaily('## Hoje\nHoje vou corrigir o bug do login');
     expect(d.today).toEqual(['Hoje vou corrigir o bug do login']);
   });
 
-  it('mensagem comum não é daily', () => {
+  it('an ordinary message is not a daily', () => {
     expect(parseDaily('alguém sabe o endpoint de simulação?').isDaily).toBe(false);
   });
 });
@@ -68,7 +68,7 @@ describe('summarizeDaily', () => {
     { id: '4', authorId: 'u3', timestamp: '2026-11-16T11:45:00Z', content: 'bom dia! alguém viu o alerta?' },
   ];
 
-  it('quem postou, quem não postou, confiança baixa e bloqueios', () => {
+  it('who posted, who did not, low confidence and blockers', () => {
     const s = summarizeDaily(msgs, team, now);
     expect(s.day).toBe('2026-11-16');
     expect(s.postedCount).toBe(2);
@@ -84,7 +84,7 @@ describe('summarizeDaily', () => {
     expect(ana.changes.confidenceDelta).toBe(-2);
   });
 
-  it('daily de ontem à noite (BRT) não conta como hoje', () => {
+  it('last night\'s daily (BRT) does not count as today', () => {
     const late = [{ id: '9', authorId: 'u2', timestamp: '2026-11-16T02:00:00Z', content: '## Hoje\n- a' }]; // 23:00 BRT do dia 15
     expect(summarizeDaily(late, team, now).postedCount).toBe(0);
   });

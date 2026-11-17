@@ -9,7 +9,7 @@ const merged = (over: Partial<MetricsPr> = {}): MetricsPr => ({
   url: 'u1', owner: 'ana', status: 'merged', state: 'merged', additions: 100, deletions: 20, mergedAt: at(10),
   statusHistory: [
     { status: 'review_queue', enteredAt: at(50), leftAt: at(40) },   // 10 h esperando o 1º review
-    { status: 'rcs', enteredAt: at(40), leftAt: at(30) },            // 10 h com mudanças pedidas
+    { status: 'rcs', enteredAt: at(40), leftAt: at(30) },            // 10 h with changes requested
     { status: 're_review', enteredAt: at(30), leftAt: at(20) },
     { status: 'waiting_approves', enteredAt: at(20), leftAt: at(10) },
     { status: 'merged', enteredAt: at(10), leftAt: null },
@@ -17,8 +17,8 @@ const merged = (over: Partial<MetricsPr> = {}): MetricsPr => ({
   ...over,
 });
 
-describe('métricas de entrega do time', () => {
-  it('extrai os fatos de um PR mergeado', () => {
+describe('team delivery metrics', () => {
+  it('extracts the facts of a merged PR', () => {
     const f = prFacts(merged(), 'squad-a', NOW)!;
     expect(f.cycleMs).toBe(40 * H);
     expect(f.firstReviewWaitMs).toBe(10 * H);
@@ -28,13 +28,13 @@ describe('métricas de entrega do time', () => {
     expect(f.waitingReviewNow).toBe(false);
   });
 
-  it('PR aberto sem review ainda não tem espera fechada, mas conta como esperando', () => {
+  it('an open PR without a review has no closed wait yet, but counts as waiting', () => {
     const f = prFacts({ url: 'u2', owner: 'bruno', status: 'review_queue', state: 'open', statusHistory: [{ status: 'review_queue', enteredAt: at(30), leftAt: null }] }, undefined, NOW)!;
     expect(f.firstReviewWaitMs).toBeNull();
     expect(f.waitingReviewNow).toBe(true);
   });
 
-  it('resume o período, por semana, pessoa e time', () => {
+  it('summarizes the period, by week, person and team', () => {
     const m = computeTeamMetrics([
       { team: 'squad-a', prs: [merged(), merged({ url: 'u3', additions: 500, deletions: 10, statusHistory: [
         { status: 'review_queue', enteredAt: at(20), leftAt: at(18) }, { status: 'waiting_approves', enteredAt: at(18), leftAt: at(12) }, { status: 'merged', enteredAt: at(12), leftAt: null },
@@ -53,12 +53,12 @@ describe('métricas de entrega do time', () => {
     expect(m.weeks.at(-1)).toMatchObject({ week: weekOf(NOW), merged: 2 });
   });
 
-  it('PR repetido em duas issues conta uma vez', () => {
+  it('a PR repeated in two issues counts once', () => {
     const m = computeTeamMetrics([{ prs: [merged()] }, { prs: [merged()] }], 30, NOW);
     expect(m.summary.merged).toBe(1);
   });
 
-  it('semana começa na segunda (UTC)', () => {
+  it('the week starts on Monday (UTC)', () => {
     expect(weekOf(Date.parse('2026-11-16T12:00:00Z'))).toBe('2026-11-16'); // segunda
     expect(weekOf(Date.parse('2026-11-22T23:00:00Z'))).toBe('2026-11-16'); // domingo
   });

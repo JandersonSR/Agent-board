@@ -22,7 +22,7 @@ describe('format', () => {
     expect(dur(undefined)).toBe('0 s');
   });
 
-  it('tokens e custo', () => {
+  it('tokens and cost', () => {
     expect(fmtTok(0)).toBe('0');
     expect(fmtTok(950)).toBe('950');
     expect(fmtTok(12_400)).toBe('12k');
@@ -32,21 +32,21 @@ describe('format', () => {
   });
 
   it('plural', () => {
-    expect(plural(1, 'sessão', 'sessões')).toBe('1 sessão');
-    expect(plural(3, 'sessão', 'sessões')).toBe('3 sessões');
+    expect(plural(1, 'session', 'sessions')).toBe('1 sessão');
+    expect(plural(3, 'session', 'sessions')).toBe('3 sessões');
   });
 
-  it('editorLink (Windows e POSIX)', () => {
+  it('editorLink (Windows and POSIX)', () => {
     expect(editorLink('cursor', 'C:\\r\\app', 'src/a#b.ts')).toBe('cursor://file/C:/r/app/src/a%23b.ts');
     expect(editorLink('vscode', '/home/x/app/', 'b.ts')).toBe('vscode://file//home/x/app/b.ts');
   });
 
-  it('em inglês', () => {
+  it('in English', () => {
     applyLang('en');
     const now = 1_000_000_000;
     expect(ago(now, now)).toBe('now');
     expect(fmtTok(1_250_000)).toBe('1.3M');
     expect(fmtCost(1.5)).toBe('$1.50');
-    expect(plural(3, 'sessão', 'sessões')).toBe('3 sessions');
+    expect(plural(3, 'session', 'sessions')).toBe('3 sessions');
   });
 });

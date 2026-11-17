@@ -1,10 +1,10 @@
-// Garante que todo texto da tela tem versão em inglês, com as mesmas variáveis {x}.
-// Lê o código-fonte e coleta as chaves usadas em t('…'), k('…') e plural(n, '…', '…').
+// Makes sure every interface text has a Portuguese version with the same {variables}.
+// Reads the source code and collects the keys used in t('…'), k('…') and plural(n, '…', '…').
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { EN } from './i18n-en';
-import { applyLang, t, translate } from './i18n';
+import { PT } from './i18n-pt';
+import { agentText, applyLang, plainKey, serverText, t, translate } from './i18n';
 
 const SRC = path.resolve(__dirname, '..');
 
@@ -16,7 +16,7 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-/** Primeiro argumento de uma chamada, a partir do índice logo após o "(". */
+/** First argument of a call, starting right after the "(". */
 function firstArg(src: string, start: number): string {
   let depth = 0;
   let quote: string | null = null;
@@ -31,7 +31,7 @@ function firstArg(src: string, start: number): string {
   return '';
 }
 
-// Literais comparados (x === 'allow' ? …) são condições, não textos da tela.
+// Compared literals (x === 'allow' ? …) are conditions, not screen texts.
 const literals = (s: string): string[] => [...s.matchAll(/'((?:[^'\\]|\\.)*)'/g)]
   .filter(m => !/[!=]==\s*$/.test(s.slice(0, m.index)))
   .map(m => m[1]!.replace(/\\(.)/g, '$1'))
@@ -58,25 +58,48 @@ const vars = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map(m => m[1]).sort();
 describe('i18n', () => {
   const keys = usedKeys();
 
-  it('encontra as chaves no código', () => {
+  it('finds the keys in the code', () => {
     expect(keys.size).toBeGreaterThan(200);
   });
 
-  it('toda chave usada tem tradução em inglês', () => {
-    const missing = [...keys].filter(([k]) => !(k in EN)).map(([k, file]) => `${file}: ${k}`);
+  it('every key used has a Portuguese translation', () => {
+    const missing = [...keys].filter(([key]) => !(key in PT)).map(([key, file]) => `${file}: ${key}`);
     expect(missing).toEqual([]);
   });
 
-  it('as traduções mantêm as mesmas variáveis', () => {
-    const wrong = Object.entries(EN).filter(([pt, en]) => vars(pt).join() !== vars(en).join()).map(([pt]) => pt);
+  it('translations keep the same variables', () => {
+    const wrong = Object.entries(PT).filter(([en, pt]) => vars(en).join() !== vars(pt).join()).map(([en]) => en);
     expect(wrong).toEqual([]);
   });
 
-  it('troca de idioma e interpola', () => {
-    applyLang('en');
-    expect(t('{n} rodando', { n: 2 })).toBe(EN['{n} rodando']!.replace('{n}', '2'));
+  it('switches language and interpolates', () => {
     applyLang('pt-BR');
-    expect(t('{n} rodando', { n: 2 })).toBe('2 rodando');
-    expect(translate('en', 'texto sem tradução')).toBe('texto sem tradução');
+    expect(t('{n} running', { n: 2 })).toBe(PT['{n} running']!.replace('{n}', '2'));
+    applyLang('en');
+    expect(t('{n} running', { n: 2 })).toBe('2 running');
+    expect(translate('pt-BR', 'untranslated text')).toBe('untranslated text');
+  });
+
+  it('hides the context suffix', () => {
+    expect(plainKey('Open|decisions')).toBe('Open');
+    expect(translate('en', 'Open|decisions')).toBe('Open');
+    expect(translate('pt-BR', 'Open|decisions')).toBe(PT['Open|decisions']);
+    expect(PT['Open|decisions']).not.toBe(PT['Open']);
+  });
+
+  it('shows agent texts from old and new hooks in the current language', () => {
+    applyLang('pt-BR');
+    expect(agentText('Asking permission: Bash')).toBe('Pedindo permissão: Bash');
+    applyLang('en');
+    expect(agentText('Pedindo permissão: Bash')).toBe('Asking permission: Bash');
+    expect(agentText('Asking permission: Bash')).toBe('Asking permission: Bash');
+  });
+
+  it('shows fixed server messages in Portuguese and leaves the rest as they come', () => {
+    applyLang('pt-BR');
+    expect(serverText('invalid PR URL')).toBe('URL de PR inválida');
+    expect(serverText('folder no longer exists: /x')).toBe('folder no longer exists: /x');
+    applyLang('en');
+    expect(serverText('invalid PR URL')).toBe('invalid PR URL');
   });
 });

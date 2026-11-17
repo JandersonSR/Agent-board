@@ -7,12 +7,12 @@ const pr = (repo: string, owner: string, reviewers?: string[], daysAgo = 3): Kno
   ({ url: `u${n++}`, repo, owner, state: 'merged', mergedAt: new Date(NOW - daysAgo * 86_400_000), ...(reviewers ? { reviewers } : {}) });
 
 describe('busFactor', () => {
-  it('uma pessoa em tudo = 1', () => expect(busFactor([new Set(['ana']), new Set(['ana', 'bia']), new Set(['ana'])])).toBe(1));
-  it('conhecimento espalhado = maior (precisa de mais da metade sem ninguém)', () => {
+  it('one person on everything = 1', () => expect(busFactor([new Set(['ana']), new Set(['ana', 'bia']), new Set(['ana'])])).toBe(1));
+  it('spread knowledge = higher (needs more than half without anyone)', () => {
     expect(busFactor([new Set(['ana', 'bia']), new Set(['bia', 'caio']), new Set(['caio', 'ana']), new Set(['ana', 'caio'])])).toBe(3);
     expect(busFactor([new Set(['ana']), new Set(['ana']), new Set(['bia']), new Set(['caio'])])).toBe(2);
   });
-  it('vazio = 0', () => expect(busFactor([])).toBe(0));
+  it('empty = 0', () => expect(busFactor([])).toBe(0));
 });
 
 describe('computeKnowledge', () => {
@@ -27,12 +27,12 @@ describe('computeKnowledge', () => {
   ];
   const k = computeKnowledge(prs, 30, NOW);
 
-  it('filtra período e PRs não mergeados', () => {
+  it('filters the period and unmerged PRs', () => {
     expect(k.prs).toBe(10);
     expect(k.repos.map(r => r.repo)).toEqual(['acme/api', 'acme/web']);
   });
 
-  it('risco, revisor dominante e PR sem revisão', () => {
+  it('risk, dominant reviewer and unreviewed PR', () => {
     const api = k.repos[0]!;
     expect(api).toMatchObject({ prs: 8, busFactor: 2, risk: 'medium', lowData: false, unreviewed: 1, unknownReviewers: 0 });
     expect(api.reviewers[0]).toEqual({ name: 'Bruno', prs: 7 });
@@ -40,7 +40,7 @@ describe('computeKnowledge', () => {
     expect(k.people.find(p => p.name === 'Bruno')!.soleReviewerOf).toEqual(['acme/api']);
   });
 
-  it('PR sem informação de revisores não conta como sem revisão', () => {
+  it('a PR without reviewer information does not count as unreviewed', () => {
     const web = k.repos[1]!;
     expect(web).toMatchObject({ lowData: true, unreviewed: 0, unknownReviewers: 1 });
     expect(k.withReviewerData).toBe(9);

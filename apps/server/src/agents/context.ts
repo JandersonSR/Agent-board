@@ -1,5 +1,5 @@
-// Contexto comum das execuções de agentes: configuração, limites de custo, log ao vivo e o ciclo de vida
-// do processo do Claude (iniciar, acompanhar, cancelar). Os serviços de review, tarefa e avaliação usam este contexto.
+// Shared context for agent runs: configuration, cost limits, live log and the lifecycle
+// of the Claude process (start, follow, cancel). The review, task and eval services use this context.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyBaseLogger } from 'fastify';
@@ -7,7 +7,7 @@ import type { Config } from '../config.js';
 import type { FeatMapRegistry } from '../featmap/registry.js';
 import type { MaskResult } from '../privacy/mask.js';
 import type { GitHubClient } from '../sources/github.js';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import { runClaude, type RunEvent, type RunHandle } from './claude-runner.js';
 import { limitReason, startOfLocalDay } from './limits.js';
 import { RunsRepo, type RunLogEntry } from './runs-repo.js';
@@ -21,7 +21,7 @@ export function parsePrUrl(url: string): { owner: string; repo: string; number: 
   return m ? { owner: m[1]!, repo: m[2]!, number: Number(m[3]) } : undefined;
 }
 
-// Review: só leitura. O agente não consegue postar nada (gh api, review, comment, merge e push negados).
+// Review: read-only. The agent cannot post anything (gh api, review, comment, merge and push are denied).
 export const REVIEW_TOOLS = ['Read', 'Grep', 'Glob', 'Bash'];
 export const REVIEW_ALLOWED = ['Read', 'Grep', 'Glob', 'Bash(gh pr view:*)', 'Bash(gh pr diff:*)', 'Bash(gh pr checks:*)', 'mcp__feat-map'];
 export const ALWAYS_DENIED = [
@@ -35,7 +35,7 @@ export class AgentContext {
 
   constructor(
     readonly cfg: Config,
-    readonly store: PainelStore,
+    readonly store: DeckStore,
     readonly gh: GitHubClient | undefined,
     readonly featMaps: FeatMapRegistry,
     readonly mask: Mask,
@@ -57,7 +57,7 @@ export class AgentContext {
     return server && fs.existsSync(server) ? { 'feat-map': { command: 'node', args: [server] } } : undefined;
   }
 
-  /** Pasta local do repo: REPOS (slug) ou <REPOS_ROOT>/<nome>. */
+  /** Local repo folder: REPOS (slug) or <REPOS_ROOT>/<name>. */
   resolveRepoPath(repoName: string): string | undefined {
     const name = repoName.split('/').pop()!;
     const mapped = this.cfg.paths.repos.find(r => r.slug.toLowerCase() === name.toLowerCase());
@@ -80,22 +80,22 @@ export class AgentContext {
   }
 
   requireGh(): GitHubClient {
-    if (!this.gh) throw Object.assign(new Error('GitHub não configurado'), { statusCode: 503 });
+    if (!this.gh) throw Object.assign(new Error('GitHub not configured'), { statusCode: 503 });
     return this.gh;
   }
 
   async needStore(): Promise<void> {
-    if (!this.store.configured) throw Object.assign(new Error('armazenamento desligado (STORAGE=none)'), { statusCode: 503 });
+    if (!this.store.configured) throw Object.assign(new Error('storage is off (STORAGE=none)'), { statusCode: 503 });
     await this.store.connect();
   }
 
-  // Log ao vivo: acumula e grava a cada segundo (mascarado).
+  // Live log: buffers and writes every second (masked).
   private buffers = new Map<string, RunLogEntry[]>();
   private timers = new Map<string, NodeJS.Timeout>();
   logger(id: string) {
     return (e: RunEvent) => {
       const text = e.type === 'text' ? e.text : e.type === 'tool' ? `${e.name} ${e.input}` : e.type === 'tool_result' ? `${e.ok ? '✓' : '✗'} ${e.text}`
-        : e.type === 'denied' ? `negado: ${e.name}` : e.type === 'stderr' ? e.text : `início ${e.model ?? ''}`;
+        : e.type === 'denied' ? `negado: ${e.name}` : e.type === 'stderr' ? e.text : `start ${e.model ?? ''}`;
       const list = this.buffers.get(id) ?? [];
       list.push({ at: new Date(), type: e.type, text: this.mask(text).text });
       this.buffers.set(id, list);
@@ -110,7 +110,7 @@ export class AgentContext {
     await this.runs.appendLog(id, entries).catch(() => undefined);
   }
 
-  /** Roda o agente e chama `done` ao terminar (log ao vivo, cancelamento e contagem de execuções ativas). */
+  /** Runs the agent and calls `done` when it ends (live log, cancellation and active-run count). */
   launch(id: string, spec: Parameters<typeof runClaude>[0], done: (r: RunResult) => Promise<void>): void {
     const handle = runClaude(spec, this.logger(id));
     this.active.set(id, handle);
@@ -118,7 +118,7 @@ export class AgentContext {
       this.active.delete(id);
       await this.flush(id);
       await done(r);
-    }).catch(e => this.log.error({ err: (e as Error).message }, 'falha ao finalizar execução'));
+    }).catch(e => this.log.error({ err: (e as Error).message }, 'failed to finish run'));
   }
 
   cancel(id: string): boolean {

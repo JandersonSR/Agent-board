@@ -1,5 +1,5 @@
-// Sessões de agentes ao vivo via SSE (/events), com reconexão automática do EventSource
-// e aviso no desktop quando uma sessão passa a precisar de você ou fica pronta para revisar.
+// Live agent sessions over SSE (/events), with automatic EventSource reconnection
+// and a desktop notification when a session starts needing you or is ready for review.
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { t } from '@/lib/i18n';
 import type { AgentSession } from '@/lib/types';
@@ -9,7 +9,7 @@ export type ConnState = 'connecting' | 'live' | 'reconnecting';
 export interface AgentSessionsValue {
   sessions: AgentSession[];
   conn: ConnState;
-  /** IDs que acabaram de mudar para needs_you/review (para destacar o card). */
+  /** IDs that just switched to needs_you/review (to highlight the card). */
   flashed: Set<string>;
 }
 
@@ -43,7 +43,7 @@ export function useAgentSessionsStream(notify: boolean): AgentSessionsValue {
           window.setTimeout(() => setFlashed(new Set()), 2400);
           if (notifyRef.current && 'Notification' in window && Notification.permission === 'granted') {
             for (const s of loud) {
-              new Notification(`${s.project ?? t('Agente')}: ${t(s.state === 'needs_you' ? 'precisa de você' : 'pronto para revisar')}`, {
+              new Notification(`${s.project ?? t('Agent')}: ${t(s.state === 'needs_you' ? 'needs you' : 'ready for review')}`, {
                 body: s.message || s.title || s.task || '',
                 tag: s.id,
               });

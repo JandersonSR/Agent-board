@@ -1,8 +1,8 @@
-// DigitalOcean (token com escopo de leitura): Droplets com CPU/memória do Monitoring e App Platform com deploys.
-// A API de monitoramento devolve séries no formato Prometheus (data.result[].values = [[unix, "valor"], …]).
-// CPU vem como segundos acumulados por modo: uso = 1 − Δidle / Δtotal entre os dois últimos pontos.
-// As políticas de alerta do DigitalOcean não informam o que está disparando; os alertas de limite saem do
-// acompanhamento do painel (CPU/memória sustentadas), em tracker.ts.
+// DigitalOcean (read-scoped token): Droplets with CPU/memory from Monitoring, and App Platform with deploys.
+// The monitoring API returns Prometheus-style series (data.result[].values = [[unix, "value"], …]).
+// CPU comes as cumulative seconds per mode: usage = 1 − Δidle / Δtotal between the last two points.
+// DigitalOcean alert policies do not say what is firing; threshold alerts come from the
+// deck's own tracking (sustained CPU/memory), in tracker.ts.
 import { z } from 'zod';
 import { getJson, isScopeError, type Fetcher } from './http.js';
 import { pct, type InfraDeploy, type InfraProvider, type InfraResource, type ResourceStatus } from './types.js';
@@ -30,7 +30,7 @@ const Apps = z.object({
 });
 const Deployments = z.object({ deployments: z.array(Deployment).default([]) });
 
-/** Uso de CPU (%) a partir dos contadores por modo do último intervalo. */
+/** CPU usage (%) from the per-mode counters of the last interval. */
 export function cpuUsage(s: SeriesT): number | undefined {
   let idle = 0; let total = 0; let ok = false;
   for (const r of s.data.result) {
@@ -50,7 +50,7 @@ const lastValue = (s: SeriesT) => {
   return Number.isFinite(n) ? n : undefined;
 };
 
-/** Memória usada (%) = 1 − disponível / total. */
+/** Memory used (%) = 1 − available / total. */
 export function memoryUsage(available: SeriesT, totalS: SeriesT): number | undefined {
   const a = lastValue(available); const t = lastValue(totalS);
   return a !== undefined && t ? pct((1 - a / t) * 100) : undefined;
@@ -60,7 +60,7 @@ export function dropletStatus(s: string): { status: ResourceStatus; text: string
   return s === 'active' ? { status: 'ok', text: 'active' } : s === 'new' ? { status: 'warn', text: 'starting' } : s === 'off' ? { status: 'down', text: 'off' } : { status: 'unknown', text: s };
 }
 
-/** Fases de deploy do App Platform → estado do deploy. */
+/** App Platform deploy phases → deploy state. */
 export function deployPhase(phase: string | undefined): InfraDeploy['status'] {
   if (!phase) return 'in_progress';
   if (phase === 'ACTIVE' || phase === 'SUPERSEDED') return 'succeeded';
@@ -80,8 +80,8 @@ export function digitalOceanProvider(opts: { token: string; tag?: string | undef
       const resources: InfraResource[] = [];
       const deploys: InfraDeploy[] = [];
       const dropletsUrl = `${API}/v2/droplets?per_page=200${opts.tag ? `&tag_name=${encodeURIComponent(opts.tag)}` : ''}`;
-      // Tokens com escopo customizado (ex.: só app:read, como o de um watcher do App Platform) recebem 403 numa parte da API.
-      // Cada parte sem escopo vira aviso e lista vazia; só falha de verdade se nenhuma parte puder ser lida.
+      // Tokens with a custom scope (e.g. only app:read, like an App Platform watcher's) get 403 on part of the API.
+      // Each part without scope becomes a warning and an empty list; it only really fails if no part can be read.
       const warnings: string[] = [];
       const scopeErrors: unknown[] = [];
       const part = <T>(p: Promise<T>, what: string, scope: string, empty: T): Promise<T> => p.catch((e: unknown) => {
@@ -100,7 +100,7 @@ export function digitalOceanProvider(opts: { token: string; tag?: string | undef
         const st = dropletStatus(drop.status);
         let metrics: InfraResource['metrics'];
         if (drop.status === 'active') {
-          // Sem o agente de métricas as séries vêm vazias: o recurso aparece sem números.
+          // Without the metrics agent the series come back empty: the resource shows up without numbers.
           const [cpu, avail, total] = await Promise.all([metric('cpu', drop.id, now), metric('memory_available', drop.id, now), metric('memory_total', drop.id, now)])
             .catch(() => [undefined, undefined, undefined] as const);
           metrics = { cpu: cpu ? cpuUsage(cpu) : undefined, memory: avail && total ? memoryUsage(avail, total) : undefined };
@@ -113,7 +113,7 @@ export function digitalOceanProvider(opts: { token: string; tag?: string | undef
         const inProgress = app.in_progress_deployment;
         const status: ResourceStatus = active ? (deployPhase(inProgress?.phase) === 'failed' ? 'warn' : 'ok') : inProgress ? 'warn' : 'unknown';
         const id = `digitalocean:app:${app.id}`;
-        resources.push({ id, provider: 'digitalocean', kind: 'app', name: app.spec.name, status, statusText: inProgress ? `deploy ${inProgress.phase?.toLowerCase() ?? ''}`.trim() : active ? 'active' : 'sem deploy ativo', region: app.region?.slug, url: app.live_url });
+        resources.push({ id, provider: 'digitalocean', kind: 'app', name: app.spec.name, status, statusText: inProgress ? `deploy ${inProgress.phase?.toLowerCase() ?? ''}`.trim() : active ? 'active' : 'no active deploy', region: app.region?.slug, url: app.live_url });
         const list = await getJson(fetcher, `${API}/v2/apps/${app.id}/deployments?per_page=10`, h, Deployments).catch(() => ({ deployments: [] }));
         for (const dep of list.deployments) {
           deploys.push({ key: `digitalocean:${app.id}:${dep.id}`, provider: 'digitalocean', resourceId: id, resourceName: app.spec.name, version: dep.id.slice(0, 8), status: deployPhase(dep.phase), at: dep.created_at ?? dep.updated_at ?? new Date(now).toISOString(), description: dep.cause });

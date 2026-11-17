@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { reposToScan, scanRepoAdrs } from './adr-scan.js';
 
 describe('scanRepoAdrs', () => {
-  it('lê ADRs das pastas conhecidas e ignora README, links e outras pastas', () => {
+  it('reads ADRs from the known folders and ignores README, links and other folders', () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'adr-'));
     const repo = path.join(root, 'api');
     fs.mkdirSync(path.join(repo, '.git'), { recursive: true });

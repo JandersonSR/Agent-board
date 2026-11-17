@@ -1,5 +1,5 @@
-// Rotas do v2 (agentes ao vivo, aprovações, review, launcher, métricas) portadas para Fastify.
-// O contrato de arquivos com o hook.js (sessions/, decisions/, server.json) não muda.
+// v2 routes (live agents, approvals, review, launcher, metrics) ported to Fastify.
+// The file contract with hook.js (sessions/, decisions/, server.json) does not change.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply } from 'fastify';
@@ -29,8 +29,8 @@ const readSessions = (): V2Session[] =>
 function findSession(id: string): V2Session & { cwd: string } {
   const s = store.readJson<V2Session>(store.sessionFile(id))
     ?? store.readJson<V2Session>(path.join(store.HISTORY, store.safeId(id) + '.json'));
-  if (!s?.cwd) throw Object.assign(new Error('sessão sem pasta'), { statusCode: 404 });
-  if (!fs.existsSync(s.cwd)) throw Object.assign(new Error(`pasta não existe mais: ${s.cwd}`), { statusCode: 404 });
+  if (!s?.cwd) throw Object.assign(new Error('session without a folder'), { statusCode: 404 });
+  if (!fs.existsSync(s.cwd)) throw Object.assign(new Error(`folder no longer exists: ${s.cwd}`), { statusCode: 404 });
   return s as V2Session & { cwd: string };
 }
 
@@ -46,7 +46,7 @@ export interface AgentsRoutesOptions { port: number; approvalWait: number }
 export async function agentsRoutes(app: FastifyInstance, opts: AgentsRoutesOptions): Promise<void> {
   fs.mkdirSync(store.SESSIONS, { recursive: true });
 
-  // ---- SSE + batimento (o hook só espera aprovação pelo painel com uma aba aberta) ----
+  // ---- SSE + heartbeat (the hook only waits for approval on the deck when a tab is open) ----
   const clients = new Set<FastifyReply['raw']>();
   let lastPayload = '';
   const broadcast = (force = false) => {
@@ -88,7 +88,7 @@ export async function agentsRoutes(app: FastifyInstance, opts: AgentsRoutesOptio
     req.raw.on('close', () => { clients.delete(res); heartbeat(); });
   });
 
-  // ---- Sessões ----
+  // ---- Sessions ----
   app.get('/api/sessions', async () => readSessions());
   app.get('/api/config', async () => ({ approvalWait: opts.approvalWait, platform: process.platform }));
 
@@ -109,7 +109,7 @@ export async function agentsRoutes(app: FastifyInstance, opts: AgentsRoutesOptio
     const body = DecisionBody.parse(req.body);
     const s = store.readJson<V2Session>(store.sessionFile(id));
     const pending = s?.approvals?.find(a => a.requestId === body.requestId && a.remote);
-    if (!pending) return reply.code(409).send({ error: 'pedido já respondido ou expirado' });
+    if (!pending) return reply.code(409).send({ error: 'request already answered or expired' });
     store.writeJson(store.decisionFile(id, body.requestId), { ...body, at: Date.now() });
     return { ok: true };
   });
@@ -120,7 +120,7 @@ export async function agentsRoutes(app: FastifyInstance, opts: AgentsRoutesOptio
 
   app.get('/api/sessions/:id/diff', async (req) => {
     const s = findSession(IdParam.parse(req.params).id);
-    return (await git.diffSummary(s.cwd)) ?? { error: 'não é um repositório git' };
+    return (await git.diffSummary(s.cwd)) ?? { error: 'not a git repository' };
   });
 
   app.get('/api/sessions/:id/patch', async (req, reply) => {
@@ -140,7 +140,7 @@ export async function agentsRoutes(app: FastifyInstance, opts: AgentsRoutesOptio
     return data;
   });
 
-  // Push + PR rascunho: só por clique explícito (a UI pede confirmação).
+  // Push + draft PR: only on an explicit click (the UI asks for confirmation).
   app.post('/api/sessions/:id/pr', async (req) => {
     const s = findSession(IdParam.parse(req.params).id);
     const url = await git.createPr(s.cwd);
@@ -156,7 +156,7 @@ export async function agentsRoutes(app: FastifyInstance, opts: AgentsRoutesOptio
     return [...new Set(all.map(s => s.cwd).filter((c): c is string => !!c))].slice(0, 30);
   });
 
-  // ---- Métricas ----
+  // ---- Metrics ----
   app.get('/api/metrics', async (req) => {
     const { days } = MetricsQuery.parse(req.query);
     const sessions = [...readSessions(), ...store.readDir<V2Session>(store.HISTORY)];

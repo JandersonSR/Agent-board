@@ -1,11 +1,11 @@
-// Concentração de conhecimento por repositório, a partir de quem escreve e quem revisa os PRs mergeados.
+// Knowledge concentration per repository, from who writes and who reviews the merged PRs.
 //
-// "Fator de ônibus" (bus factor): o menor número de pessoas que, se saírem, deixam mais da metade
-// dos PRs do período sem ninguém que tenha escrito ou revisado. Aproximação gulosa: tira primeiro
-// quem participou de mais PRs ainda cobertos.
+// "Bus factor": the smallest number of people who, if they leave, leave more than half
+// of the period's PRs with no one who wrote or reviewed them. Greedy approximation: removes first
+// whoever took part in the most PRs still covered.
 //
-// Os revisores só existem para PRs sincronizados depois desta versão; PRs sem essa informação
-// entram como "revisores desconhecidos" e não contam como sem revisão.
+// Reviewers only exist for PRs synced after this version; PRs without that information
+// count as "unknown reviewers" and not as unreviewed.
 
 type When = Date | string;
 
@@ -21,15 +21,15 @@ export interface RepoKnowledge {
   prs: number;
   busFactor: number;
   risk: KnowledgeRisk;
-  /** Poucos PRs no período: o número é indicativo. */
+  /** Few PRs in the period: the number is indicative. */
   lowData: boolean;
   authors: Array<{ name: string; prs: number }>;
   reviewers: Array<{ name: string; prs: number }>;
   topAuthorShare: number | null;
   topReviewerShare: number | null;
-  /** PRs mergeados sem nenhuma review registrada (só entre os que têm a informação). */
+  /** PRs merged without any recorded review (only among those with the information). */
   unreviewed: number;
-  /** PRs sem a informação de revisores (sincronizados antes desta versão). */
+  /** PRs without reviewer information (synced before this version). */
   unknownReviewers: number;
 }
 
@@ -39,7 +39,7 @@ export interface Knowledge { days: number; repos: RepoKnowledge[]; people: Perso
 
 export const MIN_PRS = 5;
 
-/** Menor número de pessoas cuja saída deixa > 50% dos PRs sem ninguém que participou. */
+/** Smallest number of people whose departure leaves > 50% of the PRs with no one who took part. */
 export function busFactor(prPeople: Array<Set<string>>): number {
   if (!prPeople.length) return 0;
   const remaining = prPeople.map(s => new Set(s));

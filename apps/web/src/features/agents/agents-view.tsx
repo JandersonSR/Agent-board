@@ -20,7 +20,7 @@ export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: (
   const bgBlocked = bg?.available ? bg.sessions.filter(s => s.state === 'blocked').length : 0;
   const clear = useMutation({
     mutationFn: () => api.post('/api/clear-ended'),
-    onSuccess: () => toast.success(t('Sessões encerradas arquivadas')),
+    onSuccess: () => toast.success(t('Ended sessions archived')),
   });
   const ended = sessions.filter(s => s.state === 'ended').length;
 
@@ -29,21 +29,21 @@ export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: (
       <div className="flex flex-wrap items-center gap-2">
         <Tabs value={layout} onValueChange={v => setLayout(v as 'board' | 'tasks' | 'background')}>
           <TabsList>
-            <TabsTrigger value="board">{t('Quadro')}</TabsTrigger>
-            <TabsTrigger value="tasks">{t('Por tarefa')}</TabsTrigger>
-            <TabsTrigger value="background">{t('Em segundo plano')}{bgBlocked > 0 && <Pill tone="danger" className="ml-1.5">{bgBlocked}</Pill>}</TabsTrigger>
+            <TabsTrigger value="board">{t('Board')}</TabsTrigger>
+            <TabsTrigger value="tasks">{t('By task')}</TabsTrigger>
+            <TabsTrigger value="background">{t('Background')}{bgBlocked > 0 && <Pill tone="danger" className="ml-1.5">{bgBlocked}</Pill>}</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="ml-auto flex items-center gap-2">
-          {ended > 0 && <Button size="sm" variant="ghost" disabled={clear.isPending} onClick={() => clear.mutate()}><Eraser /> {t('Arquivar encerradas ({n})', { n: ended })}</Button>}
+          {ended > 0 && <Button size="sm" variant="ghost" disabled={clear.isPending} onClick={() => clear.mutate()}><Eraser /> {t('Archive ended ({n})', { n: ended })}</Button>}
         </div>
       </div>
 
       {layout === 'background' ? <BackgroundSessions /> : sessions.length === 0 ? (
         <div className="rounded-xl border border-dashed">
-          <EmptyState icon={Bot} title={t('Nenhuma sessão de agente')}
-            description={<>{t('As sessões do Claude Code e do Cursor aparecem aqui assim que começam (hooks instalados com')} <code className="font-mono">npm run install-hooks</code>).</>}
-            action={<Button size="sm" onClick={onNewTask}><Plus /> {t('Nova tarefa')}</Button>} />
+          <EmptyState icon={Bot} title={t('No agent sessions')}
+            description={<>{t('Claude Code and Cursor sessions show up here as soon as they start (hooks installed with')} <code className="font-mono">npm run install-hooks</code>).</>}
+            action={<Button size="sm" onClick={onNewTask}><Plus /> {t('New task')}</Button>} />
         </div>
       ) : layout === 'board' ? (
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-4">
@@ -69,8 +69,8 @@ export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: (
           {groupByTask(sessions).map(g => (
             <section key={g.key}>
               <h2 className="mb-2 flex items-baseline gap-2 text-sm font-semibold">
-                {g.key === 'Sem tarefa' ? t('Sem tarefa') : g.key}
-                <span className="text-xs font-normal text-muted-foreground">{plural(g.list.length, 'sessão', 'sessões')} · {g.tools}{g.cost ? ` · ${fmtCost(g.cost)}` : ''}</span>
+                {g.key === 'No task' ? t('No task') : g.key}
+                <span className="text-xs font-normal text-muted-foreground">{plural(g.list.length, 'session', 'sessions')} · {g.tools}{g.cost ? ` · ${fmtCost(g.cost)}` : ''}</span>
               </h2>
               <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-3">
                 {g.list.map(s => <SessionCard key={s.id} session={s} editor={editor} flash={flashed.has(s.id)} />)}

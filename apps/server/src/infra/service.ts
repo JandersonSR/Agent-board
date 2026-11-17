@@ -1,8 +1,8 @@
-// Acompanhamento da infraestrutura em tempo real (só leitura): lê os provedores, guarda o histórico curto
-// das métricas, transforma mudanças em eventos (painel_eventos) e aplica a regra de incidente automático.
+// Real-time infrastructure tracking (read-only): reads the providers, keeps a short history
+// of the metrics, turns changes into events (deck_events) and applies the automatic incident rule.
 import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config.js';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import { azureProvider } from './azure.js';
 import { demoInfraProvider } from './demo.js';
 import { digitalOceanProvider } from './digitalocean.js';
@@ -43,7 +43,7 @@ export class InfraService {
 
   constructor(
     private readonly cfg: Config,
-    private readonly store: PainelStore,
+    private readonly store: DeckStore,
     private readonly mask: Mask,
     private readonly log: Pick<FastifyBaseLogger, 'warn' | 'error'>,
     readonly providers: InfraProvider[] = providersFrom(cfg),
@@ -55,21 +55,21 @@ export class InfraService {
   get rules(): TrackerRules { const i = this.cfg.infra; return { cpuWarn: i.cpuWarn, cpuCrit: i.cpuCrit, memCrit: i.memCrit, sustainMin: i.sustainMin, lang: i.lang }; }
   private L(pt: string, en: string): string { return this.cfg.infra.lang === 'en' ? en : pt; }
   private get prodRe(): RegExp { return new RegExp(this.cfg.infra.prodRe, 'i'); }
-  private get events() { return this.store.collection('painel_eventos'); }
+  private get events() { return this.store.collection('deck_events'); }
 
   start(): void {
     if (!this.configured) return;
     const begin = async () => {
-      // No demo, 30 min de histórico para os gráficos e os alertas sustentados aparecerem na hora.
+      // In the demo, 30 min of history so the charts and the sustained alerts show up right away.
       if (this.cfg.demo.on) for (let k = 30; k >= 1; k--) await this.pollOnce(Date.now() - k * 60_000);
       await this.pollOnce();
     };
-    void begin().catch(e => this.log.error({ err: (e as Error).message }, 'falha na primeira leitura da infra'));
+    void begin().catch(e => this.log.error({ err: (e as Error).message }, 'first infra read failed'));
     this.timer = setInterval(() => void this.pollOnce().catch(() => undefined), this.cfg.infra.pollSec * 1000);
   }
   stop(): void { clearInterval(this.timer); }
 
-  /** Uma leitura de todos os provedores (a que já estiver rodando é reaproveitada). */
+  /** One read of every provider (a read already in progress is reused). */
   pollOnce(now = Date.now()): Promise<void> {
     this.running ??= this.doPoll(now).finally(() => { this.running = undefined; });
     return this.running;
@@ -89,11 +89,11 @@ export class InfraService {
       } else {
         ps.ok = false; ps.error = this.mask((r.reason as Error).message).text; ps.warning = undefined;
         failed.add(this.providers[i]!.id);
-        this.log.warn({ provider: ps.id, error: ps.error }, 'falha ao ler a infra');
-        merged.resources.push(...this.resources.filter(x => x.provider === ps.id)); // mantém o último estado conhecido
+        this.log.warn({ provider: ps.id, error: ps.error }, 'failed to read the infra');
+        merged.resources.push(...this.resources.filter(x => x.provider === ps.id)); // keeps the last known state
       }
     });
-    // Textos que vêm de fora passam pelo mascaramento.
+    // Texts coming from outside are masked.
     merged.resources = merged.resources.map(r => ({ ...r, name: this.mask(r.name).text, ...(r.statusText ? { statusText: this.mask(r.statusText).text } : {}) }));
     merged.alerts = merged.alerts.map(a => ({ ...a, title: this.mask(a.title).text }));
 
@@ -106,7 +106,7 @@ export class InfraService {
     const { events, firing } = step(this.state, merged, now, this.rules, failed);
     this.resources = merged.resources;
     this.lastPoll = new Date(now).toISOString();
-    if (this.store.configured) await this.persist(events, now).catch(e => this.log.warn({ err: (e as Error).message }, 'falha ao gravar eventos da infra'));
+    if (this.store.configured) await this.persist(events, now).catch(e => this.log.warn({ err: (e as Error).message }, 'failed to write infra events'));
     this.firing = await this.decorate(firing);
   }
 
@@ -116,7 +116,7 @@ export class InfraService {
 
   private async persist(events: InfraEvent[], now: number): Promise<void> {
     await this.store.connect();
-    // Deploys primeiro: um alerta da mesma leitura já encontra o deploy como possível causa.
+    // Deploys first: an alert from the same read already finds the deploy as a possible cause.
     const ordered = [...events.filter(e => e.kind === 'deploy'), ...events.filter(e => e.kind !== 'deploy')];
     for (const e of ordered) {
       const doc: Record<string, unknown> = { ...e, createdAt: new Date(now) };
@@ -132,13 +132,13 @@ export class InfraService {
     }
   }
 
-  /** Regra: alerta crítico de produção abre um incidente SEV2 (no máximo 5 por hora). */
+  /** Rule: a critical production alert opens a SEV2 incident (at most 5 per hour). */
   private async maybeOpenIncident(e: InfraEvent, suspect: FiringView['suspect'], now: number): Promise<string | undefined> {
     if (this.cfg.infra.autoIncident !== 'critical' || e.severity !== 'critical') return undefined;
     if (!this.prodRe.test(`${e.resourceName ?? ''} ${e.title}`)) return undefined;
     this.autoCreated = this.autoCreated.filter(t => now - t < 3_600_000);
     if (this.autoCreated.length >= AUTO_INCIDENTS_PER_HOUR) return undefined;
-    const incidents = this.store.collection('painel_incidentes');
+    const incidents = this.store.collection('deck_incidents');
     const open = await incidents.findOne({ alertFingerprint: e.fingerprint, status: { $ne: 'resolved' } });
     if (open) return String(open._id);
     const timeline = [{ at: new Date(e.at), text: this.L(`Alerta disparado (${e.provider}): ${e.title}`, `Alert fired (${e.provider}): ${e.title}`) }];
@@ -152,9 +152,9 @@ export class InfraService {
     return String(r.insertedId);
   }
 
-  /** Alerta resolvido marca a mitigação do incidente aberto por ele (resolver continua com a pessoa). */
+  /** A resolved alert marks the mitigation of the incident it opened (resolving stays with the person). */
   private async mitigateIncident(e: InfraEvent, now: number): Promise<void> {
-    const incidents = this.store.collection('painel_incidentes');
+    const incidents = this.store.collection('deck_incidents');
     const inc = await incidents.findOne({ alertFingerprint: e.fingerprint, status: 'open' });
     if (!inc) return;
     const mins = e.durationMs ? Math.round(e.durationMs / 60_000) : undefined;
@@ -198,7 +198,7 @@ export class InfraService {
       .map(d => ({ ...d, _id: String(d._id) }));
   }
 
-  /** Deploys bem-sucedidos de produção no período (para o DORA). */
+  /** Successful production deploys in the period (for DORA). */
   async productionDeploys(sinceMs: number): Promise<Array<{ at: string; resource: string }>> {
     if (!this.store.configured) return [];
     await this.store.connect();
@@ -206,13 +206,13 @@ export class InfraService {
     return docs.filter(d => d.deploy?.status === 'succeeded' && this.prodRe.test(d.resourceName ?? '')).map(d => ({ at: d.at, resource: d.resourceName ?? '' }));
   }
 
-  /** Abre um incidente a partir de um alerta, por clique (mesmo fora da regra automática). */
+  /** Opens an incident from an alert, on click (even outside the automatic rule). */
   async openIncidentFor(fingerprint: string): Promise<string> {
     const f = this.firing.find(x => x.fingerprint === fingerprint);
     if (!f) throw Object.assign(new Error(this.L('alerta não está mais disparado', 'alert is no longer firing')), { statusCode: 404 });
     if (f.incidentId) return f.incidentId;
     await this.store.connect();
-    const r = await this.store.collection('painel_incidentes').insertOne({
+    const r = await this.store.collection('deck_incidents').insertOne({
       title: f.title, severity: f.severity === 'critical' ? 'sev2' : 'sev3', status: 'open', startedAt: new Date(f.startedAt), detectedAt: new Date(f.firstSeenAt),
       mitigatedAt: null, resolvedAt: null, impact: '', services: f.resourceName ? [f.resourceName] : [], causeChanges: [], fixChanges: [],
       timeline: [{ at: new Date(f.startedAt), text: this.L(`Alerta disparado (${f.provider}): ${f.title}`, `Alert fired (${f.provider}): ${f.title}`) }, ...(f.suspect ? [{ at: new Date(f.suspect.at), text: this.L(`${f.suspect.title}: possível causa`, `${f.suspect.title}: possible cause`) }] : [])],

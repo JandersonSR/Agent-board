@@ -1,13 +1,13 @@
-// As quatro métricas DORA a partir do que o painel já guarda: datas de deploy das issues (painel_prs)
-// e o registro de incidentes (painel_incidentes).
+// The four DORA metrics from what the deck already stores: issue deploy dates (deck_prs)
+// e o registro de incidentes (deck_incidents).
 //
-// Definições usadas (documentadas no ADR 0017):
-// - Entrega = issue mergeada com data de deploy no período. Dia de deploy = data distinta.
-// - Tempo de entrega (lead time) = do primeiro PR visto pelo painel até o meio-dia (hora do time) da data de deploy.
-// - Mudança com falha = entrega que é correção (hotfix, rollback, revert… pela regex) ou que um incidente aponta como causa.
-// - Tempo de recuperação = do início até o serviço voltar (mitigação; sem ela, a resolução) dos incidentes do período.
-// - Frequência de deploy: quando há deploys reais de produção (Heroku, DigitalOcean… via Infra), eles valem;
-//   senão, os dias com data de deploy das issues.
+// Definitions used (documented in ADR 0017):
+// - Delivery = merged issue with a deploy date in the period. Deploy day = distinct date.
+// - Lead time = from the first PR the deck saw to noon (team time) of the deploy date.
+// - Failed change = a delivery that is a fix (hotfix, rollback, revert… by the regex) or that an incident names as the cause.
+// - Time to restore = from the start until the service is back (mitigation; without it, resolution) for the period's incidents.
+// - Deploy frequency: when there are real production deploys (Heroku, DigitalOcean… via Infra), they count;
+//   otherwise, the days with an issue deploy date.
 import { median, weekOf } from './team-metrics.js';
 
 type When = Date | string;
@@ -45,7 +45,7 @@ function p90(xs: number[]): number | null {
   return s[Math.min(s.length - 1, Math.ceil(s.length * 0.9) - 1)]!;
 }
 
-/** Meio-dia na hora do time, em UTC (evita lead time negativo em deploy no mesmo dia). */
+/** Noon in team time, in UTC (avoids a negative lead time for same-day deploys). */
 const deployInstant = (day: string, tzOffsetMin: number) => Date.parse(`${day}T12:00:00Z`) - tzOffsetMin * 60_000;
 
 export function isFix(issue: DoraIssue, re: RegExp): boolean {
@@ -53,7 +53,7 @@ export function isFix(issue: DoraIssue, re: RegExp): boolean {
   return texts.some(t => re.test(t));
 }
 
-/** Um incidente aponta a issue (ou um PR dela) como causa. Compara URLs sem barra final e sem caixa. */
+/** An incident names the issue (or one of its PRs) as the cause. Compares URLs without a trailing slash, case-insensitive. */
 export function causedIncident(issue: DoraIssue, incidents: DoraIncident[]): boolean {
   const norm = (u: string) => u.trim().replace(/\/+$/, '').toLowerCase();
   const mine = new Set([issue.key, issue.reference ?? '', ...issue.prs.map(p => p.url ?? '')].filter(Boolean).map(norm));

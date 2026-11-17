@@ -1,4 +1,4 @@
-// Infraestrutura em tempo real (só leitura): estado dos recursos, alertas disparados, deploys e eventos.
+// Real-time infrastructure (read-only): resource state, firing alerts, deploys and events.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { InfraService } from '../infra/service.js';
@@ -11,7 +11,7 @@ export async function infraRoutes(app: FastifyInstance, opts: { infra: InfraServ
     return { items: await infra.recentEvents(q.days, q.limit) };
   });
   app.post('/api/infra/refresh', async () => { await infra.pollOnce(); return infra.view(); });
-  // Abre um incidente a partir de um alerta disparado (o fingerprint tem ":" e vai no corpo).
+  // Opens an incident from a firing alert (the fingerprint has ":" and goes in the body).
   app.post('/api/infra/incident', async (req) => {
     const { fingerprint } = z.object({ fingerprint: z.string().min(3).max(500) }).parse(req.body);
     return { id: await infra.openIncidentFor(fingerprint) };

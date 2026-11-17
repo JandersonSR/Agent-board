@@ -4,6 +4,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 
 ## [Unreleased]
 
+### Changed
+- **Code and data in English.** Comments, test names, log and error messages, agent prompts and the interface's source texts are now in English; the Portuguese interface comes from `i18n-pt.ts`. Fixed server errors are still shown in Portuguese when that is the language chosen.
+- **Collections renamed** from `painel_*` to `deck_*` (`painel_sessoes` → `deck_runs`, `painel_avaliacoes` → `deck_evals`, …). The first start renames them in place, in SQLite and MongoDB; nothing is copied or lost. If both an old and a new collection hold data, the old one is left untouched and a warning is logged.
+- **`CONTENT_LANG`** (`en` by default, or `pt-BR`) sets the language of what the deck writes by itself: agent answers, the PENDING review and draft PR bodies, alert titles and incident timelines. It replaces `INFRA_LANG`, which is still accepted. The CI pre-review defaults to English too (`language: pt-BR` to keep Portuguese).
+- Review prompt version `r2` and task prompt version `t2` (precision and recall are measured per version).
+
 ### Added
 - **Infra in real time:** DigitalOcean, Heroku, Azure and Grafana read with read-only tokens. Resource status with CPU and memory history, firing alerts (sustained thresholds plus provider alerts), the deploy that may have caused each alert, and a timeline of status changes, alerts and deploys.
 - **Incident from an alert:** critical production alerts open a SEV2 incident (at most 5 per hour, can be turned off) and are marked mitigated when the alert clears; any alert becomes an incident in one click.

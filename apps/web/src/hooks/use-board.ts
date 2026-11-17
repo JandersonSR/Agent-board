@@ -1,4 +1,4 @@
-// Dados dos blocos. O servidor sincroniza a cada POLL_INTERVAL_MIN; a tela relê o snapshot a cada minuto.
+// Block data. The server syncs every POLL_INTERVAL_MIN; the screen re-reads the snapshot every minute.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -32,8 +32,8 @@ export function useTrackIssue() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: { issue: string; deployDate?: string }) => api.post<{ key: string; title: string; prs: number }>('/api/prs', body),
-    onSuccess: (r) => { invalidatePrs(qc); toast.success(t('Issue acompanhada'), { description: t('{title} · {n} PR(s) encontrados', { title: r.title, n: r.prs }) }); },
-    onError: (e: Error) => toast.error(t('Não foi possível acompanhar'), { description: e.message }),
+    onSuccess: (r) => { invalidatePrs(qc); toast.success(t('Issue tracked'), { description: t('{title} · {n} PR(s) found', { title: r.title, n: r.prs }) }); },
+    onError: (e: Error) => toast.error(t('Could not track'), { description: e.message }),
   });
 }
 
@@ -41,8 +41,8 @@ export function useArchiveIssue() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, archived }: { id: string; archived: boolean }) => api.post(`/api/prs/${id}/archive`, { archived }),
-    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(t(v.archived ? 'Parou de acompanhar' : 'Voltou a acompanhar')); },
-    onError: (e: Error) => toast.error(t('Falhou'), { description: e.message }),
+    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(t(v.archived ? 'Stopped tracking' : 'Tracking again')); },
+    onError: (e: Error) => toast.error(t('Failed'), { description: e.message }),
   });
 }
 
@@ -50,12 +50,12 @@ export function useSetPrStatus() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, url, status }: { id: string; url: string; status: string | null }) => api.patch(`/api/prs/${id}/pr`, { url, status }),
-    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(t(v.status ? 'Status ajustado' : 'Voltou ao automático')); },
-    onError: (e: Error) => toast.error(t('Não foi possível ajustar'), { description: e.message }),
+    onSuccess: (_r, v) => { invalidatePrs(qc); toast.success(t(v.status ? 'Status set' : 'Back to automatic|event')); },
+    onError: (e: Error) => toast.error(t('Could not set it'), { description: e.message }),
   });
 }
 
-/** Sincroniza agora (GitHub + Discord + PRs) e recarrega tudo. */
+/** Syncs now (GitHub + Discord + PRs) and reloads everything. */
 export function useSyncNow() {
   const qc = useQueryClient();
   return useMutation({
@@ -63,10 +63,10 @@ export function useSyncNow() {
     onSuccess: (r) => {
       void qc.invalidateQueries();
       const errors = Object.entries(r.sources).filter(([, s]) => s.error);
-      if (errors.length) toast.warning(t('Sincronizado com falhas'), { description: errors.map(([k, s]) => `${k}: ${s.error}`).join(' · ') });
-      else toast.success(t('Dados atualizados'));
+      if (errors.length) toast.warning(t('Synced with errors'), { description: errors.map(([k, s]) => `${k}: ${s.error}`).join(' · ') });
+      else toast.success(t('Data updated'));
     },
-    onError: (e: Error) => toast.error(t('Falha ao sincronizar'), { description: e.message }),
+    onError: (e: Error) => toast.error(t('Sync failed'), { description: e.message }),
   });
 }
 
@@ -74,7 +74,7 @@ export function usePatchPr() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...body }: { id: string; deployDate?: string; team?: string; owner?: string }) => api.patch<TrackedIssue>(`/api/prs/${id}`, body),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['prs'] }); toast.success(t('Salvo')); },
-    onError: (e: Error) => toast.error(t('Não foi possível salvar'), { description: e.message }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['prs'] }); toast.success(t('Saved')); },
+    onError: (e: Error) => toast.error(t('Could not save'), { description: e.message }),
   });
 }

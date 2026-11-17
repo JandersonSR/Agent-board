@@ -1,6 +1,6 @@
-// Adaptador tipado para os módulos do v2 em lib/*.js.
-// Esses módulos continuam em JavaScript porque o hook.js (executado pelo Claude Code/Cursor
-// a cada evento) precisa rodar sem build e sem dependências. Ver docs/adr/0002.
+// Typed adapter for the v2 modules in lib/*.js.
+// Those modules stay in JavaScript because hook.js (run by Claude Code/Cursor
+// on every event) must run without a build and without dependencies. See docs/adr/0002.
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { REPO_ROOT } from '../config.js';

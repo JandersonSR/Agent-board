@@ -32,30 +32,30 @@ import { InfraView } from '@/features/infra/infra-view';
 import { OverviewView } from '@/features/overview/overview-view';
 import { SettingsView } from '@/features/settings/settings-view';
 
-// label, subtitle e as descrições dos atalhos são chaves de tradução (texto em português).
+// label, subtitle and the shortcut descriptions are translation keys (English text).
 type View = 'overview' | 'agents' | 'deploy' | 'runs' | 'product' | 'infra' | 'incidents' | 'decisions' | 'metrics' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: string }>; keys: string; subtitle: string }> = [
-  { id: 'overview', label: k('Hoje'), icon: LayoutDashboard, keys: 'G H', subtitle: k('Time, fila, reviews e bloqueios num só lugar') },
-  { id: 'agents', label: k('Agentes'), icon: Bot, keys: 'G A', subtitle: k('Sessões do Claude Code e do Cursor ao vivo') },
-  { id: 'deploy', label: k('PRs e deploy'), icon: Rocket, keys: 'G D', subtitle: k('Do review ao merge, por issue, sem cadastro manual') },
-  { id: 'runs', label: k('Execuções'), icon: Sparkles, keys: 'G E', subtitle: k('Reviews e tarefas feitas por agentes, com log e resultado') },
-  { id: 'product', label: k('Produto'), icon: Flag, keys: 'G P', subtitle: k('Etapas, duplas, dependências e riscos da iniciativa') },
-  { id: 'infra', label: k('Infra'), icon: Server, keys: 'G S', subtitle: k('Servidores, apps, alertas e deploys em tempo real') },
-  { id: 'incidents', label: k('Incidentes'), icon: Siren, keys: 'G I', subtitle: k('Registro, ações e postmortems sem culpados') },
-  { id: 'decisions', label: k('Decisões'), icon: Landmark, keys: 'G R', subtitle: k('Design docs, RFCs e ADRs do time, com dono e prazo') },
-  { id: 'metrics', label: k('Métricas'), icon: BarChart3, keys: 'G M', subtitle: k('Agentes, fluxo do time, DORA, conhecimento e qualidade da IA') },
-  { id: 'settings', label: k('Configuração'), icon: Settings, keys: 'G C', subtitle: k('Integrações, limites e preferências') },
+  { id: 'overview', label: k('Today'), icon: LayoutDashboard, keys: 'G H', subtitle: k('Team, queue, reviews and blockers in one place') },
+  { id: 'agents', label: k('Agents'), icon: Bot, keys: 'G A', subtitle: k('Live Claude Code and Cursor sessions') },
+  { id: 'deploy', label: k('PRs and deploys'), icon: Rocket, keys: 'G D', subtitle: k('From review to merge, per issue, no manual entry') },
+  { id: 'runs', label: k('Runs'), icon: Sparkles, keys: 'G E', subtitle: k('Reviews and tasks done by agents, with log and result') },
+  { id: 'product', label: k('Product'), icon: Flag, keys: 'G P', subtitle: k('Stages, pairs, dependencies and risks of the initiative') },
+  { id: 'infra', label: k('Infra'), icon: Server, keys: 'G S', subtitle: k('Servers, apps, alerts and deploys in real time') },
+  { id: 'incidents', label: k('Incidents'), icon: Siren, keys: 'G I', subtitle: k('Log, actions and blameless postmortems') },
+  { id: 'decisions', label: k('Decisions'), icon: Landmark, keys: 'G R', subtitle: k('The team\'s design docs, RFCs and ADRs, with owner and deadline') },
+  { id: 'metrics', label: k('Metrics'), icon: BarChart3, keys: 'G M', subtitle: k('Agents, team flow, DORA, knowledge and AI quality') },
+  { id: 'settings', label: k('Settings'), icon: Settings, keys: 'G C', subtitle: k('Integrations, limits and preferences') },
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
-  ['Ctrl K', k('Paleta de comandos')], ['G H', k('Ir para Hoje')], ['G A', k('Ir para Agentes')], ['G D', k('Ir para PRs e deploy')], ['G E', k('Ir para Execuções')], ['G P', k('Ir para Produto')], ['G S', k('Ir para Infra')], ['G I', k('Ir para Incidentes')], ['G R', k('Ir para Decisões')], ['G M', k('Ir para Métricas')],
-  ['G C', k('Ir para Configuração')], ['N', k('Nova tarefa de agente')], ['R', k('Sincronizar agora (GitHub/Discord)')], ['T', k('Alternar tema')], ['L', k('Mudar idioma (português / inglês)')], ['?', k('Mostrar atalhos')],
+  ['Ctrl K', k('Command palette')], ['G H', k('Go to Today')], ['G A', k('Go to Agents')], ['G D', k('Go to PRs and deploys')], ['G E', k('Go to Runs')], ['G P', k('Go to Product')], ['G S', k('Go to Infra')], ['G I', k('Go to Incidents')], ['G R', k('Go to Decisions')], ['G M', k('Go to Metrics')],
+  ['G C', k('Go to Settings')], ['N', k('New agent task')], ['R', k('Sync now (GitHub/Discord)')], ['T', k('Toggle theme')], ['L', k('Switch language (Portuguese / English)')], ['?', k('Show shortcuts')],
 ];
 
 const THEME_NEXT: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' };
 const THEME_ICON = { system: Monitor, light: Sun, dark: Moon } as const;
-const THEME_LABEL: Record<ThemePref, string> = { system: k('sistema'), light: k('claro'), dark: k('escuro') };
+const THEME_LABEL: Record<ThemePref, string> = { system: k('system'), light: k('light'), dark: k('dark') };
 
 export function App() {
   const qc = useQueryClient();
@@ -64,7 +64,7 @@ export function App() {
   const [notifyPref, setNotifyPref] = usePref<'on' | 'off'>('notify', 'off');
   const [view, setView] = usePref<View>('view', 'overview');
   const [lang, setLang] = usePref<Lang>('lang', getLang());
-  applyLang(lang); // antes de renderizar os filhos: t() e os formatadores leem o idioma atual
+  applyLang(lang); // before rendering the children: t() and the formatters read the current language
   const toggleLang = () => setLang(lang === 'en' ? 'pt-BR' : 'en');
   const [palette, setPalette] = useState(false);
   const [help, setHelp] = useState(false);
@@ -104,10 +104,10 @@ export function App() {
             <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" /></div>
             <div className="leading-tight">
               <p className="text-sm font-semibold tracking-tight">TLDeck</p>
-              <p className="text-[11px] text-muted-foreground">{t('painel do Tech Lead')}</p>
+              <p className="text-[11px] text-muted-foreground">{t('Tech Lead deck')}</p>
             </div>
           </div>
-          <nav className="flex-1 space-y-0.5 px-2 py-2" aria-label={t('Navegação principal')}>
+          <nav className="flex-1 space-y-0.5 px-2 py-2" aria-label={t('Main navigation')}>
             {NAV.map(n => {
               const badge = n.id === 'agents' && needs + review > 0 ? needs + review : 0;
               return (
@@ -124,11 +124,11 @@ export function App() {
           </nav>
           <div className="space-y-2 border-t p-3">
             <Button variant="outline" size="sm" className="w-full justify-start text-muted-foreground" onClick={() => setPalette(true)}>
-              <CommandIcon /> {t('Comandos')} <Kbd className="ml-auto">Ctrl K</Kbd>
+              <CommandIcon /> {t('Commands')} <Kbd className="ml-auto">Ctrl K</Kbd>
             </Button>
             <div className="flex items-center gap-2 px-1 text-[11px] text-muted-foreground">
               <Dot tone={live.conn === 'live' ? 'success' : 'warning'} pulse={live.conn !== 'live'} />
-              {live.conn === 'live' ? t('ao vivo · 127.0.0.1') : live.conn === 'connecting' ? t('conectando…') : t('reconectando…')}
+              {live.conn === 'live' ? t('live · 127.0.0.1') : live.conn === 'connecting' ? t('connecting…') : t('reconnecting…')}
             </div>
           </div>
         </aside>
@@ -141,33 +141,33 @@ export function App() {
               <p className="hidden truncate text-xs text-muted-foreground sm:block">{t(current.subtitle)}</p>
             </div>
             {boardStatus?.demo && (
-              <Tooltip><TooltipTrigger asChild><span><Pill tone="info">{t('modo demonstração')}</Pill></span></TooltipTrigger>
-                <TooltipContent>{t('Dados fictícios. Nenhuma integração real está ligada e nada sai da sua máquina.')}</TooltipContent></Tooltip>
+              <Tooltip><TooltipTrigger asChild><span><Pill tone="info">{t('demo mode')}</Pill></span></TooltipTrigger>
+                <TooltipContent>{t('Fictitious data. No real integration is on and nothing leaves your machine.')}</TooltipContent></Tooltip>
             )}
-            <nav className="ml-2 flex gap-1 md:hidden" aria-label={t('Navegação')}>
+            <nav className="ml-2 flex gap-1 md:hidden" aria-label={t('Navigation')}>
               {NAV.map(n => (
                 <Button key={n.id} size="icon-sm" variant={view === n.id ? 'secondary' : 'ghost'} onClick={() => setView(n.id)} aria-label={t(n.label)}><n.icon /></Button>
               ))}
             </nav>
             <div className="ml-auto flex items-center gap-1">
               <Tooltip><TooltipTrigger asChild>
-                <Button size="sm" variant="ghost" onClick={refresh} disabled={syncNow.isPending} aria-label={t('Sincronizar agora')} className="text-muted-foreground">
+                <Button size="sm" variant="ghost" onClick={refresh} disabled={syncNow.isPending} aria-label={t('Sync now')} className="text-muted-foreground">
                   {syncing ? <Loader2 className="animate-spin" /> : <RefreshCw />}
-                  <span className="hidden text-xs lg:inline">{syncing ? t('sincronizando…') : lastSync ? t('há {time}', { time: ago(Date.parse(lastSync)) }) : t('sincronizar')}</span>
+                  <span className="hidden text-xs lg:inline">{syncing ? t('syncing…') : lastSync ? t('{time} ago', { time: ago(Date.parse(lastSync)) }) : t('sync')}</span>
                 </Button>
-              </TooltipTrigger><TooltipContent>{t('Sincronizar GitHub e Discord agora')} <Kbd>R</Kbd></TooltipContent></Tooltip>
+              </TooltipTrigger><TooltipContent>{t('Sync GitHub and Discord now')} <Kbd>R</Kbd></TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger asChild>
-                <Button size="icon-sm" variant="ghost" onClick={cycleTheme} aria-label={t('Tema: {theme}', { theme: t(THEME_LABEL[theme]) })}><ThemeIcon /></Button>
-              </TooltipTrigger><TooltipContent>{t('Tema: {theme}', { theme: t(THEME_LABEL[theme]) })} <Kbd>T</Kbd></TooltipContent></Tooltip>
+                <Button size="icon-sm" variant="ghost" onClick={cycleTheme} aria-label={t('Theme: {theme}', { theme: t(THEME_LABEL[theme]) })}><ThemeIcon /></Button>
+              </TooltipTrigger><TooltipContent>{t('Theme: {theme}', { theme: t(THEME_LABEL[theme]) })} <Kbd>T</Kbd></TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger asChild>
-                <Button size="sm" variant="ghost" onClick={toggleLang} aria-label={t('Idioma: {lang}', { lang: lang === 'en' ? 'English' : 'Português' })} className="px-2 text-xs text-muted-foreground">
+                <Button size="sm" variant="ghost" onClick={toggleLang} aria-label={t('Language: {lang}', { lang: lang === 'en' ? 'English' : 'Português' })} className="px-2 text-xs text-muted-foreground">
                   <Languages /> {lang === 'en' ? 'EN' : 'PT'}
                 </Button>
-              </TooltipTrigger><TooltipContent>{t('Mudar idioma (português / inglês)')} <Kbd>L</Kbd></TooltipContent></Tooltip>
+              </TooltipTrigger><TooltipContent>{t('Switch language (Portuguese / English)')} <Kbd>L</Kbd></TooltipContent></Tooltip>
               <Tooltip><TooltipTrigger asChild>
-                <Button size="icon-sm" variant="ghost" onClick={() => setHelp(true)} aria-label={t('Atalhos')}><Keyboard /></Button>
-              </TooltipTrigger><TooltipContent>{t('Atalhos')} <Kbd>?</Kbd></TooltipContent></Tooltip>
-              <Button size="sm" className="ml-1" onClick={() => setLaunch(true)}><Plus /> <span className="hidden sm:inline">{t('Nova tarefa')}</span></Button>
+                <Button size="icon-sm" variant="ghost" onClick={() => setHelp(true)} aria-label={t('Shortcuts')}><Keyboard /></Button>
+              </TooltipTrigger><TooltipContent>{t('Shortcuts')} <Kbd>?</Kbd></TooltipContent></Tooltip>
+              <Button size="sm" className="ml-1" onClick={() => setLaunch(true)}><Plus /> <span className="hidden sm:inline">{t('New task')}</span></Button>
             </div>
           </header>
 
@@ -189,24 +189,24 @@ export function App() {
         </div>
       </div>
 
-      <CommandDialog open={palette} onOpenChange={setPalette} title={t('Paleta de comandos')} description={t('Navegue e execute ações')}>
-        <CommandInput placeholder={t('Buscar sessão, tela ou ação…')} />
+      <CommandDialog open={palette} onOpenChange={setPalette} title={t('Command palette')} description={t('Navigate and run actions')}>
+        <CommandInput placeholder={t('Search a session, screen or action…')} />
         <CommandList>
-          <CommandEmpty>{t('Nada encontrado.')}</CommandEmpty>
-          <CommandGroup heading={t('Ações')}>
-            <CommandItem onSelect={run(() => setLaunch(true))}><Plus /> {t('Nova tarefa de agente')}<CommandShortcut>N</CommandShortcut></CommandItem>
-            <CommandItem onSelect={run(refresh)}><RefreshCw /> {t('Sincronizar agora')}<CommandShortcut>R</CommandShortcut></CommandItem>
-            <CommandItem onSelect={run(cycleTheme)}><ThemeIcon /> {t('Alternar tema')}<CommandShortcut>T</CommandShortcut></CommandItem>
-            <CommandItem onSelect={run(toggleLang)}><Languages /> {t('Mudar idioma (português / inglês)')}<CommandShortcut>L</CommandShortcut></CommandItem>
+          <CommandEmpty>{t('Nothing found.')}</CommandEmpty>
+          <CommandGroup heading={t('Actions')}>
+            <CommandItem onSelect={run(() => setLaunch(true))}><Plus /> {t('New agent task')}<CommandShortcut>N</CommandShortcut></CommandItem>
+            <CommandItem onSelect={run(refresh)}><RefreshCw /> {t('Sync now')}<CommandShortcut>R</CommandShortcut></CommandItem>
+            <CommandItem onSelect={run(cycleTheme)}><ThemeIcon /> {t('Toggle theme')}<CommandShortcut>T</CommandShortcut></CommandItem>
+            <CommandItem onSelect={run(toggleLang)}><Languages /> {t('Switch language (Portuguese / English)')}<CommandShortcut>L</CommandShortcut></CommandItem>
           </CommandGroup>
           <CommandSeparator />
-          <CommandGroup heading={t('Ir para')}>
+          <CommandGroup heading={t('Go to')}>
             {NAV.map(n => <CommandItem key={n.id} onSelect={run(() => setView(n.id))}><n.icon /> {t(n.label)}<CommandShortcut>{n.keys}</CommandShortcut></CommandItem>)}
           </CommandGroup>
           {live.sessions.length > 0 && (
             <>
               <CommandSeparator />
-              <CommandGroup heading={t('Sessões de agentes')}>
+              <CommandGroup heading={t('Agent sessions')}>
                 {live.sessions.slice(0, 20).map(s => (
                   <CommandItem key={s.id} value={`${s.project} ${s.taskId ?? ''} ${s.title ?? s.task ?? ''} ${s.id}`} onSelect={run(() => setView('agents'))}>
                     <Dot tone={s.state === 'needs_you' ? 'danger' : s.state === 'review' ? 'warning' : s.state === 'working' ? 'info' : 'neutral'} />
@@ -223,8 +223,8 @@ export function App() {
       <Dialog open={help} onOpenChange={setHelp}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{t('Atalhos de teclado')}</DialogTitle>
-            <DialogDescription>{t('Funcionam em qualquer tela, fora de campos de texto.')}</DialogDescription>
+            <DialogTitle>{t('Keyboard shortcuts')}</DialogTitle>
+            <DialogDescription>{t('They work on any screen, outside text fields.')}</DialogDescription>
           </DialogHeader>
           <dl className="grid grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 text-sm">
             {SHORTCUTS.map(([k, d]) => (

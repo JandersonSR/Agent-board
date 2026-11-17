@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { reviewersOf } from './service.js';
 
 describe('reviewersOf', () => {
-  it('sem autor, sem bots, sem repetição, com nome do time', () => {
+  it('no author, no bots, no repeats, with the team member name', () => {
     const names = new Map([['bruno-dev', 'Bruno']]);
     const pr = {
       author: { login: 'ana' },

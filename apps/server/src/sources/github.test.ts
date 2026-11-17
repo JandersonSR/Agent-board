@@ -6,7 +6,7 @@ const issue = (n: number) => ({
   closedByPullRequestsReferences: { nodes: [] }, timelineItems: { nodes: [] },
 });
 
-/** GitHub falso: recusa (502) consultas com mais de 2 issues, como acontece com lotes pesados. */
+/** Fake GitHub: refuses (502) queries with more than 2 issues, as happens with heavy batches. */
 function fakeGh(maxPerQuery: number) {
   const calls: number[] = [];
   const gh = {
@@ -21,20 +21,20 @@ function fakeGh(maxPerQuery: number) {
 }
 
 describe('fetchIssueLinks', () => {
-  it('divide o lote quando o GitHub recusa e não perde nenhuma issue', async () => {
+  it('splits the batch when GitHub refuses and loses no issue', async () => {
     const { gh, calls } = fakeGh(2);
     const refs = [1, 2, 3, 4, 5, 6, 7].map(n => `o/board#${n}`);
     const out = await fetchIssueLinks(gh, refs, false);
     expect(out.map(i => i.number).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(calls[0]).toBe(5); // lote padrão de 5, recusado e dividido
+    expect(calls[0]).toBe(5); // default batch of 5, refused and split
   });
 
-  it('erro persiste com uma issue só: propaga', async () => {
+  it('the error persists with a single issue: propagates', async () => {
     const { gh } = fakeGh(0);
     await expect(fetchIssueLinks(gh, ['o/board#1'], false)).rejects.toThrow('502');
   });
 
-  it('parseIssueRef aceita link e org/repo#n', () => {
+  it('parseIssueRef accepts a link and org/repo#n', () => {
     expect(parseIssueRef('https://github.com/o/board/issues/12')).toEqual({ owner: 'o', repo: 'board', number: 12 });
     expect(parseIssueRef('o/board#12')).toEqual({ owner: 'o', repo: 'board', number: 12 });
     expect(parseIssueRef('board 12')).toBeUndefined();

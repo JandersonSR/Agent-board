@@ -6,8 +6,8 @@ const isTyping = (t: EventTarget | null) =>
   t instanceof HTMLElement && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
 
 /**
- * Atalhos globais. Chaves: "mod+k" (Ctrl/⌘), "?", "g h" (sequência), "r".
- * Ignorados enquanto se digita num campo (exceto combinações com mod).
+ * Global shortcuts. Keys: "mod+k" (Ctrl/⌘), "?", "g h" (sequence), "r".
+ * Ignored while typing in a field (except combinations with mod).
  */
 export function useHotkeys(map: HotkeyMap): void {
   const ref = useRef(map);

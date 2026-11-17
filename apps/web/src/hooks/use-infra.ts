@@ -1,4 +1,4 @@
-// Infraestrutura em tempo real (só leitura): recursos, alertas disparados, deploys e eventos.
+// Real-time infrastructure (read-only): resources, firing alerts, deploys and events.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -47,7 +47,7 @@ export function useIncidentFromAlert() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (fingerprint: string) => api.post<{ id: string }>('/api/infra/incident', { fingerprint }),
-    onSuccess: () => { for (const key of ['infra', 'incidents', 'staff-alerts']) void qc.invalidateQueries({ queryKey: [key] }); toast.success(t('Incidente aberto a partir do alerta')); },
+    onSuccess: () => { for (const key of ['infra', 'incidents', 'staff-alerts']) void qc.invalidateQueries({ queryKey: [key] }); toast.success(t('Incident opened from the alert')); },
     onError: e => toast.error((e as Error).message),
   });
 }

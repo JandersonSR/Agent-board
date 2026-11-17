@@ -1,4 +1,4 @@
-// RAGs de features: estado de cada um e busca (usada no prompt das sessões da Fase 3).
+// Feature RAGs: the state of each one and search (used in the Phase 3 session prompt).
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import type { FeatMapRegistry } from '../featmap/registry.js';

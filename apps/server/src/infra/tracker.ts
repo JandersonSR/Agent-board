@@ -1,8 +1,8 @@
-// Acompanhamento entre leituras: transforma "fotos" da infraestrutura em eventos.
-// - alertas dos provedores + alertas de limite sustentado (CPU/memória) + recurso fora do ar;
-// - disparou / resolveu (o que some da lista resolve; provedor que falhou na leitura não resolve nada);
-// - mudança de estado de recurso e deploys novos.
-// Função pura: o serviço guarda o estado e persiste os eventos.
+// Tracking across reads: turns infrastructure "snapshots" into events.
+// - provider alerts + sustained threshold alerts (CPU/memory) + resource down;
+// - fired / resolved (whatever leaves the list resolves; a provider that failed the read resolves nothing);
+// - resource state changes and new deploys.
+// Pure function: the service keeps the state and persists the events.
 import type { AlertSeverity, InfraAlert, InfraDeploy, InfraProviderId, InfraResource, InfraSnapshot, ResourceStatus } from './types.js';
 
 export interface TrackerRules { cpuWarn: number; cpuCrit: number; memCrit: number; sustainMin: number; lang?: 'pt-BR' | 'en' | undefined }
@@ -22,7 +22,7 @@ export interface FiringAlert extends InfraAlert { firstSeenAt: string; synthetic
 
 export interface TrackerState {
   firing: Map<string, FiringAlert>;
-  /** "recurso:métrica" → desde quando está acima do limite. */
+  /** "resource:metric" → since when it has been above the threshold. */
   above: Map<string, { since: number; level: AlertSeverity }>;
   statuses: Map<string, ResourceStatus>;
   deploys: Set<string>;
@@ -44,7 +44,7 @@ function thresholdAlerts(r: InfraResource, state: TrackerState, rules: TrackerRu
     if (value === undefined || value < warn) { state.above.delete(key); continue; }
     const level: AlertSeverity = value >= crit ? 'critical' : 'warning';
     const prev = state.above.get(key);
-    // Subir de nível reinicia a contagem do nível novo, mas mantém o início para o "desde".
+    // Going up a level restarts the count for the new level but keeps the start for "since".
     const since = prev ? prev.since : now;
     state.above.set(key, { since, level });
     if (now - since >= rules.sustainMin * 60_000) {
@@ -76,7 +76,7 @@ export function step(
     state.statuses.set(r.id, r.status);
   }
 
-  // Disparos novos (o primeiro alerta "status:" mantém o horário em que foi visto pela primeira vez).
+  // New firings (the first "status:" alert keeps the time it was first seen).
   for (const [fp, a] of current) {
     const known = state.firing.get(fp);
     if (known) { state.firing.set(fp, { ...known, ...a, startedAt: fp.startsWith('status:') ? known.startedAt : a.startedAt, severity: a.severity, title: a.title }); continue; }
@@ -84,7 +84,7 @@ export function step(
     state.firing.set(fp, f);
     events.push({ key: `fired:${fp}:${a.startedAt}`, kind: 'alert_fired', provider: a.provider, at: a.startedAt, title: a.title, severity: a.severity, fingerprint: fp, resourceId: a.resourceId, resourceName: a.resourceName });
   }
-  // Resolvidos: sumiram da lista, a não ser que o provedor tenha falhado nesta leitura.
+  // Resolved: they left the list, unless the provider failed on this read.
   for (const [fp, f] of state.firing) {
     if (current.has(fp) || failedProviders.has(f.provider)) continue;
     state.firing.delete(fp);
@@ -103,7 +103,7 @@ export function step(
 
 export const sevRank = (s: AlertSeverity) => (s === 'critical' ? 0 : s === 'warning' ? 1 : 2);
 
-/** Deploy bem-sucedido no mesmo recurso até `windowMin` minutos antes do alerta: suspeita de causa. */
+/** Successful deploy on the same resource up to `windowMin` minutes before the alert: suspected cause. */
 export function suspectDeploy(alert: Pick<InfraAlert, 'resourceId' | 'resourceName' | 'startedAt'>, deploys: Array<Pick<InfraEvent, 'resourceId' | 'resourceName' | 'at' | 'deploy' | 'title'>>, windowMin = 60) {
   const t = Date.parse(alert.startedAt);
   const sameResource = (d: Pick<InfraEvent, 'resourceId' | 'resourceName'>) =>

@@ -1,7 +1,7 @@
-// painel_sessoes: execuções de agentes disparadas pelo painel (review, tarefa).
-// Todo texto que entra aqui já vem mascarado. O log é limitado às últimas 400 entradas.
+// deck_runs: agent runs started from the deck (review, task).
+// Every text stored here is already masked. The log keeps only the last 400 entries.
 import { ObjectId } from 'mongodb';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import type { RunUsage } from './claude-runner.js';
 import type { FindingDecision } from '../domain/review-quality.js';
 import type { ReviewResultT } from './review.js';
@@ -9,7 +9,7 @@ import type { ReviewResultT } from './review.js';
 export type RunKind = 'review' | 'task';
 export type RunStatus = 'running' | 'done' | 'failed' | 'timeout' | 'cancelled';
 
-/** Etapas da tarefa: plano (só leitura) → aprovação → implementação → verificação → PR rascunho. */
+/** Task stages: plan (read-only) → approval → implementation → verification → draft PR. */
 export type TaskPhase = 'planning' | 'awaiting_approval' | 'implementing' | 'verifying' | 'ready' | 'pr_opened' | 'discarded' | 'failed';
 
 export interface TaskPlan { summary: string; steps: string[]; files: string[]; tests: string[]; risks: string[]; questions: string[] }
@@ -23,11 +23,11 @@ export interface TaskState {
   issueBody?: string;    // mascarado
   repo: string;          // owner/name
   repoPath: string;      // clone local
-  worktree: string;      // worktree isolada da tarefa
+  worktree: string;      // the task's isolated worktree
   branch: string;
   base: string;          // branch base (ex.: origin/main)
   plan?: TaskPlan;
-  notes?: string;        // observações do Tech Lead ao aprovar
+  notes?: string;        // the Tech Lead's notes when approving
   approvedAt?: Date;
   implementation?: TaskImplementation;
   verify?: TaskVerify;
@@ -57,21 +57,21 @@ export interface RunDoc {
   usage?: RunUsage;
   claudeSessionId?: string;
   actions: RunAction[];
-  /** Versão do prompt (modelo + skill + modelo de IA), para comparar a qualidade entre versões. */
+  /** Prompt version (template + skill + AI model), to compare quality across versions. */
   promptVersion?: string;
-  /** O Tech Lead editou o prompt na prévia antes de rodar. */
+  /** The Tech Lead edited the prompt in the preview before running. */
   promptEdited?: boolean;
-  /** Julgamento do Tech Lead para cada achado (mesma ordem de result.review.findings). */
+  /** The Tech Lead's judgment for each finding (same order as result.review.findings). */
   findingDecisions?: FindingDecision[];
-  /** Campos da tarefa de ponta a ponta (kind = 'task'). */
+  /** End-to-end task fields (kind = 'task'). */
   task?: TaskState;
-  /** Review rodada contra um caso do conjunto fixo de avaliação (painel_avaliacoes). Nunca vira review no GitHub. */
+  /** Review run against a case of the fixed evaluation set (deck_evals). Never becomes a GitHub review. */
   evalCaseId?: string;
 }
 
 export class RunsRepo {
-  constructor(private readonly store: PainelStore) {}
-  private get col() { return this.store.collection<RunDoc>('painel_sessoes'); }
+  constructor(private readonly store: DeckStore) {}
+  private get col() { return this.store.collection<RunDoc>('deck_runs'); }
 
   async create(doc: Omit<RunDoc, '_id'>): Promise<string> {
     const r = await this.col.insertOne(doc as RunDoc);
@@ -112,7 +112,7 @@ export class RunsRepo {
     if (Object.keys(set).length) await this.col.updateOne({ _id: new ObjectId(id) }, { $set: set });
   }
 
-  /** Reviews concluídas desde uma data, só com o que a medição de qualidade precisa. */
+  /** Reviews finished since a date, with only what the quality measurement needs. */
   async reviewsForQuality(since: Date): Promise<RunDoc[]> {
     return (await this.col.find(
       { kind: 'review', status: 'done', startedAt: { $gte: since }, evalCaseId: { $exists: false } },
@@ -120,7 +120,7 @@ export class RunsRepo {
     ).toArray()) as RunDoc[];
   }
 
-  /** Execuções do conjunto fixo de avaliação, só com o que o recall usa. */
+  /** Runs of the fixed evaluation set, with only what recall uses. */
   async evalRuns(): Promise<RunDoc[]> {
     return (await this.col.find(
       { evalCaseId: { $exists: true } },
@@ -132,9 +132,9 @@ export class RunsRepo {
     return this.col.countDocuments({ startedAt: { $gte: since } });
   }
 
-  /** Execuções que ficaram "running" após um reinício do servidor viram "failed". */
+  /** Runs left "running" after a server restart become "failed". */
   async failOrphans(): Promise<void> {
-    await this.col.updateMany({ kind: 'task', status: 'running' }, { $set: { 'task.phase': 'failed', 'task.error': 'servidor reiniciado durante a execução' } });
-    await this.col.updateMany({ status: 'running' }, { $set: { status: 'failed', endedAt: new Date(), 'result.error': 'servidor reiniciado durante a execução' } });
+    await this.col.updateMany({ kind: 'task', status: 'running' }, { $set: { 'task.phase': 'failed', 'task.error': 'server restarted during the run' } });
+    await this.col.updateMany({ status: 'running' }, { $set: { status: 'failed', endedAt: new Date(), 'result.error': 'server restarted during the run' } });
   }
 }

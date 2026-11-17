@@ -1,4 +1,4 @@
-// Peças comuns das abas de Métricas.
+// Shared pieces of the Metrics tabs.
 import { dur } from '@/lib/format';
 import { locale } from '@/lib/i18n';
 
@@ -14,7 +14,7 @@ export function Tile({ label, value, sub }: { label: string; value: string; sub?
 
 export const pct = (x: number | null) => (x === null ? '—' : `${Math.round(x * 100)}%`);
 export const durOrDash = (x: number | null) => (x === null ? '—' : dur(x));
-/** Prazos longos (lead time, recuperação): a partir de 2 dias, em dias com uma casa. */
+/** Long durations (lead time, recovery): from 2 days on, in days with one decimal. */
 export const durDays = (x: number | null) => {
   if (x === null) return '—';
   if (x < 2 * 86_400_000) return dur(x);

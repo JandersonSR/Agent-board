@@ -1,5 +1,5 @@
-// Carrega e mantém em cache os RAGs de features (clones locais). Recarrega quando o
-// packs/_index.yaml muda (mtime). Só lê arquivos e roda git de leitura; nunca altera os clones.
+// Loads and caches the feature RAGs (local clones). Reloads when
+// packs/_index.yaml changes (mtime). Only reads files and runs read-only git; never changes the clones.
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -21,7 +21,7 @@ function loadPacks(name: string, root: string): FeatPack[] {
   const out: FeatPack[] = [];
   for (const entry of index.packs) {
     const file = path.resolve(root, entry.path);
-    if (!file.startsWith(path.resolve(root))) continue; // nunca sair da pasta do RAG
+    if (!file.startsWith(path.resolve(root))) continue; // never leave the RAG folder
     let doc: Record<string, unknown> = {};
     try { doc = (parseYaml(fs.readFileSync(file, 'utf8')) ?? {}) as Record<string, unknown>; } catch { /* pack ilegível: usa o índice */ }
     const e = entry as Record<string, unknown>;
@@ -29,7 +29,7 @@ function loadPacks(name: string, root: string): FeatPack[] {
     out.push({
       map: name,
       id: entry.id,
-      // Sem título (ou título = id): usa o slug legível.
+      // No title (or title = id): uses the readable slug.
       title: (() => {
         const t = str(doc.title ?? e.title);
         const slug = str(doc.slug ?? e.slug);
@@ -77,14 +77,14 @@ export class FeatMapRegistry {
 
     const base: FeatMapInfo = { name, path: root, ok: false, packs: 0, hasAgentsMd: fs.existsSync(path.join(root, 'AGENTS.md')) };
     let entry: { mtime: number; packs: FeatPack[]; info: FeatMapInfo };
-    if (!fs.existsSync(root)) entry = { mtime: 0, packs: [], info: { ...base, error: 'pasta não existe (clone o repositório)' } };
-    else if (!mtime) entry = { mtime: 0, packs: [], info: { ...base, error: 'packs/_index.yaml não encontrado', ...(await gitInfo(root)) } };
+    if (!fs.existsSync(root)) entry = { mtime: 0, packs: [], info: { ...base, error: 'folder does not exist (clone the repository)' } };
+    else if (!mtime) entry = { mtime: 0, packs: [], info: { ...base, error: 'packs/_index.yaml not found', ...(await gitInfo(root)) } };
     else {
       try {
         const packs = loadPacks(name, root);
         entry = { mtime, packs, info: { ...base, ok: true, packs: packs.length, ...(await gitInfo(root)) } };
       } catch (e) {
-        entry = { mtime: 0, packs: [], info: { ...base, error: `índice inválido: ${(e as Error).message.split('\n')[0]}` } };
+        entry = { mtime: 0, packs: [], info: { ...base, error: `invalid index: ${(e as Error).message.split('\n')[0]}` } };
       }
     }
     this.cache.set(name, entry);
@@ -103,7 +103,7 @@ export class FeatMapRegistry {
     return { maps, hits };
   }
 
-  /** Conteúdo do pack para o prompt (Fase 3). */
+  /** Pack content for the prompt (Phase 3). */
   readPack(p: FeatPack): string {
     return fs.readFileSync(p.file, 'utf8');
   }

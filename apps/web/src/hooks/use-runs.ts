@@ -1,4 +1,4 @@
-// Execuções de agentes (review/tarefa) e ações sobre PRs.
+// Agent runs (review/task) and actions on PRs.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -53,7 +53,7 @@ export function useSetFeedback(id: string) {
   return useMutation({
     mutationFn: (decisions: FindingDecision[]) => api.post<{ decisions: FindingDecision[] }>(`/api/runs/${id}/feedback`, { decisions }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['run', id] }); void qc.invalidateQueries({ queryKey: ['quality'] }); },
-    onError: (e: Error) => toast.error(t('Não foi possível salvar'), { description: e.message }),
+    onError: (e: Error) => toast.error(t('Could not save'), { description: e.message }),
   });
 }
 
@@ -78,16 +78,16 @@ export function useStartReview(onStarted?: (id: string) => void) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (b: { url: string; title?: string; prompt?: string }) => api.post<{ id: string }>('/api/review/run', b),
-    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success(t('Review iniciada em segundo plano')); onStarted?.(r.id); },
-    onError: (e: Error) => toast.error(t('Não foi possível iniciar'), { description: e.message }),
+    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success(t('Review started in the background')); onStarted?.(r.id); },
+    onError: (e: Error) => toast.error(t('Could not start'), { description: e.message }),
   });
 }
 
 export function useOpenReviewTerminal() {
   return useMutation({
     mutationFn: (url: string) => api.post<{ dir: string }>('/api/review/terminal', { url }),
-    onSuccess: (r) => toast.success(t('Terminal aberto com o Claude'), { description: r.dir }),
-    onError: (e: Error) => toast.error(t('Não foi possível abrir o terminal'), { description: e.message }),
+    onSuccess: (r) => toast.success(t('Terminal opened with Claude'), { description: r.dir }),
+    onError: (e: Error) => toast.error(t('Could not open the terminal'), { description: e.message }),
   });
 }
 
@@ -97,9 +97,9 @@ export function useOpenReviewCursor() {
     onSuccess: async (r) => {
       let copied = false;
       try { await navigator.clipboard.writeText(r.command); copied = true; } catch { /* sem clipboard */ }
-      toast.success(t('Cursor aberto'), { description: t(copied ? 'Comando copiado — cole no chat: {cmd}' : 'Cole no chat: {cmd}', { cmd: r.command }), duration: 8000 });
+      toast.success(t('Cursor opened'), { description: t(copied ? 'Command copied — paste it in the chat: {cmd}' : 'Paste it in the chat: {cmd}', { cmd: r.command }), duration: 8000 });
     },
-    onError: (e: Error) => toast.error(t('Não foi possível abrir o Cursor'), { description: e.message }),
+    onError: (e: Error) => toast.error(t('Could not open Cursor'), { description: e.message }),
   });
 }
 
@@ -108,7 +108,7 @@ export function useCancelRun() {
   return useMutation({
     mutationFn: (id: string) => api.post(`/api/runs/${id}/cancel`),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['runs'] }); void qc.invalidateQueries({ queryKey: ['run'] }); },
-    onError: (e: Error) => toast.error(t('Não foi possível cancelar'), { description: e.message }),
+    onError: (e: Error) => toast.error(t('Could not cancel'), { description: e.message }),
   });
 }
 
@@ -118,12 +118,12 @@ export function usePendingReview() {
     mutationFn: (id: string) => api.post<{ url: string; comments: number; unanchored: number }>(`/api/runs/${id}/pending-review`),
     onSuccess: (r) => {
       void qc.invalidateQueries({ queryKey: ['run'] });
-      toast.success(t('Review PENDING criada no GitHub'), {
-        description: t('{lines} comentário(s) nas linhas · {body} no corpo. Confira e submeta no GitHub.', { lines: r.comments, body: r.unanchored }),
-        action: { label: t('Abrir PR'), onClick: () => window.open(r.url, '_blank', 'noopener') }, duration: 10_000,
+      toast.success(t('PENDING review created on GitHub'), {
+        description: t('{lines} line comment(s) · {body} in the body. Check it and submit it on GitHub.', { lines: r.comments, body: r.unanchored }),
+        action: { label: t('Open PR'), onClick: () => window.open(r.url, '_blank', 'noopener') }, duration: 10_000,
       });
     },
-    onError: (e: Error) => toast.error(t('Não foi possível criar a review'), { description: e.message }),
+    onError: (e: Error) => toast.error(t('Could not create the review'), { description: e.message }),
   });
 }
 
@@ -138,8 +138,8 @@ export function useStartTask(onStarted?: (id: string) => void) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (b: { url: string; prompt?: string }) => api.post<{ id: string }>('/api/task/start', b),
-    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success(t('Tarefa iniciada: o agente está planejando')); onStarted?.(r.id); },
-    onError: (e: Error) => toast.error(t('Não foi possível iniciar'), { description: e.message }),
+    onSuccess: (r) => { void qc.invalidateQueries({ queryKey: ['runs'] }); toast.success(t('Task started: the agent is planning')); onStarted?.(r.id); },
+    onError: (e: Error) => toast.error(t('Could not start'), { description: e.message }),
   });
 }
 
@@ -152,9 +152,9 @@ function useTaskAction<B>(path: string, ok: string, fail: string) {
   });
 }
 
-export const useApproveTask = () => useTaskAction<{ notes?: string }>('approve', k('Plano aprovado: o agente está implementando'), k('Não foi possível aprovar'));
-export const useDiscardTask = () => useTaskAction<never>('discard', k('Tarefa descartada'), k('Não foi possível descartar'));
-export const useTaskPr = () => useTaskAction<never>('task-pr', k('PR em rascunho criado'), k('Não foi possível criar o PR'));
+export const useApproveTask = () => useTaskAction<{ notes?: string }>('approve', k('Plan approved: the agent is implementing'), k('Could not approve'));
+export const useDiscardTask = () => useTaskAction<never>('discard', k('Task discarded'), k('Could not discard'));
+export const useTaskPr = () => useTaskAction<never>('task-pr', k('Draft PR created'), k('Could not create the PR'));
 
 export const useTaskDiff = (id: string, enabled: boolean) => useQuery({
   queryKey: ['task-diff', id],

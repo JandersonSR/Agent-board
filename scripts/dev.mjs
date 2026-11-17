@@ -1,4 +1,4 @@
-// Sobe API (tsx watch) e web (Vite) juntos, sem dependência extra. Ctrl+C encerra os dois.
+// Starts the API (tsx watch) and the web (Vite) together, with no extra dependency. Ctrl+C stops both.
 import { spawn } from 'node:child_process';
 
 const procs = [
@@ -10,7 +10,7 @@ const procs = [
   const pipe = (stream, out) => stream.on('data', d => String(d).split(/\r?\n/).filter(Boolean).forEach(l => out.write(`${tag} ${l}\n`)));
   pipe(p.stdout, process.stdout);
   pipe(p.stderr, process.stderr);
-  p.on('exit', code => { console.log(`${tag} saiu (${code})`); shutdown(); });
+  p.on('exit', code => { console.log(`${tag} exited (${code})`); shutdown(); });
   return p;
 });
 

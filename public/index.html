@@ -336,7 +336,7 @@ async function copy(text) {
   catch { prompt(t('copyPrompt'), text); }
 }
 
-// Estado de interface que precisa sobreviver aos redesenhos (cada evento redesenha o quadro).
+// UI state that must survive redraws (each event redraws the board).
 const openReview = new Set();
 const openDetails = new Set();
 const diffCache = new Map(); // id -> { at, data }
@@ -404,7 +404,7 @@ function reviewHtml(s) {
   const c = diffCache.get(s.id);
   if (!c) return `<div class="review-box">${t('loading')}</div>`;
   const d = c.data;
-  if (d.error) return `<div class="review-box">${prHtml(s)}<span class="err">${esc(d.error === 'não é um repositório git' ? t('notGit') : d.error)}</span></div>`;
+  if (d.error) return `<div class="review-box">${prHtml(s)}<span class="err">${esc(d.error === 'not a git repository' ? t('notGit') : d.error)}</span></div>`;
   return `<div class="review-box">
     ${prHtml(s)}
     <div style="margin-top:6px"><span class="num-add">+${d.add}</span> <span class="num-del">−${d.del}</span> · ${esc(t('vsBase', d.base, d.commits))}
@@ -460,7 +460,7 @@ function card(s) {
   </article>`;
 }
 
-// ---------- Visões ----------
+// ---------- Views ----------
 const COLUMNS = () => [
   { state: 'needs_you', title: t('colNeeds'), empty: t('emptyNeeds') },
   { state: 'review', title: t('colReview'), empty: t('emptyReview') },
@@ -473,7 +473,7 @@ function renderBoard() {
   const cols = COLUMNS();
   const groups = Object.fromEntries(cols.map(c => [c.state, []]));
   for (const s of sessions) groups[columnOf(s)].push(s);
-  // Quem espera há mais tempo aparece primeiro nas colunas que pedem ação.
+  // Whoever has waited longest shows up first in the columns that ask for action.
   for (const k of ['needs_you', 'review']) groups[k].sort((a, b) => a.updatedAt - b.updatedAt);
   return `<div class="board">${cols.map(c => `
     <section class="col" data-state="${c.state}">
@@ -511,7 +511,7 @@ function stackedChart(perDay) {
   const n = perDay.length, bw = Math.min(42, (W - L) / n * 0.62), gx = (W - L) / n;
   const grid = [];
   for (let v = 0; v <= top; v += step) grid.push(`<line x1="${L}" x2="${W}" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${v}${t('hours')}</text>`);
-  // Barra arredondada só no topo (4px), ancorada na base.
+  // Bar rounded only on top (4px), anchored at the base.
   const rect = (x, y0, y1, r, color) => {
     const h = y0 - y1;
     if (h <= 0.5) return '';
@@ -581,7 +581,7 @@ function bindChart() {
 
 function render() {
   const main = document.getElementById('main');
-  // Guarda o que está aberto/digitado para restaurar depois do redesenho.
+  // Keeps what is open/typed to restore it after the redraw.
   main.querySelectorAll('details[data-key]').forEach(d => { if (d.open) openDetails.add(d.dataset.key); else openDetails.delete(d.dataset.key); });
   const reasons = {};
   main.querySelectorAll('.approval').forEach(a => { const i = a.querySelector('[data-reason]'); if (i && i.value) reasons[a.dataset.req] = i.value; });
@@ -633,7 +633,7 @@ async function showPatch(s, file) {
   } catch (e) { document.getElementById('diffBody').textContent = String(e); }
 }
 
-// ---------- Ações ----------
+// ---------- Actions ----------
 document.getElementById('main').addEventListener('click', async e => {
   const btn = e.target.closest('[data-act]');
   if (!btn) {
@@ -695,7 +695,7 @@ document.getElementById('newBtn').onclick = async () => {
     const repos = await (await api('/api/repos')).json();
     document.getElementById('repoList').innerHTML = repos.map(r => `<option value="${esc(r)}">`).join('');
     if (!launchForm.repo.value && repos[0]) launchForm.repo.value = repos[0];
-  } catch { /* sem sugestões */ }
+  } catch { /* no suggestions */ }
   launchDlg.showModal();
 };
 launchForm.worktree.onchange = () => { launchForm.branch.required = launchForm.worktree.checked; };
@@ -730,7 +730,7 @@ function detectChanges() {
         new Notification(`${s.project}: ${s.state === 'needs_you' ? t('colNeeds') : t('colReview')}`,
           { body: s.message || s.title || s.task || '', tag: s.id });
       }
-      // Card pronto para revisar: já busca diff e PR para quem abrir.
+      // Card ready for review: already fetches the diff and PR for whoever opens it.
       if (s.state === 'review' && openReview.has(s.id)) loadReview(s.id, true);
     }
   }
@@ -764,8 +764,8 @@ render();
 connect();
 if (view === 'metrics') loadMetrics();
 
-// Atualiza os "há X min" sem redesenhar (para não fechar listas abertas);
-// redesenha só quando algum card cruza o limite de "travou?".
+// Updates the "X min ago" labels without redrawing (so open lists stay open);
+// redraws only when some card crosses the "stuck?" threshold.
 let staleIds = '';
 setInterval(() => {
   document.querySelectorAll('.ago[data-ts]').forEach(el => { el.textContent = ago(Number(el.dataset.ts)); });

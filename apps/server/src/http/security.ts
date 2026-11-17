@@ -1,9 +1,9 @@
-// Proteções de um servidor que só existe em localhost (herdadas do v2):
-// - Host fixo bloqueia DNS rebinding (um site externo resolvendo para 127.0.0.1);
-// - escritas exigem o cabeçalho X-Agent-Board, que nenhum site consegue enviar sem preflight CORS,
-//   e Origin local (o servidor nunca responde a preflight, então o navegador barra o resto).
+// Protections for a server that only exists on localhost (inherited from v2):
+// - A fixed Host blocks DNS rebinding (an external site resolving to 127.0.0.1);
+// - writes require the X-Agent-Board header, which no website can send without a CORS preflight,
+//   and a local Origin (the server never answers preflights, so the browser blocks the rest).
 
-export const HOST = '127.0.0.1' as const; // não configurável: regra do projeto
+export const HOST = '127.0.0.1' as const; // not configurable: project rule
 
 export interface GuardInput {
   method: string;

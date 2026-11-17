@@ -1,10 +1,10 @@
-// Tempo em dias úteis (seg–sex). Feriados podem ser passados como 'YYYY-MM-DD'.
-// Usado na idade dos reviews e nos avisos (ex.: "PR esperando há mais de 1 dia útil").
+// Time in business days (Mon–Fri). Holidays can be passed as 'YYYY-MM-DD'.
+// Used for review age and warnings (e.g. "PR waiting for more than 1 business day").
 
 const DAY = 86_400_000;
 const isoDay = (d: Date) => d.toISOString().slice(0, 10);
 
-/** Milissegundos úteis entre `from` e `to` (fins de semana e feriados não contam). */
+/** Business milliseconds between `from` and `to` (weekends and holidays do not count). */
 export function businessMs(from: number, to: number, holidays: ReadonlySet<string> = new Set()): number {
   if (to <= from) return 0;
   let total = 0;
@@ -22,5 +22,5 @@ export function businessMs(from: number, to: number, holidays: ReadonlySet<strin
 
 export const businessDays = (from: number, to: number, holidays?: ReadonlySet<string>) => businessMs(from, to, holidays) / DAY;
 
-/** Ajusta um timestamp para o "relógio local" do time (offset em minutos, ex.: -180 para BRT). */
+/** Shifts a timestamp to the team's "local clock" (offset in minutes, e.g. -180 for BRT). */
 export const shiftTz = (ts: number, offsetMin: number) => ts + offsetMin * 60_000;

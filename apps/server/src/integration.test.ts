@@ -1,5 +1,5 @@
-// Integração com banco real: rotas → repositórios → armazenamento.
-// Roda sempre com SQLite (arquivo temporário) e, quando MONGO_TEST_URI existe (CI), também com MongoDB.
+// Integration with a real database: routes → repositories → storage.
+// Always runs with SQLite (temporary file) and, when MONGO_TEST_URI exists (CI), also with MongoDB.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,7 +14,7 @@ const backends: Array<[string, Record<string, string>]> = [
   ...(process.env.MONGO_TEST_URI ? [['MongoDB', { MONGO_URI: process.env.MONGO_TEST_URI, MONGO_DATABASE_NAME: `ld_test_${Date.now().toString(36)}` }] as [string, Record<string, string>]] : []),
 ];
 
-describe.each(backends)('com %s real', (_name, backendEnv) => {
+describe.each(backends)('with a real %s', (_name, backendEnv) => {
 let app: FastifyInstance;
 let close: () => Promise<void>;
 const H = { host: '127.0.0.1:9999' };
@@ -25,12 +25,12 @@ const day = (d: number) => new Date(Date.now() + d * DAY).toISOString().slice(0,
 beforeAll(async () => {
   const { buildApp } = await import('./app.js');
   const { parseConfig } = await import('./config.js');
-  const { PainelStore } = await import('./store/mongo.js');
+  const { DeckStore } = await import('./store/store.js');
   const { PrsRepo } = await import('./store/prs-repo.js');
   const config = parseConfig({ ...backendEnv, TEAM_TZ_OFFSET_MIN: '0' });
-  const store = new PainelStore(config.mongo);
+  const store = new DeckStore(config.mongo);
   await store.connect();
-  // Duas entregas: uma normal e um hotfix, com PRs revisados.
+  // Two deliveries: a normal one and a hotfix, with reviewed PRs.
   const prs = new PrsRepo(store);
   const now = new Date();
   for (const [n, title, rev] of [[1, 'Simulação de parcelas', ['Bruno']], [2, 'Hotfix: parcela', ['Bruno']]] as const) {
@@ -44,7 +44,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await close(); });
 
-  it('incidente: cria, edita, lista com avisos e exporta o postmortem', async () => {
+  it('incident: create, edit, list with warnings and export the postmortem', async () => {
     const c = await app.inject({ method: 'POST', url: '/api/incidents', headers: W, payload: { title: 'Simulação fora do ar', severity: 'sev2', startedAt: new Date(Date.now() - 3 * 3_600_000).toISOString(), causeChanges: ['https://github.com/acme/api/issues/1'] } });
     expect(c.statusCode).toBe(200);
     const id = c.json().id as string;
@@ -59,14 +59,14 @@ afterAll(async () => { await close(); });
     expect(md.body).toMatch(/^# Postmortem: Simulação fora do ar/);
   });
 
-  it('DORA e conhecimento a partir das entregas e do incidente', async () => {
+  it('DORA and knowledge from the deliveries and the incident', async () => {
     const d = (await app.inject({ method: 'GET', url: '/api/dora?days=30', headers: H })).json();
     expect(d).toMatchObject({ configured: true, deploys: { items: 2, days: 1 }, changeFailure: { failures: 2, fixes: 1, incidents: 1 }, recovery: { resolved: 1 } });
     const k = (await app.inject({ method: 'GET', url: '/api/knowledge?days=30', headers: H })).json();
     expect(k.repos[0]).toMatchObject({ repo: 'acme/api', prs: 2, busFactor: 2, reviewers: [{ name: 'Bruno', prs: 2 }] });
   });
 
-  it('decisões e iniciativa com progresso pelas issues acompanhadas', async () => {
+  it('decisions and an initiative with progress from the tracked issues', async () => {
     await app.inject({ method: 'POST', url: '/api/decisions', headers: W, payload: { title: 'Outbox de eventos', kind: 'rfc', decideBy: day(-1) } });
     const dec = (await app.inject({ method: 'GET', url: '/api/decisions', headers: H })).json();
     expect(dec.alerts).toMatchObject({ open: 1, overdue: 1 });
@@ -83,7 +83,7 @@ afterAll(async () => { await close(); });
     expect(a).toMatchObject({ configured: true, decisions: { overdue: 1 }, initiatives: [{ name: 'Empréstimo', blocked: 1 }] });
   });
 
-  it('PRs e deploy e métricas do time leem o mesmo banco', async () => {
+  it('PRs and deploys and team metrics read the same database', async () => {
     const r = (await app.inject({ method: 'GET', url: '/api/prs?all=1', headers: H })).json();
     expect(r.items).toHaveLength(2);
     const t = (await app.inject({ method: 'GET', url: '/api/team-metrics?days=30', headers: H })).json();

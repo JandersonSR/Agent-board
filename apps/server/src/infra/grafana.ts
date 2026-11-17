@@ -1,5 +1,5 @@
-// Grafana (conta de serviço com papel Viewer): alertas disparados pelo Alertmanager interno do Grafana.
-// GET /api/alertmanager/grafana/api/v2/alerts devolve só os ativos; o que some da lista vira "resolvido".
+// Grafana (service account with the Viewer role): alerts firing in Grafana's built-in Alertmanager.
+// GET /api/alertmanager/grafana/api/v2/alerts returns only the active ones; whatever leaves the list becomes "resolved".
 import { z } from 'zod';
 import { getJson, type Fetcher } from './http.js';
 import type { AlertSeverity, InfraAlert, InfraProvider } from './types.js';

@@ -1,5 +1,5 @@
-// Visão do produto: a iniciativa dividida em etapas (com duplas, dependências e riscos).
-// O progresso vem das issues acompanhadas em PRs e deploy; o caminho crítico mostra o que segura a entrega.
+// Product view: the initiative split into stages (with pairs, dependencies and risks).
+// Progress comes from the issues tracked in PRs and deploys; the critical path shows what holds the delivery.
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle, ArrowDown, ArrowRight, ArrowUp, CalendarClock, ChevronDown, ChevronRight, Flag, Link2, Loader2, Pencil, Plus, Route, Trash2, X,
@@ -23,18 +23,18 @@ import { cn } from '@/lib/utils';
 import { Tile } from '../metrics/shared';
 
 const STAGE: Record<StageStatus, { label: string; tone: Tone }> = {
-  not_started: { label: k('não iniciada'), tone: 'neutral' }, in_progress: { label: k('em andamento'), tone: 'info' },
-  blocked: { label: k('bloqueada'), tone: 'danger' }, done: { label: k('concluída'), tone: 'success' },
+  not_started: { label: k('not started'), tone: 'neutral' }, in_progress: { label: k('in progress'), tone: 'info' },
+  blocked: { label: k('blocked'), tone: 'danger' }, done: { label: k('done'), tone: 'success' },
 };
-const INIT: Record<InitiativeStatus, string> = { planned: k('planejada'), active: k('ativa'), paused: k('pausada'), done: k('concluída') };
+const INIT: Record<InitiativeStatus, string> = { planned: k('planned'), active: k('active'), paused: k('paused'), done: k('done') };
 const RISK: Record<RiskLevel, { label: string; tone: Tone }> = {
-  high: { label: k('alto'), tone: 'danger' }, medium: { label: k('médio'), tone: 'warning' }, low: { label: k('baixo'), tone: 'neutral' },
+  high: { label: k('high'), tone: 'danger' }, medium: { label: k('medium'), tone: 'warning' }, low: { label: k('low'), tone: 'neutral' },
 };
 const pctText = (x: number | null) => (x === null ? '—' : `${Math.round(x * 100)}%`);
-/** Id curto e fixo da etapa (as dependências apontam para ele; renomear a etapa não muda o id). */
+/** Short, fixed stage id (dependencies point to it; renaming the stage does not change the id). */
 const newStageId = () => `s-${Math.random().toString(36).slice(2, 8)}`;
 
-/** Profundidade de cada etapa no grafo de dependências (colunas do quadro). */
+/** Depth of each stage in the dependency graph (the board columns). */
 function depths(stages: Stage[]): Map<string, number> {
   const byId = new Map(stages.map(s => [s.id, s]));
   const memo = new Map<string, number>();
@@ -53,12 +53,12 @@ function depths(stages: Stage[]): Map<string, number> {
 
 function StageCard({ s, names }: { s: StageView; names: Map<string, string> }) {
   const [open, setOpen] = useState(false);
-  const status = s.status === 'in_progress' && s.waitingOn.length ? { label: k('esperando dependência'), tone: 'warning' as Tone } : STAGE[s.status];
+  const status = s.status === 'in_progress' && s.waitingOn.length ? { label: k('waiting on dependency'), tone: 'warning' as Tone } : STAGE[s.status];
   return (
     <article className={cn('space-y-2 rounded-xl border bg-card p-3 shadow-xs', s.critical && 'ring-2 ring-warning/60', s.status === 'done' && 'opacity-75')}>
       <header className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <h3 className="flex items-center gap-1.5 text-[13px] font-semibold">{s.critical && <Route className="size-3.5 shrink-0 text-warning" aria-label={t('caminho crítico')} />}<span className="truncate">{s.name}</span></h3>
+          <h3 className="flex items-center gap-1.5 text-[13px] font-semibold">{s.critical && <Route className="size-3.5 shrink-0 text-warning" aria-label={t('critical path')} />}<span className="truncate">{s.name}</span></h3>
           {s.owners.length > 0 && <p className="truncate text-[11px] text-muted-foreground">{s.owners.join(' · ')}</p>}
         </div>
         <Pill tone={status.tone}>{t(status.label)}</Pill>
@@ -69,7 +69,7 @@ function StageCard({ s, names }: { s: StageView; names: Map<string, string> }) {
           <div className="h-full bg-series-1" style={{ width: `${s.matched.length ? ((s.merged - s.deployed) / s.matched.length) * 100 : 0}%` }} />
         </div>
         <p className="flex justify-between text-[11px] text-muted-foreground">
-          <span>{s.matched.length ? t('{m}/{n} mergeadas · {d} em produção', { m: s.merged, n: s.matched.length, d: s.deployed }) : t('sem issues ligadas')}</span>
+          <span>{s.matched.length ? t('{m}/{n} merged · {d} in production', { m: s.merged, n: s.matched.length, d: s.deployed }) : t('no linked issues')}</span>
           <span className="tabular-nums">{pctText(s.progress)}</span>
         </p>
       </div>
@@ -119,22 +119,22 @@ function StageEditor({ s, all, onChange, onRemove, onMove }: {
   return (
     <div className="space-y-2 rounded-lg border p-3">
       <div className="flex items-center gap-2">
-        <Input value={s.name} onChange={e => onChange({ name: e.target.value })} placeholder={t('Nome da etapa')} className="h-8 flex-1 text-sm font-medium" maxLength={120} />
+        <Input value={s.name} onChange={e => onChange({ name: e.target.value })} placeholder={t('Stage name')} className="h-8 flex-1 text-sm font-medium" maxLength={120} />
         <Select value={s.status} onValueChange={v => onChange({ status: v as StageStatus })}>
           <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>{(Object.keys(STAGE) as StageStatus[]).map(x => <SelectItem key={x} value={x}>{t(STAGE[x].label)}</SelectItem>)}</SelectContent>
         </Select>
-        <Button size="icon-xs" variant="ghost" onClick={() => onMove(-1)} aria-label={t('Subir')}><ArrowUp /></Button>
-        <Button size="icon-xs" variant="ghost" onClick={() => onMove(1)} aria-label={t('Descer')}><ArrowDown /></Button>
-        <Button size="icon-xs" variant="ghost" className="text-danger" onClick={onRemove} aria-label={t('Remover')}><Trash2 /></Button>
+        <Button size="icon-xs" variant="ghost" onClick={() => onMove(-1)} aria-label={t('Move up')}><ArrowUp /></Button>
+        <Button size="icon-xs" variant="ghost" onClick={() => onMove(1)} aria-label={t('Move down')}><ArrowDown /></Button>
+        <Button size="icon-xs" variant="ghost" className="text-danger" onClick={onRemove} aria-label={t('Remove')}><Trash2 /></Button>
       </div>
       <div className="grid gap-2 sm:grid-cols-3">
-        <Field label={k('Dupla/donos (vírgula)')}><Input value={s.owners.join(', ')} onChange={e => onChange({ owners: e.target.value.split(',').map(x => x.trim()).filter(Boolean) })} className="h-8 text-xs" /></Field>
-        <Field label={k('Data alvo')}><Input type="date" value={s.targetDate ?? ''} onChange={e => onChange({ targetDate: e.target.value || undefined })} className="h-8 text-xs" /></Field>
-        <Field label={k('Texto no título das issues')}><Input value={s.query ?? ''} onChange={e => onChange({ query: e.target.value || undefined })} placeholder="[simulação]" className="h-8 text-xs" /></Field>
+        <Field label={k('Pair/owners (comma)')}><Input value={s.owners.join(', ')} onChange={e => onChange({ owners: e.target.value.split(',').map(x => x.trim()).filter(Boolean) })} className="h-8 text-xs" /></Field>
+        <Field label={k('Target date')}><Input type="date" value={s.targetDate ?? ''} onChange={e => onChange({ targetDate: e.target.value || undefined })} className="h-8 text-xs" /></Field>
+        <Field label={k('Text in issue titles')}><Input value={s.query ?? ''} onChange={e => onChange({ query: e.target.value || undefined })} placeholder="[simulation]" className="h-8 text-xs" /></Field>
       </div>
       {others.length > 0 && (
-        <Field label={k('Depende de')}>
+        <Field label={k('Depends on')}>
           <div className="flex flex-wrap gap-1">
             {others.map(o => {
               const on = s.dependsOn.includes(o.id);
@@ -149,12 +149,12 @@ function StageEditor({ s, all, onChange, onRemove, onMove }: {
         </Field>
       )}
       <div className="grid gap-2 sm:grid-cols-2">
-        <Field label={k('Issues (URL ou repo#123, uma por linha)')}>
+        <Field label={k('Issues (URL or repo#123, one per line)')}>
           <Textarea value={s.issues.join('\n')} onChange={e => onChange({ issues: e.target.value.split('\n').map(x => x.trim()).filter(Boolean) })} rows={3} className="font-mono text-[11px]" />
         </Field>
-        <Field label={k('Observações')}><Textarea value={s.notes ?? ''} onChange={e => onChange({ notes: e.target.value || undefined })} rows={3} className="text-xs" maxLength={2000} /></Field>
+        <Field label={k('Notes')}><Textarea value={s.notes ?? ''} onChange={e => onChange({ notes: e.target.value || undefined })} rows={3} className="text-xs" maxLength={2000} /></Field>
       </div>
-      <Field label={k('Riscos')}>
+      <Field label={k('Risks')}>
         <div className="space-y-1">
           {s.risks.map((r, i) => {
             const set = (p: Partial<Stage['risks'][number]>) => onChange({ risks: s.risks.map((x, j) => (j === i ? { ...x, ...p } : x)) });
@@ -164,13 +164,13 @@ function StageEditor({ s, all, onChange, onRemove, onMove }: {
                   <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>{(Object.keys(RISK) as RiskLevel[]).map(x => <SelectItem key={x} value={x}>{t(RISK[x].label)}</SelectItem>)}</SelectContent>
                 </Select>
-                <Input value={r.text} onChange={e => set({ text: e.target.value })} placeholder={t('Risco')} className="h-7 flex-1 text-xs" maxLength={500} />
-                <Input value={r.mitigation ?? ''} onChange={e => set({ mitigation: e.target.value || undefined })} placeholder={t('Mitigação')} className="h-7 flex-1 text-xs" maxLength={500} />
-                <Button size="icon-xs" variant="ghost" onClick={() => onChange({ risks: s.risks.filter((_, j) => j !== i) })} aria-label={t('Remover')}><X /></Button>
+                <Input value={r.text} onChange={e => set({ text: e.target.value })} placeholder={t('Risk')} className="h-7 flex-1 text-xs" maxLength={500} />
+                <Input value={r.mitigation ?? ''} onChange={e => set({ mitigation: e.target.value || undefined })} placeholder={t('Mitigated')} className="h-7 flex-1 text-xs" maxLength={500} />
+                <Button size="icon-xs" variant="ghost" onClick={() => onChange({ risks: s.risks.filter((_, j) => j !== i) })} aria-label={t('Remove')}><X /></Button>
               </div>
             );
           })}
-          <Button size="xs" variant="outline" onClick={() => onChange({ risks: [...s.risks, { text: '', level: 'medium' }] })}><Plus /> {t('Risco')}</Button>
+          <Button size="xs" variant="outline" onClick={() => onChange({ risks: [...s.risks, { text: '', level: 'medium' }] })}><Plus /> {t('Risk')}</Button>
         </div>
       </Field>
     </div>
@@ -211,36 +211,36 @@ function InitiativeDialog({ initiative, open, onOpenChange, onSaved }: { initiat
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-4xl">
         <DialogHeader>
-          <DialogTitle>{t(initiative ? 'Editar iniciativa' : 'Nova iniciativa')}</DialogTitle>
-          <DialogDescription>{t('Divida o produto em etapas com dono. Ligue as issues de cada etapa (por URL ou por um texto no título) para o progresso vir do GitHub.')}</DialogDescription>
+          <DialogTitle>{t(initiative ? 'Edit initiative' : 'New initiative')}</DialogTitle>
+          <DialogDescription>{t('Split the product into stages with an owner. Link each stage\'s issues (by URL or by text in the title) so progress comes from GitHub.')}</DialogDescription>
         </DialogHeader>
         <div className="min-h-0 flex-1 space-y-3 overflow-auto pr-1">
           <div className="grid gap-3 sm:grid-cols-4">
-            <Field label={k('Nome')} className="sm:col-span-2"><Input value={d.name} onChange={e => setD(x => ({ ...x, name: e.target.value }))} maxLength={120} /></Field>
+            <Field label={k('Name')} className="sm:col-span-2"><Input value={d.name} onChange={e => setD(x => ({ ...x, name: e.target.value }))} maxLength={120} /></Field>
             <Field label={k('Status')}>
               <Select value={d.status} onValueChange={v => setD(x => ({ ...x, status: v as InitiativeStatus }))}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>{(Object.keys(INIT) as InitiativeStatus[]).map(x => <SelectItem key={x} value={x}>{t(INIT[x])}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label={k('Data alvo')}><Input type="date" value={d.targetDate ?? ''} onChange={e => setD(x => ({ ...x, targetDate: e.target.value || undefined }))} /></Field>
-            <Field label={k('Objetivo (o que muda para o cliente ou o negócio)')} className="sm:col-span-4"><Textarea value={d.goal ?? ''} onChange={e => setD(x => ({ ...x, goal: e.target.value }))} rows={2} maxLength={2000} /></Field>
+            <Field label={k('Target date')}><Input type="date" value={d.targetDate ?? ''} onChange={e => setD(x => ({ ...x, targetDate: e.target.value || undefined }))} /></Field>
+            <Field label={k('Goal (what changes for the customer or the business)')} className="sm:col-span-4"><Textarea value={d.goal ?? ''} onChange={e => setD(x => ({ ...x, goal: e.target.value }))} rows={2} maxLength={2000} /></Field>
           </div>
           <div className="space-y-2">
             {d.stages.map((s, i) => (
               <StageEditor key={s.id} s={s} all={d.stages} onChange={p => setStage(i, p)}
                 onRemove={() => remove(i)} onMove={dir => move(i, dir)} />
             ))}
-            <Button size="sm" variant="outline" onClick={addStage}><Plus /> {t('Etapa')}</Button>
+            <Button size="sm" variant="outline" onClick={addStage}><Plus /> {t('Stage')}</Button>
           </div>
         </div>
         <DialogFooter className="sm:justify-between">
-          {initiative ? <Button variant="ghost" className="text-danger" onClick={() => del.mutate(initiative._id, { onSuccess: () => { onOpenChange(false); onSaved(); } })}><Trash2 /> {t('Apagar')}</Button> : <span />}
+          {initiative ? <Button variant="ghost" className="text-danger" onClick={() => del.mutate(initiative._id, { onSuccess: () => { onOpenChange(false); onSaved(); } })}><Trash2 /> {t('Delete')}</Button> : <span />}
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancelar')}</Button>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancel')}</Button>
             <Button disabled={!d.name.trim() || save.isPending} onClick={() => save.mutate({ ...(initiative ? { id: initiative._id } : {}), body: body() }, {
               onSuccess: r => { onOpenChange(false); onSaved((r as { id?: string; _id?: string }).id ?? initiative?._id); },
-            })}>{save.isPending && <Loader2 className="animate-spin" />} {t('Salvar')}</Button>
+            })}>{save.isPending && <Loader2 className="animate-spin" />} {t('Save')}</Button>
           </div>
         </DialogFooter>
       </DialogContent>
@@ -265,7 +265,7 @@ export function ProductView() {
   }, [v]);
 
   if (q.data && !q.data.configured) {
-    return <div className="rounded-xl border border-dashed"><EmptyState icon={Flag} title={t('MongoDB não configurado')} description={t('As iniciativas ficam numa coleção própria do painel no MongoDB.')} /></div>;
+    return <div className="rounded-xl border border-dashed"><EmptyState icon={Flag} title={t('MongoDB not configured')} description={t('Initiatives are stored in the board\'s own MongoDB collection.')} /></div>;
   }
 
   return (
@@ -277,15 +277,15 @@ export function ProductView() {
             <SelectContent>{items.map(i => <SelectItem key={i._id} value={i._id}>{i.name} · {t(INIT[i.status])}</SelectItem>)}</SelectContent>
           </Select>
         )}
-        {cur && <Button size="sm" variant="outline" onClick={() => setEditing(cur)}><Pencil /> {t('Editar')}</Button>}
-        <Button size="sm" className="ml-auto" onClick={() => setEditing(null)}><Plus /> {t('Nova iniciativa')}</Button>
+        {cur && <Button size="sm" variant="outline" onClick={() => setEditing(cur)}><Pencil /> {t('Edit')}</Button>}
+        <Button size="sm" className="ml-auto" onClick={() => setEditing(null)}><Plus /> {t('New initiative')}</Button>
       </div>
 
       {q.isLoading && <Skeleton className="h-64" />}
       {q.data && !items.length && (
         <div className="rounded-xl border border-dashed">
-          <EmptyState icon={Flag} title={t('Nenhuma iniciativa')} description={t('Cadastre o produto atual (ex.: o fluxo de empréstimo) com as etapas, as duplas de cada uma, as dependências e os riscos.')}
-            action={<Button size="sm" onClick={() => setEditing(null)}><Plus /> {t('Nova iniciativa')}</Button>} />
+          <EmptyState icon={Flag} title={t('No initiatives')} description={t('Add the current product (e.g. the loan flow) with its stages, the pair on each one, dependencies and risks.')}
+            action={<Button size="sm" onClick={() => setEditing(null)}><Plus /> {t('New initiative')}</Button>} />
         </div>
       )}
 
@@ -293,22 +293,22 @@ export function ProductView() {
         <>
           {cur.goal && <p className="max-w-3xl text-sm text-muted-foreground">{cur.goal}</p>}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Tile label={t('Progresso')} value={pctText(v.progress)} sub={t('{d} de {n} etapas concluídas', { d: v.doneStages, n: v.stages.length })} />
-            <Tile label={t('Data alvo')} value={cur.targetDate ? fmtDay(cur.targetDate, true) : '—'} sub={t(INIT[cur.status])} />
-            <Tile label={t('Bloqueadas ou esperando')} value={String(v.blocked)} />
-            <Tile label={t('Etapas atrasadas')} value={String(v.late)} />
-            <Tile label={t('Riscos altos abertos')} value={String(v.highRisks)} />
+            <Tile label={t('Progress')} value={pctText(v.progress)} sub={t('{d} of {n} stages done', { d: v.doneStages, n: v.stages.length })} />
+            <Tile label={t('Target date')} value={cur.targetDate ? fmtDay(cur.targetDate, true) : '—'} sub={t(INIT[cur.status])} />
+            <Tile label={t('Blocked or waiting')} value={String(v.blocked)} />
+            <Tile label={t('Late stages')} value={String(v.late)} />
+            <Tile label={t('Open high risks')} value={String(v.highRisks)} />
           </div>
 
           {v.criticalPath.length > 0 && (
             <p className="flex flex-wrap items-center gap-1.5 text-xs">
-              <Route className="size-4 text-warning" /> <b>{t('Caminho crítico:')}</b>
+              <Route className="size-4 text-warning" /> <b>{t('Critical path:')}</b>
               {v.criticalPath.map((id, i) => <span key={id} className="flex items-center gap-1.5">{i > 0 && <ArrowRight className="size-3 text-muted-foreground" />}{names.get(id) ?? id}</span>)}
             </p>
           )}
 
           {v.stages.length === 0 ? (
-            <div className="rounded-xl border border-dashed"><EmptyState icon={Flag} title={t('Sem etapas ainda')} action={<Button size="sm" variant="outline" onClick={() => setEditing(cur)}><Plus /> {t('Etapa')}</Button>} /></div>
+            <div className="rounded-xl border border-dashed"><EmptyState icon={Flag} title={t('No stages yet')} action={<Button size="sm" variant="outline" onClick={() => setEditing(cur)}><Plus /> {t('Stage')}</Button>} /></div>
           ) : (
             <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pt-1 pb-2">
               {columns.map((col, i) => (
@@ -317,7 +317,7 @@ export function ProductView() {
             </div>
           )}
           {v.stages.some(s => s.status === 'blocked' || s.waitingOn.length) && (
-            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><AlertTriangle className="size-3.5" /> {t('Etapas em andamento que dependem de outra ainda não concluída aparecem como "esperando dependência".')}</p>
+            <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><AlertTriangle className="size-3.5" /> {t('Stages in progress that depend on an unfinished stage show as "waiting on dependency".')}</p>
           )}
         </>
       )}

@@ -1,4 +1,4 @@
-# Copie para .github/workflows/ai-review.yml no repositório do time.
+# Copy to .github/workflows/ai-review.yml in the team's repository.
 name: AI pre-review
 on:
   pull_request:
@@ -10,7 +10,7 @@ jobs:
   ai-review:
     uses: JandersonSR/tldeck/.github/workflows/ai-review.yml@main # fixe numa tag ou SHA
     with:
-      language: pt-BR
+      language: en   # or pt-BR
       max-lines: 2000
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

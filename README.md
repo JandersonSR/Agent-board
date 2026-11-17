@@ -173,7 +173,7 @@ The board reads Discord through a private bot with **read-only** permissions. It
 
 By default the board keeps its data in a local SQLite file (`~/.agent-board/data.db`, or `AGENT_BOARD_DB`). No server, nothing to install. Set `MONGO_URI` (or `MONGO_DATABASE_*`) to use MongoDB instead, for example to share the data across machines.
 
-The board only writes to its own collections, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` and `painel_avaliacoes`, enforced by an allowlist in code. With MongoDB, use a database and a user just for the board.
+The board only writes to its own collections, `deck_summaries`, `deck_runs`, `deck_prs`, `deck_incidents`, `deck_decisions`, `deck_initiatives` and `deck_evals`, enforced by an allowlist in code. With MongoDB, use a database and a user just for the board.
 
 ### Feature RAGs and skills
 
@@ -277,7 +277,7 @@ The **Infra** screen (`G S`) shows your servers and apps, the alerts that are fi
 - **Incident from an alert:** a critical alert on a production resource (name matching `INFRA_PROD_RE`, default `prod|production|prd`) opens a SEV2 incident with the alert and the suspect deploy in the timeline, at most 5 per hour (`INFRA_AUTO_INCIDENT=off` turns this off). When the alert clears, the incident is marked **mitigated**; resolving it and writing the postmortem stays with you. Any other alert opens an incident with one click.
 - **Real DORA:** successful production deploys from Heroku and DigitalOcean replace issue dates in the deploy frequency, and time to restore counts until mitigation.
 - **Attention block** on Today: critical alerts, warnings and resources that are down.
-- **Timeline** of status changes, alerts and deploys for 24 hours, 7 or 30 days (stored in `painel_eventos`).
+- **Timeline** of status changes, alerts and deploys for 24 hours, 7 or 30 days (stored in `deck_events`).
 
 If a provider fails to answer, the last known state is kept and the error shows on its chip; alerts are never resolved because of a failed read. Generated texts follow `INFRA_LANG` (`pt-BR` or `en`).
 
@@ -323,7 +323,7 @@ Real environment variables take priority over `.env`. Restart the server after c
 
 The interface is available in **English** and **Portuguese (Brazil)**. The first visit follows your browser language. Switch any time with the **EN/PT** button in the header, the `L` shortcut or **Settings → Language**.
 
-Texts written by people and tools (issue titles, daily messages, agent replies) stay in their original language.
+Texts written by people and tools (issue titles, daily messages) stay in their original language. Texts the deck writes by itself — agent answers (reviews, plans), the PENDING review and draft PR bodies on GitHub, alert titles and incident timelines — follow `CONTENT_LANG` (`en` by default, or `pt-BR`).
 
 
 ---
@@ -353,7 +353,7 @@ tldeck/
 └── .env.example
 ```
 
-**Adding UI text:** write the Portuguese text inside `t('…')` (or `k('…')` in constants) and add the English version to `apps/web/src/lib/i18n-en.ts`. A test fails if any text has no translation or if the `{variables}` differ.
+**Adding UI text:** write the English text inside `t('…')` (or `k('…')` in constants) and add the Portuguese version to `apps/web/src/lib/i18n-pt.ts`. When two texts read the same in English but not in Portuguese, add a context suffix: `t('Open|decisions')` shows "Open". A test fails if any text has no translation or if the `{variables}` differ.
 
 The previous single-file server is still available as `npm run start:legacy` until it is removed.
 

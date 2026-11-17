@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Hook do Claude Code e do Cursor: grava o estado de cada sessão em ~/.agent-board/sessions/<id>.json
-// Nunca deve atrapalhar o agente: qualquer erro é engolido e o processo sai com código 0.
-// Única exceção proposital: em PermissionRequest o hook espera a resposta do painel (se ele estiver aberto).
+// Claude Code and Cursor hook: writes each session's state to ~/.agent-board/sessions/<id>.json
+// It must never get in the agent's way: any error is swallowed and the process exits with code 0.
+// The only intended exception: on PermissionRequest the hook waits for the deck's answer (if it is open).
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -23,7 +23,7 @@ function gitBranch(cwd) {
   } catch { return null; }
 }
 
-// Última fala do agente, lida do fim do transcript (versões antigas do Claude Code não mandam last_assistant_message).
+// The agent's last message, read from the end of the transcript (old Claude Code versions do not send last_assistant_message).
 function lastAssistant(transcript) {
   if (!transcript) return null;
   try {
@@ -50,7 +50,7 @@ function lastAssistant(transcript) {
 
 async function notify(s) {
   if (!NTFY) return;
-  const what = s.state === 'needs_you' ? 'precisa de você' : 'terminou, pronto para revisar';
+  const what = s.state === 'needs_you' ? 'needs you' : 'finished, ready for review';
   try {
     await fetch(NTFY, {
       method: 'POST',
@@ -61,7 +61,7 @@ async function notify(s) {
 }
 
 // Cursor manda outro formato (conversation_id, workspace_roots, eventos em camelCase).
-// Traduzimos para o formato do Claude Code e seguimos pelo mesmo caminho.
+// We translate it to the Claude Code format and follow the same path.
 const CURSOR_EVENTS = {
   sessionStart: 'SessionStart',
   beforeSubmitPrompt: 'UserPromptSubmit',
@@ -100,7 +100,7 @@ function normalize(ev) {
   return out;
 }
 
-// O painel está aberto em alguma aba? O servidor grava um "batimento" a cada poucos segundos.
+// Is the deck open in some tab? The server writes a "heartbeat" every few seconds.
 function boardWatching() {
   const hb = store.readJson(path.join(store.ROOT, 'server.json'));
   return !!hb && Date.now() - hb.at < 15000 && hb.clients > 0;
@@ -108,8 +108,8 @@ function boardWatching() {
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-// Espera a resposta do painel. Sai sem decidir (o terminal pergunta normalmente) se:
-// o tempo acabar, o painel fechar, ou o pedido for resolvido por outro caminho.
+// Waits for the deck's answer. Leaves without deciding (the terminal asks as usual) if:
+// time runs out, the deck closes, or the request is resolved some other way.
 async function waitDecision(id, requestId) {
   const file = store.decisionFile(id, requestId);
   const deadline = Date.now() + APPROVAL_WAIT * 1000;
@@ -132,7 +132,7 @@ function save(file, s, prev) {
   }
 }
 
-// Relê o arquivo antes de gravar: outros eventos da sessão podem ter chegado durante a espera.
+// Re-reads the file before writing: other session events may have arrived during the wait.
 function updateApproval(file, requestId, change) {
   const s = store.readJson(file);
   if (!s || !(s.approvals || []).some(a => a.requestId === requestId)) return;
@@ -145,7 +145,7 @@ function updateApproval(file, requestId, change) {
 async function main() {
   let raw;
   try { raw = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { return; }
-  // O Cursor espera uma resposta neste evento; responder "continue" garante que o prompt nunca é bloqueado.
+  // Cursor expects an answer on this event; answering "continue" makes sure the prompt is never blocked.
   if (raw && raw.hook_event_name === 'beforeSubmitPrompt') process.stdout.write('{"continue":true}');
   const ev = raw && normalize(raw);
   if (!ev || !ev.session_id) return;
@@ -173,18 +173,18 @@ async function main() {
   const d = await waitDecision(ev.session_id, ev.requestId);
   if (d && d.resolved) return; // respondido no terminal
   if (!d) {
-    // Tempo esgotado ou painel fechado: o pedido continua visível, mas só o terminal responde.
+    // Timed out or the deck is closed: the request stays visible, but only the terminal answers.
     updateApproval(file, ev.requestId, x => { x.approvals = x.approvals.map(a => a.requestId === ev.requestId ? { ...a, remote: false } : a); });
     return;
   }
   const decision = d.behavior === 'allow'
     ? { behavior: 'allow' }
-    : { behavior: 'deny', message: d.message || 'Negado pelo painel de agentes.' };
+    : { behavior: 'deny', message: d.message || 'Denied on the agents board.' };
   updateApproval(file, ev.requestId, x => {
     const a = x.approvals.find(r => r.requestId === ev.requestId);
     x.approvals = x.approvals.filter(r => r.requestId !== ev.requestId);
     if (!x.approvals.length) Object.assign(x, { state: 'working', message: null });
-    x.lastTool = `${d.behavior === 'allow' ? 'Aprovado' : 'Negado'} no painel: ${a.summary}`;
+    x.lastTool = `${d.behavior === 'allow' ? 'Approved' : 'Denied'} on the board: ${a.summary}`;
   });
   await new Promise(r => process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PermissionRequest', decision } }), r));
 }

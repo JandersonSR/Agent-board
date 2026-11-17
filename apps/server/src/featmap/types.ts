@@ -1,8 +1,8 @@
-// Contrato comum dos RAGs de features: uma pasta com AGENTS.md e packs/_index.yaml que lista
-// packs YAML (id, title, summary, repos...). Os esquemas variam entre RAGs; normalizamos aqui.
+// Shared contract of the feature RAGs: a folder with AGENTS.md and packs/_index.yaml listing
+// YAML packs (id, title, summary, repos...). Schemas vary between RAGs; we normalize here.
 
 export interface FeatPack {
-  map: string;            // nome do RAG (do .env)
+  map: string;            // RAG name (from .env)
   id: string;
   title: string;
   slug?: string | undefined;
@@ -10,7 +10,7 @@ export interface FeatPack {
   repos: string[];        // ex.: REPO-CORE
   keywords: string[];
   summary: string;
-  tokens: number;         // estimativa de tokens do pack
+  tokens: number;         // the pack's token estimate
   file: string;           // caminho absoluto do YAML
   updated?: string | undefined;
 }
@@ -23,7 +23,7 @@ export interface FeatMapInfo {
   packs: number;
   remote?: string | undefined;     // owner/repo do origin
   lastCommit?: string | undefined; // ISO
-  behind?: number | undefined;     // commits atrás do upstream (último fetch conhecido)
+  behind?: number | undefined;     // commits behind upstream (last known fetch)
   hasAgentsMd: boolean;
 }
 

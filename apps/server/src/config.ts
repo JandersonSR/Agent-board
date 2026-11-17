@@ -1,15 +1,16 @@
-// Configuração única do servidor: lê o .env da raiz do repo e valida com Zod.
-// Nada da empresa fica no código — tudo vem daqui. Campo vazio = integração desligada.
+// Single server configuration: reads the .env at the repo root and validates it with Zod.
+// Nothing company-specific lives in the code — everything comes from here. Empty field = integration off.
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
+import { parseLang, type ContentLang } from './domain/lang.js';
 import { DEFAULT_FAILURE_RE } from './domain/dora.js';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
-/** Carrega o .env da raiz sem sobrescrever variáveis já definidas no processo. */
+/** Loads the root .env without overwriting variables already set in the process. */
 export function loadDotEnv(file = path.join(REPO_ROOT, '.env')): void {
   if (!fs.existsSync(file)) return;
   try { process.loadEnvFile(file); } catch { /* .env inválido: segue só com o ambiente */ }
@@ -43,7 +44,7 @@ const EnvSchema = z.object({
   MONGO_DATABASE_USER: optStr,
   MONGO_DATABASE_PASS: optStr,
   MONGO_DATABASE_CLUSTERNAME: optStr,
-  MONGO_DATABASE_CUSTERNAME: optStr, // grafia antiga aceita por compatibilidade
+  MONGO_DATABASE_CUSTERNAME: optStr, // old spelling accepted for compatibility
   MONGO_LEGACY_PR_DATABASE: optStr,
   MONGO_LEGACY_PR_COLLECTION: optStr,
 
@@ -100,6 +101,7 @@ const EnvSchema = z.object({
   INFRA_AUTO_INCIDENT: z.preprocess(empty, z.enum(['critical', 'off']).default('critical')),
   INFRA_PROD_RE: optStr,
   INFRA_LANG: optStr,
+  CONTENT_LANG: optStr,
   DIGITALOCEAN_TOKEN: optStr,
   DIGITALOCEAN_TAG: optStr,
   HEROKU_API_KEY: optStr,
@@ -125,7 +127,7 @@ export interface Config {
   approvalWait: number;
   mongo: {
     uri: string | undefined; dbName: string | undefined; legacyPr: { db: string; collection: string } | undefined;
-    /** Onde o painel guarda os dados: arquivo SQLite local (padrão), MongoDB (com MONGO_URI) ou nada. */
+    /** Where the deck keeps its data: a local SQLite file (default), MongoDB (with MONGO_URI) or nothing. */
     storage?: 'sqlite' | 'mongo' | 'none'; sqliteFile?: string;
   };
   github: { token: string | undefined; org: string | undefined; login: string | undefined; boardRepo: string | undefined; team: Array<{ login: string; name: string }> };
@@ -138,14 +140,14 @@ export interface Config {
     /** RAGs de features (clones locais): nome -> pasta. */
     featMaps: Array<{ name: string; path: string }>;
     skillsKit: string | undefined; worktrees: string; repos: Array<{ slug: string; path: string }>;
-    /** Pasta onde ficam os clones (repo "x" = <reposRoot>/x quando não está em REPOS). */
+    /** Folder with the clones (repo "x" = <reposRoot>/x when it is not in REPOS). */
     reposRoot: string;
-    /** Pasta das execuções em segundo plano (cwd isolado dos agentes de review). */
+    /** Folder for background runs (isolated cwd for the review agents). */
     runs: string;
   };
-  /** Papel -> nome da skill no kit (ex.: review=minha-skill-de-review). Nomes ficam no .env. */
+  /** Role -> skill name in the kit (e.g. review=my-review-skill). Names live in .env. */
   skills: Partial<Record<SkillRole, string>>;
-  /** Qual RAG vale para qual repo alvo (globs no slug do repo). Sem rota = todos os RAGs. */
+  /** Which RAG applies to which target repo (globs on the repo slug). No route = all RAGs. */
   featMapRoutes: Array<{ name: string; patterns: string[] }>;
   featContextTokens: number;
   agentModels: { review: string; task: string };
@@ -155,13 +157,15 @@ export interface Config {
   queueTypeOrder: string | undefined;
   prsLookbackDays: number;
   deploy: { projects: number[]; dateField: RegExp; lookbackDays: number; baseBranches: string[]; prodBranches: string[] };
-  /** Tarefas de ponta a ponta: comandos que o agente pode rodar e a verificação independente por repo. */
+  /** End-to-end tasks: commands the agent may run and the independent verification per repo. */
   tasks: { testCommands: string[]; verify: Array<{ repo: string; command: string }> };
-  /** Regex que marca uma entrega como correção de falha (hotfix, rollback, revert…) nas métricas DORA. */
+  /** Regex marking a delivery as a failure fix (hotfix, rollback, revert…) in the DORA metrics. */
   dora: { failureRe: string };
-  /** Modo demonstração: dados fictícios, nenhuma integração real, banco local temporário. */
+  /** Demo mode: fictitious data, no real integration, temporary local database. */
   demo: { on: boolean; lang: 'pt-BR' | 'en' };
-  /** Infraestrutura em tempo real (só leitura): provedores, limites dos alertas e regra de incidente automático. */
+  /** Language of the texts the deck writes by itself (agent answers, GitHub texts, alerts, incident timelines). */
+  contentLang: ContentLang;
+  /** Real-time infrastructure (read-only): providers, alert thresholds and the automatic incident rule. */
   infra: {
     pollSec: number; cpuWarn: number; cpuCrit: number; memCrit: number; sustainMin: number;
     autoIncident: 'critical' | 'off'; prodRe: string; lang: 'pt-BR' | 'en';
@@ -172,7 +176,7 @@ export interface Config {
   };
 }
 
-/** Comandos de teste/build que o agente pode rodar na worktree (prefixos; o resto é negado). */
+/** Test/build commands the agent may run in the worktree (prefixes; the rest is denied). */
 export const DEFAULT_TASK_COMMANDS = [
   'npm test', 'npm run test', 'npm run lint', 'npm run typecheck', 'npm run build', 'pnpm test', 'yarn test', 'npx vitest',
   'dotnet build', 'dotnet test', 'mvn test', './mvnw test', 'gradle test', './gradlew test', 'go test', 'pytest', 'bundle exec rspec',
@@ -197,6 +201,9 @@ function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
   for (const { key, value } of pairs(e.SKILL_NAMES, ',', '=')) {
     if ((SKILL_ROLES as readonly string[]).includes(key) && value !== key) skills[key as SkillRole] = value;
   }
+  // CONTENT_LANG (INFRA_LANG is the older name); the demo follows DEMO_LANG.
+  const isDemo = e.DEMO === '1' || e.DEMO === 'true';
+  const contentLang = isDemo ? parseLang(e.DEMO_LANG, 'pt-BR') : parseLang(e.CONTENT_LANG ?? e.INFRA_LANG, 'en');
   return {
     port: e.AGENT_BOARD_PORT,
     webDevPort: e.AGENT_BOARD_WEB_DEV_PORT,
@@ -245,7 +252,7 @@ function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
       dateField: safeRegex(e.DEPLOY_DATE_FIELD ?? 'deploy'),
       lookbackDays: e.DEPLOY_LOOKBACK_DAYS,
       baseBranches: list(e.DEPLOY_BASE_BRANCHES),
-      // Merge numa destas = em produção: o card vira "Em produção" e sai do acompanhamento.
+      // A merge into one of these = in production: the card becomes "In production" and leaves tracking.
       prodBranches: list(e.DEPLOY_PROD_BRANCHES ?? 'production,production-*'),
     },
     tasks: {
@@ -254,9 +261,10 @@ function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
     },
     dora: { failureRe: validRegex(e.DORA_FAILURE_RE) ?? DEFAULT_FAILURE_RE },
     demo: { on: e.DEMO === '1' || e.DEMO === 'true', lang: (e.DEMO_LANG ?? '').toLowerCase().startsWith('en') ? 'en' : 'pt-BR' },
+    contentLang,
     infra: {
       pollSec: e.INFRA_POLL_SEC, cpuWarn: e.INFRA_CPU_WARN, cpuCrit: e.INFRA_CPU_CRIT, memCrit: e.INFRA_MEM_CRIT, sustainMin: e.INFRA_SUSTAIN_MIN,
-      lang: ((e.DEMO === '1' || e.DEMO === 'true') ? (e.DEMO_LANG ?? '') : (e.INFRA_LANG ?? '')).toLowerCase().startsWith('en') ? 'en' : 'pt-BR',
+      lang: contentLang,
       autoIncident: e.INFRA_AUTO_INCIDENT, prodRe: validRegex(e.INFRA_PROD_RE) ?? '\\b(prod|production|prd)\\b',
       digitalocean: e.DIGITALOCEAN_TOKEN ? { token: e.DIGITALOCEAN_TOKEN, tag: e.DIGITALOCEAN_TAG } : undefined,
       heroku: e.HEROKU_API_KEY ? { token: e.HEROKU_API_KEY, apps: list(e.HEROKU_APPS) } : undefined,
@@ -268,7 +276,7 @@ function parseConfigRaw(env: NodeJS.ProcessEnv): Config {
   };
 }
 
-/** No modo demo nenhuma integração real é usada, mesmo que o .env tenha tokens. */
+/** In demo mode no real integration is used, even if .env has tokens. */
 export function demoConfig(c: Config): Config {
   if (!c.demo.on) return c;
   return {

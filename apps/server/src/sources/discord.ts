@@ -1,10 +1,10 @@
-// Discord via REST, somente leitura (GET de mensagens). Nunca envia nada.
+// Discord via REST, read-only (GET messages). Never sends anything.
 import { z } from 'zod';
 
 const API = 'https://discord.com/api/v10';
 const DISCORD_EPOCH = 1_420_070_400_000n;
 
-/** Snowflake mínimo para um instante (para paginar com ?after=). */
+/** Smallest snowflake for an instant (to page with ?after=). */
 export const snowflakeAt = (ms: number) => ((BigInt(Math.floor(ms)) - DISCORD_EPOCH) << 22n).toString();
 
 const Message = z.object({
@@ -36,13 +36,13 @@ export class DiscordClient {
       await new Promise(r => setTimeout(r, Math.min(10_000, (body.retry_after ?? 1) * 1000)));
       return this.get(path, attempt + 1);
     }
-    if (res.status === 401) throw new Error('Discord recusou o token do bot (401)');
-    if (res.status === 403) throw new Error('Bot sem permissão de leitura neste canal (403)');
+    if (res.status === 401) throw new Error('Discord refused the bot token (401)');
+    if (res.status === 403) throw new Error('Bot has no read permission in this channel (403)');
     if (!res.ok) throw new Error(`Discord HTTP ${res.status}`);
     return res.json();
   }
 
-  /** Mensagens do canal desde `sinceMs`, em ordem cronológica (até `max`). */
+  /** Channel messages since `sinceMs`, in chronological order (up to `max`). */
   async messagesSince(channelId: string, sinceMs: number, max = 1000): Promise<DiscordMessage[]> {
     const out: DiscordMessage[] = [];
     let after = snowflakeAt(sinceMs);

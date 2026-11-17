@@ -1,6 +1,6 @@
-// Acompanhamento de PRs e deploy por issue (substitui o painel de PRs anterior).
-// Você informa a issue (ou ela vem do Project com data de deploy); os PRs ligados são encontrados
-// e atualizados sozinhos. Data, time, responsável e o status de cada PR podem ser ajustados aqui.
+// PR and deploy tracking per issue (replaces the previous PR board).
+// You give the issue (or it comes from the Project with a deploy date); the linked PRs are found
+// and updated on their own. Date, team, owner and each PR's status can be adjusted here.
 import { Fragment, useMemo, useState } from 'react';
 import {
   AlertTriangle, Archive, Check, ChevronRight, ExternalLink, GitPullRequest, Hand, Info, Loader2, MoreHorizontal, Plus, Rocket, Undo2,
@@ -25,21 +25,21 @@ import { issueFilterable } from './blocks';
 
 type Filter = 'open' | 'overdue' | DeployStatus | 'all';
 
-const DATE_SOURCE: Record<string, string> = { project: k('do Project'), manual: k('editada no painel'), legacy: k('do painel antigo') };
+const DATE_SOURCE: Record<string, string> = { project: k('from the Project'), manual: k('edited on the board'), legacy: k('from the old board') };
 
 function DeployDate({ issue }: { issue: TrackedIssue }) {
   const patch = usePatchPr();
   return (
     <div className="flex items-center gap-1">
-      <Input type="date" defaultValue={issue.deployDate ?? ''} key={issue.deployDate ?? 'none'} aria-label={t('Data de deploy de {title}', { title: issue.title })}
+      <Input type="date" defaultValue={issue.deployDate ?? ''} key={issue.deployDate ?? 'none'} aria-label={t('Deploy date for {title}', { title: issue.title })}
         className={cn('h-7 w-[8.5rem] text-xs tabular-nums', issue.overdue && 'border-danger/50 text-danger')}
         onBlur={e => { const v = e.target.value; if (v && v !== issue.deployDate) patch.mutate({ id: issue._id, deployDate: v }); }} />
       {issue.deployDateSource && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="text-[10px] text-muted-foreground">{issue.deployDateSource === 'project' ? 'Project' : t(issue.deployDateSource === 'manual' ? 'manual' : 'antigo')}</span>
+            <span className="text-[10px] text-muted-foreground">{issue.deployDateSource === 'project' ? 'Project' : t(issue.deployDateSource === 'manual' ? 'manual' : 'old')}</span>
           </TooltipTrigger>
-          <TooltipContent>{t('Data {source}. Editar aqui faz a data do Project deixar de sobrescrever.', { source: t(DATE_SOURCE[issue.deployDateSource] ?? '') })}</TooltipContent>
+          <TooltipContent>{t('Date {source}. Editing it here stops the Project date from overwriting it.', { source: t(DATE_SOURCE[issue.deployDateSource] ?? '') })}</TooltipContent>
         </Tooltip>
       )}
     </div>
@@ -55,16 +55,16 @@ function InlineText({ issue, field, placeholder }: { issue: TrackedIssue; field:
   );
 }
 
-/** Chip do PR com menu para ajustar o status à mão (ex.: re-review). */
+/** PR chip with a menu to set the status by hand (e.g. re-review). */
 function PrChip({ issue, pr, wide = false }: { issue: TrackedIssue; pr: TrackedPr; wide?: boolean }) {
   const setStatus = useSetPrStatus();
   const meta = STATUS_META[pr.status];
   const manual = !!pr.statusOverride;
-  const label = t(pr.state === 'closed' ? 'Fechado' : meta.label);
+  const label = t(pr.state === 'closed' ? 'Closed' : meta.label);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={t('Status do PR {pr}: {status}', { pr: `${pr.repo ?? ''}#${pr.number ?? ''}`, status: label })}>
+        <button type="button" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={t('PR {pr} status: {status}', { pr: `${pr.repo ?? ''}#${pr.number ?? ''}`, status: label })}>
           <Pill tone={pr.state === 'closed' ? 'neutral' : meta.tone} className={cn(wide && 'w-40 justify-center', manual && 'ring-2')}>
             {manual ? <Hand className="size-3" /> : <GitPullRequest className="size-3" />}
             {wide ? label : (pr.base ?? pr.title)}
@@ -74,11 +74,11 @@ function PrChip({ issue, pr, wide = false }: { issue: TrackedIssue; pr: TrackedP
       <DropdownMenuContent align="start" className="w-64">
         <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
           {pr.repo?.split('/')[1]}#{pr.number} → {pr.base}<br />
-          GitHub: {t(STATUS_META[pr.derivedStatus ?? pr.status].label)}{manual && ` · ${t('ajuste manual ativo')}`}
+          GitHub: {t(STATUS_META[pr.derivedStatus ?? pr.status].label)}{manual && ` · ${t('manual override on')}`}
         </DropdownMenuLabel>
-        <DropdownMenuItem onSelect={() => window.open(pr.url, '_blank', 'noopener')}><ExternalLink /> {t('Abrir PR')}</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => window.open(pr.url, '_blank', 'noopener')}><ExternalLink /> {t('Open PR')}</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs">{t('Ajustar status')}</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs">{t('Set status')}</DropdownMenuLabel>
         {DEPLOY_STATUSES.map(s => (
           <DropdownMenuItem key={s} disabled={setStatus.isPending} onSelect={() => setStatus.mutate({ id: issue._id, url: pr.url, status: s })}>
             {pr.status === s ? <Check /> : <span className="size-4" />} {t(STATUS_META[s].label)}
@@ -87,7 +87,7 @@ function PrChip({ issue, pr, wide = false }: { issue: TrackedIssue; pr: TrackedP
         {manual && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => setStatus.mutate({ id: issue._id, url: pr.url, status: null })}><Undo2 /> {t('Voltar ao automático')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => setStatus.mutate({ id: issue._id, url: pr.url, status: null })}><Undo2 /> {t('Back to automatic')}</DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
@@ -105,10 +105,10 @@ function TrackForm() {
       if (!issue.trim()) return;
       track.mutate({ issue: issue.trim(), ...(date ? { deployDate: date } : {}) }, { onSuccess: () => { setIssue(''); setDate(''); } });
     }}>
-      <Input value={issue} onChange={e => setIssue(e.target.value)} placeholder={t('Link da issue, org/repo#123 ou nº do board')} aria-label={t('Issue para acompanhar')} className="h-8 w-80 text-xs" />
-      <Input type="date" value={date} onChange={e => setDate(e.target.value)} aria-label={t('Data de deploy (opcional)')} className="h-8 w-36 text-xs" />
+      <Input value={issue} onChange={e => setIssue(e.target.value)} placeholder={t('Issue link, org/repo#123 or board number')} aria-label={t('Issue to track')} className="h-8 w-80 text-xs" />
+      <Input type="date" value={date} onChange={e => setDate(e.target.value)} aria-label={t('Deploy date (optional)')} className="h-8 w-36 text-xs" />
       <Button size="sm" type="submit" disabled={track.isPending || !issue.trim()}>
-        {track.isPending ? <Loader2 className="animate-spin" /> : <Plus />} {t('Acompanhar issue')}
+        {track.isPending ? <Loader2 className="animate-spin" /> : <Plus />} {t('Track issue')}
       </Button>
     </form>
   );
@@ -132,7 +132,7 @@ export function DeployView() {
     author: facetValues(raw, i => issueFilterable(i).authors), repo: facetValues(raw, i => issueFilterable(i).repos),
     team: facetValues(raw, i => [i.team]),
   }), [raw]);
-  // Filtros (pessoa/time/repo/texto) primeiro; as abas e os contadores trabalham sobre o resultado.
+  // Filters (person/team/repo/text) first; the tabs and counters work on the result.
   const filtered = useMemo(() => applyFilters(raw, issueFilterable, filters, people), [raw, filters, people]);
   const items = useMemo(() => {
     const all = filtered;
@@ -152,13 +152,13 @@ export function DeployView() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <TrackForm />
-        <p className="text-xs text-muted-foreground">{t('Os PRs ligados a cada issue (de qualquer autor e repo) entram e são atualizados sozinhos.')}</p>
+        <p className="text-xs text-muted-foreground">{t('PRs linked to each issue (from any author and repo) are added and updated automatically.')}</p>
       </div>
 
       {q.data && q.data.projectScope === false && (
         <div className="flex items-start gap-2 rounded-lg border border-info/30 bg-info-soft px-3 py-2 text-xs">
           <Info className="mt-0.5 size-4 shrink-0 text-info" />
-          <p>{t('Datas do GitHub Project desligadas: o token não tem o escopo')} <Mono>read:project</Mono>. {t('Rode')} <Mono>gh auth refresh -s read:project</Mono> {t('e defina')} <Mono>GITHUB_PROJECTS</Mono> {t('no .env. Até lá, informe a data aqui.')}</p>
+          <p>{t('GitHub Project dates are off: the token lacks the scope')} <Mono>read:project</Mono>. {t('Run')} <Mono>gh auth refresh -s read:project</Mono> {t('and set')} <Mono>GITHUB_PROJECTS</Mono> {t('in .env. Until then, enter the date here.')}</p>
         </div>
       )}
 
@@ -166,31 +166,31 @@ export function DeployView() {
         <FilterSearch filters={filters} onChange={setFilters} className="w-72" />
         <FilterMenu filters={filters} onChange={setFilters} options={options} align="start" size="sm" />
         <ActiveFilters filters={filters} onChange={setFilters} />
-        {!isEmpty(filters) && <span className="ml-auto text-xs text-muted-foreground">{t('{shown} de {total} issues', { shown: filtered.length, total: raw.length })}</span>}
+        {!isEmpty(filters) && <span className="ml-auto text-xs text-muted-foreground">{t('{shown} of {total} issues', { shown: filtered.length, total: raw.length })}</span>}
       </div>
 
       <Tabs value={filter} onValueChange={v => setFilter(v as Filter)}>
         <TabsList className="h-auto flex-wrap">
-          <TabsTrigger value="open">{t('Em andamento')} <Pill className="ml-1">{counts.open}</Pill></TabsTrigger>
-          <TabsTrigger value="overdue">{t('Atrasados')} {counts.overdue > 0 && <Pill tone="danger" className="ml-1">{counts.overdue}</Pill>}</TabsTrigger>
+          <TabsTrigger value="open">{t('In progress')} <Pill className="ml-1">{counts.open}</Pill></TabsTrigger>
+          <TabsTrigger value="overdue">{t('Overdue')} {counts.overdue > 0 && <Pill tone="danger" className="ml-1">{counts.overdue}</Pill>}</TabsTrigger>
           {DEPLOY_STATUSES.map(s => (
             <TabsTrigger key={s} value={s}>{t(STATUS_META[s].label)}{!isDone(s) && counts.by[s] > 0 && <Pill tone={STATUS_META[s].tone} className="ml-1">{counts.by[s]}</Pill>}</TabsTrigger>
           ))}
-          <TabsTrigger value="all">{t('Todos')}</TabsTrigger>
+          <TabsTrigger value="all">{t('All')}</TabsTrigger>
         </TabsList>
       </Tabs>
 
       <div className="overflow-hidden rounded-xl border bg-card shadow-xs">
         {q.isLoading ? <div className="space-y-2 p-4">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-10" />)}</div>
-          : items.length === 0 ? <EmptyState icon={Rocket} title={t('Nada neste filtro')} description={t('Use “Acompanhar issue” para começar a acompanhar uma entrega.')} />
+          : items.length === 0 ? <EmptyState icon={Rocket} title={t('Nothing in this filter')} description={t('Use “Track issue” to start tracking a delivery.')} />
           : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead className="bg-muted/40 text-muted-foreground">
                   <tr className="text-left">
                     <th className="w-8" /><th className="px-2 py-2 font-medium">Issue</th><th className="px-2 font-medium">{t('Status')}</th>
-                    <th className="px-2 font-medium">PRs</th><th className="px-2 font-medium">{t('Responsável')}</th><th className="px-2 font-medium">{t('Time')}</th>
-                    <th className="px-2 font-medium">Deploy</th><th className="px-2 text-right font-medium">{t('No status')}</th><th className="px-2 text-right font-medium">{t('Atualizado')}</th><th className="w-8" />
+                    <th className="px-2 font-medium">PRs</th><th className="px-2 font-medium">{t('Owner')}</th><th className="px-2 font-medium">{t('Team')}</th>
+                    <th className="px-2 font-medium">Deploy</th><th className="px-2 text-right font-medium">{t('In status')}</th><th className="px-2 text-right font-medium">{t('Updated')}</th><th className="w-8" />
                   </tr>
                 </thead>
                 <tbody className="divide-y">
@@ -201,20 +201,20 @@ export function DeployView() {
                       <Fragment key={i._id}>
                         <tr className={cn('hover:bg-muted/40', i.overdue && 'bg-danger-soft/40')}>
                           <td className="pl-2">
-                            <button type="button" onClick={() => toggle(i._id)} aria-expanded={expanded} aria-label={t('Ver PRs')} className="rounded p-1 hover:bg-accent">
+                            <button type="button" onClick={() => toggle(i._id)} aria-expanded={expanded} aria-label={t('Show PRs')} className="rounded p-1 hover:bg-accent">
                               <ChevronRight className={cn('size-3.5 transition-transform', expanded && 'rotate-90')} />
                             </button>
                           </td>
                           <td className="max-w-[26rem] px-2 py-2">
                             <div className="flex items-center gap-1.5">
-                              {i.overdue && <AlertTriangle className="size-3.5 shrink-0 text-danger" aria-label={t('Atrasado')} />}
+                              {i.overdue && <AlertTriangle className="size-3.5 shrink-0 text-danger" aria-label={t('Overdue|item')} />}
                               <span className="truncate font-medium" title={i.title}>{i.title}</span>
-                              {i.reference && <a href={i.reference} target="_blank" rel="noopener" className="shrink-0 text-muted-foreground hover:text-foreground" aria-label={t('Abrir issue')}><ExternalLink className="size-3.5" /></a>}
+                              {i.reference && <a href={i.reference} target="_blank" rel="noopener" className="shrink-0 text-muted-foreground hover:text-foreground" aria-label={t('Open issue')}><ExternalLink className="size-3.5" /></a>}
                             </div>
                             <span className="text-[10px] text-muted-foreground">
                               {i.reference && <Mono className="text-[10px]">#{i.reference.split('/').pop()}</Mono>}
-                              {i.source === 'legacy' && ` · ${t('migrado')}`}{i.source === 'manual' && ` · ${t('adicionada aqui')}`}
-                              {i.issueState === 'CLOSED' && ` · ${t('issue fechada')}`}
+                              {i.source === 'legacy' && ` · ${t('migrated')}`}{i.source === 'manual' && ` · ${t('added here')}`}
+                              {i.issueState === 'CLOSED' && ` · ${t('issue closed')}`}
                             </span>
                           </td>
                           <td className="px-2"><Pill tone={STATUS_META[i.status].tone}>{t(STATUS_META[i.status].label)}</Pill></td>
@@ -222,20 +222,20 @@ export function DeployView() {
                             <div className="flex max-w-[22rem] flex-wrap gap-1">
                               {live.slice(0, 6).map(p => <PrChip key={p.url} issue={i} pr={p} />)}
                               {live.length > 6 && <button type="button" onClick={() => toggle(i._id)}><Pill>+{live.length - 6}</Pill></button>}
-                              {live.length === 0 && <span className="text-muted-foreground">{t('nenhum PR ainda')}</span>}
+                              {live.length === 0 && <span className="text-muted-foreground">{t('no PR yet')}</span>}
                             </div>
                           </td>
-                          <td className="px-1"><InlineText issue={i} field="owner" placeholder={k('Responsável')} /></td>
-                          <td className="px-1"><InlineText issue={i} field="team" placeholder={k('Time')} /></td>
+                          <td className="px-1"><InlineText issue={i} field="owner" placeholder={k('Owner')} /></td>
+                          <td className="px-1"><InlineText issue={i} field="team" placeholder={k('Team')} /></td>
                           <td className="px-1"><DeployDate issue={i} /></td>
                           <td className="px-2 text-right tabular-nums text-muted-foreground">{sinceStatus(i)}</td>
                           <td className="px-2 text-right tabular-nums text-muted-foreground">{ago(Date.parse(i.updatedAt))}</td>
                           <td className="pr-2">
                             <DropdownMenu>
-                              <DropdownMenuTrigger asChild><Button size="icon-xs" variant="ghost" aria-label={t('Mais ações')}><MoreHorizontal /></Button></DropdownMenuTrigger>
+                              <DropdownMenuTrigger asChild><Button size="icon-xs" variant="ghost" aria-label={t('More actions')}><MoreHorizontal /></Button></DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {i.reference && <DropdownMenuItem onSelect={() => window.open(i.reference, '_blank', 'noopener')}><ExternalLink /> {t('Abrir issue')}</DropdownMenuItem>}
-                                <DropdownMenuItem onSelect={() => archive.mutate({ id: i._id, archived: true })}><Archive /> {t('Parar de acompanhar')}</DropdownMenuItem>
+                                {i.reference && <DropdownMenuItem onSelect={() => window.open(i.reference, '_blank', 'noopener')}><ExternalLink /> {t('Open issue')}</DropdownMenuItem>}
+                                <DropdownMenuItem onSelect={() => archive.mutate({ id: i._id, archived: true })}><Archive /> {t('Stop tracking')}</DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </td>
@@ -266,7 +266,7 @@ export function DeployView() {
             </div>
           )}
       </div>
-      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Hand className="size-3" /> {t('= status ajustado à mão. Ele volta ao automático sozinho quando o GitHub muda (novo review, aprovação ou merge).')} {t('Em produção, o card sai do acompanhamento automático.')}</p>
+      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Hand className="size-3" /> {t('= status set by hand. It goes back to automatic when GitHub changes (new review, approval or merge).')} {t('In production, the card leaves automatic tracking.')}</p>
     </div>
   );
 }

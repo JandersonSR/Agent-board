@@ -6,25 +6,25 @@ const s = (id: string, state: string, updatedAt: number, extra: Partial<AgentSes
   ({ id, state, updatedAt, createdAt: 0, ...extra });
 
 describe('session-meta', () => {
-  it('mapeia estado para coluna (ended vai para ociosas)', () => {
+  it('maps state to column (ended goes to idle)', () => {
     expect(columnOf(s('a', 'ended', 1))).toBe('idle');
     expect(columnOf(s('a', 'needs_you', 1))).toBe('needs_you');
   });
 
-  it('quem espera há mais tempo vem primeiro nas colunas de ação', () => {
+  it('whoever has waited longest comes first in the action columns', () => {
     const g = groupByColumn([s('new', 'needs_you', 200), s('old', 'needs_you', 100), s('w', 'working', 50)]);
     expect(g.needs_you.map(x => x.id)).toEqual(['old', 'new']);
     expect(g.working).toHaveLength(1);
   });
 
-  it('detecta sessão travada após 10 min sem atividade', () => {
+  it('detects a stuck session after 10 min without activity', () => {
     const now = 1_000_000;
     expect(isStale(s('a', 'working', now - 11 * 60_000), now)).toBe(true);
     expect(isStale(s('a', 'working', now - 5 * 60_000), now)).toBe(false);
     expect(isStale(s('a', 'review', 0), now)).toBe(false);
   });
 
-  it('agrupa por tarefa com o grupo mais urgente primeiro', () => {
+  it('groups by task with the most urgent group first', () => {
     const groups = groupByTask([
       s('1', 'working', 10, { taskId: 'T-1', usage: { cost: 1, total: 0, turns: 1, context: 0, contextMax: 0 } }),
       s('2', 'needs_you', 5, { taskId: 'T-2' }),

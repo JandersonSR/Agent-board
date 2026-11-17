@@ -5,7 +5,7 @@ const st = (id: string, dependsOn: string[] = [], extra: Partial<Stage> = {}): S
   ({ id, name: id, owners: [], status: 'not_started', dependsOn, issues: [], risks: [], ...extra });
 
 describe('findCycle', () => {
-  it('acha ciclo e aceita DAG', () => {
+  it('finds a cycle and accepts a DAG', () => {
     expect(findCycle([st('a', ['c']), st('b', ['a']), st('c', ['b'])])).toEqual(['a', 'c', 'b']);
     expect(findCycle([st('a'), st('b', ['a']), st('c', ['a', 'b'])])).toBeUndefined();
   });
@@ -26,7 +26,7 @@ describe('computeInitiative', () => {
     ],
   }, tracked, '2026-11-16');
 
-  it('progresso pelas issues (busca no título e referência curta)', () => {
+  it('progress from the issues (title search and short reference)', () => {
     const sim = v.stages[0]!;
     expect(sim.matched).toHaveLength(2);
     expect(sim).toMatchObject({ merged: 1, deployed: 1, progress: 0.5 });
@@ -34,7 +34,7 @@ describe('computeInitiative', () => {
     expect(v.stages[3]!.progress).toBe(1);
   });
 
-  it('dependência pendente, atraso, riscos e caminho crítico', () => {
+  it('pending dependency, delay, risks and critical path', () => {
     expect(v.stages[1]).toMatchObject({ waitingOn: ['sim'], late: true });
     expect(v).toMatchObject({ blocked: 1, late: 1, highRisks: 1, doneStages: 1 });
     expect(v.criticalPath).toEqual(['sim', 'contrato', 'pagamento']);

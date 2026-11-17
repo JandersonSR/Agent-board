@@ -1,4 +1,4 @@
-// Lê os ADRs dos clones locais (só leitura, só arquivos .md em pastas conhecidas de decisões).
+// Reads the ADRs from local clones (read-only, only .md files in known decision folders).
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseAdr, type ParsedAdr } from './decisions.js';
@@ -10,7 +10,7 @@ const MAX_BYTES = 200_000;
 
 export interface ScannedAdr extends ParsedAdr { repo: string; path: string }
 
-/** Repositórios a varrer: os de REPOS e as pastas com .git em REPOS_ROOT (no máximo 80). */
+/** Repositories to scan: those in REPOS and the folders with .git in REPOS_ROOT (at most 80). */
 export function reposToScan(repos: Array<{ slug: string; path: string }>, reposRoot: string): Array<{ slug: string; path: string }> {
   const out = new Map<string, string>();
   for (const r of repos) if (fs.existsSync(r.path)) out.set(r.slug, r.path);
@@ -35,7 +35,7 @@ export function scanRepoAdrs(slug: string, root: string): ScannedAdr[] {
       const file = path.join(abs, f);
       try {
         const st = fs.lstatSync(file);
-        if (!st.isFile() || st.size > MAX_BYTES) continue; // sem links simbólicos e sem arquivos enormes
+        if (!st.isFile() || st.size > MAX_BYTES) continue; // no symbolic links and no huge files
         out.push({ repo: slug, path: `${dir}/${f}`, ...parseAdr(fs.readFileSync(file, 'utf8'), f) });
       } catch { /* ilegível */ }
     }

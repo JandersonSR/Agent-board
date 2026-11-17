@@ -1,6 +1,6 @@
-// Mascaramento de dados pessoais e segredos. Aplicado ANTES de qualquer texto ir para
-// prompt de LLM, log ou coleção painel_*. Na dúvida, mascara (falso positivo é aceitável;
-// vazamento não).
+// Masking of personal data and secrets. Applied BEFORE any text goes to an
+// LLM prompt, a log or a deck_* collection. When in doubt, mask (a false positive is acceptable;
+// a leak is not).
 
 export type MaskKind =
   | 'SEGREDO' | 'EMAIL' | 'CPF' | 'CNPJ' | 'CARTAO' | 'TELEFONE' | 'CEP' | 'RG'
@@ -15,9 +15,9 @@ export interface MaskResult {
 interface Rule {
   kind: MaskKind;
   re: RegExp;
-  /** Substituição; recebe o match inteiro e os grupos. Padrão: `[KIND]`. */
+  /** Replacement; receives the whole match and the groups. Default: `[KIND]`. */
   replace?: (match: string, ...groups: string[]) => string;
-  /** Validação extra (ex.: Luhn). Se retornar false, o match é mantido. */
+  /** Extra validation (e.g. Luhn). If it returns false, the match is kept. */
   accept?: (match: string) => boolean;
 }
 
@@ -37,7 +37,7 @@ export function luhnValid(num: string): boolean {
 
 const keepLabel = (kind: MaskKind) => (_m: string, label: string) => `${label}[${kind}]`;
 
-// Ordem importa: segredos e documentos longos antes dos curtos.
+// Order matters: secrets and long documents before short ones.
 const RULES: Rule[] = [
   // Segredos
   { kind: 'SEGREDO', re: /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/g },
@@ -53,26 +53,26 @@ const RULES: Rule[] = [
   { kind: 'CPF', re: /\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/g },
   { kind: 'RG', re: /\b(RG\s*(?:n[ºo°.]?\s*)?[:\-]?\s*)[\dxX.\-]{5,14}/gi, replace: keepLabel('RG') },
 
-  // Bancário (com rótulo — número solto de agência/conta é ambíguo demais)
+  // Banking (with a label — a bare branch/account number is too ambiguous)
   { kind: 'AGENCIA', re: /\b(ag[eê]ncia\s*(?:n[ºo°.]?\s*)?[:\-]?\s*|ag\.\s*)\d{3,5}(?:-\d)?/gi, replace: keepLabel('AGENCIA') },
   { kind: 'CONTA', re: /\b((?:conta(?:\s+corrente|\s+poupan[cç]a)?|c\/c)\s*(?:n[ºo°.]?\s*)?[:\-]?\s*)\d{3,13}(?:-[\dxX])?/gi, replace: keepLabel('CONTA') },
   { kind: 'VALOR', re: /\b((?:renda|sal[aá]rio|rendimento|faturamento)\s*(?:mensal\s*)?(?:de\s*)?[:=\-]?\s*)(?:R\$\s*)?\d[\d.,]*/gi, replace: keepLabel('VALOR') },
   { kind: 'VALOR', re: /R\$\s?\d[\d.]*(?:,\d{1,2})?/g },
 
-  // Cartão (só se passar no Luhn) — antes dos números longos genéricos
+  // Card (only if it passes Luhn) — before the generic long numbers
   { kind: 'CARTAO', re: /\b(?:\d[ -]?){12,18}\d\b/g, accept: luhnValid },
 
   // Telefones BR: (11) 98765-4321, +55 11 98765 4321, 11987654321
   { kind: 'TELEFONE', re: /(?:\+?55\s?)?\(?\b\d{2}\)?[\s-]?9?\d{4}[\s-]\d{4}\b/g },
 
-  // Números soltos com tamanho de documento
+  // Bare numbers with a document's length
   { kind: 'CNPJ', re: /\b\d{14}\b/g },
   { kind: 'CPF', re: /\b\d{11}\b/g },
   { kind: 'CEP', re: /\b\d{5}-\d{3}\b/g },
 ];
 
-// Trechos que nunca são dados pessoais e não podem ser quebrados pelo mascaramento:
-// menções/canais do Discord e URLs (o caminho da URL fica; a query string é mascarada).
+// Spans that are never personal data and must not be broken by masking:
+// Discord mentions/channels and URLs (the URL path stays; the query string is masked).
 const PROTECT = /<(?:@[!&]?|#)\d{15,22}>|https?:\/\/[^\s<>()]+/g;
 
 function compileExtra(patterns: string[]): Rule[] {
@@ -131,5 +131,5 @@ function decodeSafe(s: string): string {
   try { return decodeURIComponent(s); } catch { return s; }
 }
 
-/** Máscara padrão (sem padrões extras). Use createMasker(config.maskExtraPatterns) no app. */
+/** Default masker (no extra patterns). Use createMasker(config.maskExtraPatterns) in the app. */
 export const maskText = createMasker();

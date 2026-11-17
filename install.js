@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Instala (ou remove com --uninstall) os hooks do painel.
+// Installs (or removes with --uninstall) the deck's hooks.
 //   node install.js            -> Claude Code (~/.claude/settings.json)
 //   node install.js --cursor   -> Cursor      (~/.cursor/hooks.json)
-// Faz backup antes e preserva qualquer hook que você já tenha.
+// Backs up first and keeps any hook you already have.
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -19,7 +19,7 @@ const TARGET = cursor
   : { file: path.join(os.homedir(), '.claude', 'settings.json'), name: 'Claude Code',
       events: ['SessionStart', 'UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'PermissionRequest', 'Notification',
         'PreCompact', 'SubagentStart', 'SubagentStop', 'Stop', 'StopFailure', 'SessionEnd'] };
-// PermissionRequest espera a resposta do painel: o timeout do hook precisa cobrir essa espera.
+// PermissionRequest waits for the deck's answer: the hook timeout must cover that wait.
 const APPROVAL_WAIT = Number(process.env.AGENT_BOARD_APPROVAL_WAIT || 120);
 const timeoutOf = ev => (ev === 'PermissionRequest' ? APPROVAL_WAIT + 30 : 10);
 const MATCHER_EVENTS = new Set(['PostToolUse', 'PostToolUseFailure']);
@@ -28,7 +28,7 @@ let config = {};
 if (fs.existsSync(TARGET.file)) {
   const raw = fs.readFileSync(TARGET.file, 'utf8');
   try { config = JSON.parse(raw); } catch {
-    console.error(`Não consegui ler ${TARGET.file} (JSON inválido). Corrija o arquivo e rode de novo.`);
+    console.error(`Could not read ${TARGET.file} (invalid JSON). Fix the file and run again.`);
     process.exit(1);
   }
   fs.writeFileSync(`${TARGET.file}.bak-agent-board`, raw);
@@ -44,7 +44,7 @@ if (cursor) config.version = config.version || 1;
 for (const ev of TARGET.events) {
   let entries = config.hooks[ev] || [];
   if (cursor) {
-    // Cursor: lista plana de { command, timeout }
+    // Cursor: a flat list of { command, timeout }
     entries = entries.filter(h => !isOurs(h));
     if (!uninstall) entries.push({ command: COMMAND, timeout: 10 });
   } else {
@@ -64,7 +64,7 @@ if (!Object.keys(config.hooks).length) delete config.hooks;
 
 fs.writeFileSync(TARGET.file, JSON.stringify(config, null, 2) + '\n');
 console.log(uninstall
-  ? `Hooks do painel removidos do ${TARGET.name} (${TARGET.file}).`
-  : `Hooks instalados no ${TARGET.name} (${TARGET.file}, backup em .bak-agent-board).\n` +
-    (cursor ? 'Reinicie o Cursor para ele carregar os hooks. ' : 'Sessões novas já aparecem no painel. ') +
-    'Suba o painel com: npm start');
+  ? `Deck hooks removed from ${TARGET.name} (${TARGET.file}).`
+  : `Hooks installed in ${TARGET.name} (${TARGET.file}, backup in .bak-agent-board).\n` +
+    (cursor ? 'Restart Cursor so it loads the hooks. ' : 'New sessions already show up on the deck. ') +
+    'Start the deck with: npm start');

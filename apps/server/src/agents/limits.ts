@@ -1,4 +1,4 @@
-// Limites de custo: execuções simultâneas e por dia (fuso do time).
+// Cost limits: concurrent runs and runs per day (team time zone).
 
 export interface LimitState { running: number; maxConcurrent: number; today: number; maxDaily: number }
 
@@ -8,9 +8,9 @@ export function startOfLocalDay(now: number, tzOffsetMin: number): Date {
   return new Date(startLocalUtc - tzOffsetMin * 60_000);
 }
 
-/** Motivo para recusar uma nova execução, ou null se pode rodar. */
+/** Reason to refuse a new run, or null if it can run. */
 export function limitReason(s: LimitState): string | null {
-  if (s.running >= s.maxConcurrent) return `limite de ${s.maxConcurrent} execuções simultâneas atingido (MAX_CONCURRENT_SESSIONS)`;
-  if (s.today >= s.maxDaily) return `limite diário de ${s.maxDaily} execuções atingido (MAX_DAILY_RUNS)`;
+  if (s.running >= s.maxConcurrent) return `limit of ${s.maxConcurrent} concurrent runs reached (MAX_CONCURRENT_SESSIONS)`;
+  if (s.today >= s.maxDaily) return `daily limit of ${s.maxDaily} runs reached (MAX_DAILY_RUNS)`;
   return null;
 }

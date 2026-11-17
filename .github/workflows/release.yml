@@ -1,4 +1,4 @@
-# Publica uma versão no GitHub quando uma tag vX.Y.Z é enviada, com as notas do CHANGELOG.md.
+# Publishes a GitHub release when a vX.Y.Z tag is pushed, with the notes from CHANGELOG.md.
 #   git tag v0.4.0 && git push origin v0.4.0
 name: Release
 
@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Notas da versão a partir do CHANGELOG
+      - name: Release notes from CHANGELOG
         run: |
           version="${GITHUB_REF_NAME#v}"
           awk -v v="$version" '
@@ -23,7 +23,7 @@ jobs:
             on { print }
           ' CHANGELOG.md > notes.md
           test -s notes.md || echo "Veja o CHANGELOG.md." > notes.md
-      - name: Criar a versão
+      - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" --title "TLDeck $GITHUB_REF_NAME" --notes-file notes.md --verify-tag

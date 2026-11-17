@@ -1,4 +1,4 @@
-// Pessoas para os filtros da tela: meu login e os times da org (com membros). Cache de 1 h.
+// People for the screen filters: my login and the org's teams (with members). 1 h cache.
 import type { FastifyInstance } from 'fastify';
 import { fetchOrgTeams, type GitHubClient } from '../sources/github.js';
 

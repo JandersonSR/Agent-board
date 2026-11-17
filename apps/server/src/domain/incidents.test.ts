@@ -14,14 +14,14 @@ const base: Incident = {
   postmortem: { status: 'pending', rootCause: 'Migração sem índice' },
 };
 
-describe('incidentes', () => {
-  it('sev1/sev2 resolvido sem postmortem pede postmortem', () => {
+describe('incidents', () => {
+  it('a resolved sev1/sev2 without a postmortem asks for one', () => {
     expect(needsPostmortem(base)).toBe(true);
     expect(needsPostmortem({ ...base, severity: 'sev3' })).toBe(false);
     expect(needsPostmortem({ ...base, postmortem: { status: 'done' } })).toBe(false);
   });
 
-  it('avisos: ações atrasadas e taxa de conclusão', () => {
+  it('warnings: late actions and completion rate', () => {
     const a = incidentAlerts([{ ...base, _id: 'x' }, { ...base, status: 'open', actions: [], postmortem: { status: 'pending' } }], '2026-11-16');
     expect(a.open).toBe(1);
     expect(a.overdueActions).toEqual([{ incident: 'x', title: base.title, action: 'Teste de contrato', owner: 'Ana', due: '2026-11-12' }]);
@@ -30,12 +30,12 @@ describe('incidentes', () => {
     expect(a.postmortemPending).toHaveLength(1);
   });
 
-  it('markdown com linha do tempo ordenada, duração e ações', () => {
+  it('markdown with a sorted timeline, duration and actions', () => {
     const md = postmortemMarkdown(base, 'pt-BR', -180);
     expect(md).toMatch(/^# Postmortem: Simulação fora do ar/);
     expect(md).toMatch(/\| Duração \| 1 h 30 min \|/);
     expect(md.indexOf('Alerta')).toBeLessThan(md.indexOf('Rollback'));
-    expect(md).toMatch(/\*\*2026-11-10 10:10\*\*/); // hora do time
+    expect(md).toMatch(/\*\*2026-11-10 10:10\*\*/); // team time
     expect(md).toMatch(/- \[ \] Teste de contrato — responsável: Ana — prazo: 2026-11-12/);
     expect(md).toMatch(/- \[x\] Runbook/);
     expect(postmortemMarkdown(base, 'en')).toMatch(/## Root cause\n\nMigração sem índice/);

@@ -1,6 +1,6 @@
-// Sincronização periódica (POLL_INTERVAL_MIN) e sob demanda. Lê GitHub e Discord, aplica as
-// regras de domínio, mascara todo texto e guarda um snapshot em memória para a API.
-// Única escrita: upsert em painel_prs (coleção própria).
+// Periodic (POLL_INTERVAL_MIN) and on-demand sync. Reads GitHub and Discord, applies the
+// domain rules, masks every text and keeps an in-memory snapshot for the API.
+// Only write: upsert into deck_prs (own collection).
 import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config.js';
 import { blockersFromChannels, blockersFromDailies, mergeBlockers, type ChannelMessage, type OpenBlocker } from '../domain/blockers.js';
@@ -15,7 +15,7 @@ import {
   MissingProjectScope, parseIssueRef, reviewTimes, type DeployPrNodeT,
 } from '../sources/github.js';
 import { deployDateFrom } from '../domain/deploy-date.js';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import { demoData, seedDemo } from '../demo/seed.js';
 import { PrsRepo, type SyncedGroup, type SyncedPr } from '../store/prs-repo.js';
 
@@ -37,7 +37,7 @@ export interface QueueItem {
   createdAt: string;
   updatedAt: string;
   reasons: string[];
-  /** Último comentário é meu (respondi depois da menção)? */
+  /** Is the last comment mine (did I answer after the mention)? */
   answered: boolean;
 }
 
@@ -48,7 +48,7 @@ export interface ReviewItem extends ReviewDerived {
 
 type Mask = (s: string) => MaskResult;
 
-/** Quem revisou o PR (nome do time quando conhecido), sem o autor e sem bots. */
+/** Who reviewed the PR (team member name when known), without the author and without bots. */
 export function reviewersOf(pr: Pick<DeployPrNodeT, 'reviews' | 'author'>, names: Map<string, string>): string[] {
   const author = pr.author?.login?.toLowerCase();
   const logins = pr.reviews.nodes.map(r => r.author?.login).filter((l): l is string => !!l && l.toLowerCase() !== author && !/\[bot\]$/i.test(l));
@@ -69,7 +69,7 @@ export class SyncService {
   private readonly typeRules;
   private readonly isProdBranch: (base: string | undefined) => boolean;
 
-  constructor(private readonly cfg: Config, private readonly store: PainelStore, private readonly mask: Mask, private readonly log: FastifyBaseLogger) {
+  constructor(private readonly cfg: Config, private readonly store: DeckStore, private readonly mask: Mask, private readonly log: FastifyBaseLogger) {
     this.gh = cfg.github.org ? new GitHubClient({ token: cfg.github.token, login: cfg.github.login }) : undefined;
     this.discord = cfg.discord.token ? new DiscordClient(cfg.discord.token, cfg.discord.guildId) : undefined;
     this.prs = new PrsRepo(store);
@@ -78,15 +78,15 @@ export class SyncService {
     this.state = {
       github: { configured: !!this.gh, running: false },
       discord: { configured: !!this.discord && !!cfg.discord.dailyChannelId && cfg.discord.team.length > 0, running: false },
-      // Sem a lista do time o sync traria PRs de outros times (que eu só reviso): fica desligado.
-      // Rotina de deploy: issues acompanhadas (Project, painel ou migradas) → PRs ligados. Lista do time é opcional.
+      // Without the team list the sync would bring PRs from other teams (that I only review): it stays off.
+      // Deploy routine: tracked issues (Project, deck or migrated) → linked PRs. The team list is optional.
       prs: { configured: !!this.gh && store.configured, running: false },
     };
   }
 
   private m = (s: string) => this.mask(s).text;
 
-  /** Modo demonstração: fontes fictícias, banco semeado uma vez, nada sai da máquina. */
+  /** Demo mode: fictitious sources, database seeded once, nothing leaves the machine. */
   get demo(): boolean { return this.cfg.demo.on; }
 
   private async loadDemo(): Promise<void> {
@@ -94,7 +94,7 @@ export class SyncService {
     this.daily = d.daily; this.blockers = d.blockers; this.queue = d.queue; this.reviews = d.reviews;
     const at = new Date().toISOString();
     for (const id of Object.keys(this.state) as SourceId[]) this.state[id] = { configured: true, running: false, lastSync: at };
-    await seedDemo(this.store, this.cfg.demo.lang).catch(e => this.log.warn({ err: (e as Error).message }, 'falha ao semear o modo demo'));
+    await seedDemo(this.store, this.cfg.demo.lang).catch(e => this.log.warn({ err: (e as Error).message }, 'failed to seed demo mode'));
   }
 
   start(): void {
@@ -104,7 +104,7 @@ export class SyncService {
   }
   stop(): void { clearInterval(this.timer); }
 
-  /** Executa uma sincronização (ou espera a que já está rodando). */
+  /** Runs a sync (or waits for the one already running). */
   run(): Promise<void> {
     if (this.demo) return this.loadDemo();
     this.running ??= (async () => {
@@ -129,7 +129,7 @@ export class SyncService {
       s.error = undefined;
     } catch (e) {
       s.error = this.m((e as Error).message ?? 'erro');
-      this.log.warn({ source: id, error: s.error }, 'falha na sincronização');
+      this.log.warn({ source: id, error: s.error }, 'sync failed');
     } finally { s.running = false; }
   }
 
@@ -167,7 +167,7 @@ export class SyncService {
     this.queue = sortQueue([...githubQueue, ...this.queue.filter(q => q.source === 'discord')]);
   }
 
-  // ---------- Discord: daily, bloqueios, menções ----------
+  // ---------- Discord: daily, blockers, mentions ----------
   private async syncDiscord(): Promise<void> {
     const d = this.discord!;
     const cfg = this.cfg.discord;
@@ -190,7 +190,7 @@ export class SyncService {
       blockersFromChannels(channelMsgs, team, now),
     );
 
-    // Menções a mim (usuário ou cargos) ainda sem resposta minha.
+    // Mentions of me (user or roles) I have not answered yet.
     const myId = cfg.myUserId;
     const roles = new Set(cfg.myRoleIds);
     const discordQueue: QueueItem[] = [];
@@ -205,7 +205,7 @@ export class SyncService {
         const firstLine = m.content.split(/\r?\n/).find(l => l.trim())?.replace(/<@[!&]?\d+>/g, '').trim() ?? '';
         discordQueue.push({
           key: `dc:${r.channel_id}:${r.id}`, source: 'discord', kind: 'message', type: m.channel,
-          rank: typeRank(this.typeRules, m.channel), title: firstLine.slice(0, 160) || '(sem texto)', url: m.url ?? '',
+          rank: typeRank(this.typeRules, m.channel), title: firstLine.slice(0, 160) || '(no text)', url: m.url ?? '',
           labels: [m.channel], author: r.author.global_name ?? r.author.username, createdAt: r.timestamp, updatedAt: r.timestamp,
           reasons: ['mentioned'], answered,
         });
@@ -214,8 +214,8 @@ export class SyncService {
     this.queue = sortQueue([...this.queue.filter(q => q.source === 'github'), ...discordQueue]);
   }
 
-  // ---------- PRs e deploy → painel_prs ----------
-  /** null = ainda não testado; false = token sem read:project (degrada sem Project). */
+  // ---------- PRs e deploy → deck_prs ----------
+  /** null = not tested yet; false = token without read:project (degrades without Project). */
   projectScope: boolean | null = null;
   get projectsConfigured(): number { return this.cfg.deploy.projects.length; }
 
@@ -232,7 +232,7 @@ export class SyncService {
     };
   }
 
-  /** Roda uma chamada que lê o Project; se faltar o escopo, marca e devolve undefined. */
+  /** Runs a call that reads the Project; if the scope is missing, flags it and returns undefined. */
   private async withProject<T>(fn: (withProject: boolean) => Promise<T>): Promise<T> {
     if (this.projectScope === false) return fn(false);
     try {
@@ -242,7 +242,7 @@ export class SyncService {
     } catch (e) {
       if (!(e instanceof MissingProjectScope)) throw e;
       this.projectScope = false;
-      this.log.warn('token do GitHub sem read:project: datas de deploy do Project desligadas');
+      this.log.warn('GitHub token without read:project: Project deploy dates turned off');
       return fn(false);
     }
   }
@@ -255,7 +255,7 @@ export class SyncService {
     const today = Date.now();
     const minDeploy = new Date(today - this.cfg.deploy.lookbackDays * 86_400_000).toISOString().slice(0, 10);
 
-    // 1) Descobre issues com data de deploy nos Projects configurados.
+    // 1) Finds issues with a deploy date in the configured Projects.
     if (this.cfg.deploy.projects.length && this.projectScope !== false) {
       try {
         for (const n of this.cfg.deploy.projects) {
@@ -273,8 +273,8 @@ export class SyncService {
       }
     }
 
-    // 1b) Descobre entregas pelos PRs abertos para as branches de deploy (não depende do Project nem
-    //     da lista do time): a issue citada pelo PR entra no acompanhamento com todos os PRs dela.
+    // 1b) Finds deliveries from the PRs open to the deploy branches (does not depend on the Project or
+    //     the team list): the issue the PR mentions is tracked with all its PRs.
     if (this.cfg.deploy.baseBranches.length) {
       const groups = new Map<string, SyncedGroup>();
       const since = new Date(today - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
@@ -289,7 +289,7 @@ export class SyncService {
       for (const g of groups.values()) await this.prs.upsertGroup(g);
     }
 
-    // 2) PRs recentes do time (quando a lista do time existe), agrupados pela issue.
+    // 2) The team's recent PRs (when the team list exists), grouped by issue.
     if (this.cfg.github.team.length) {
       const since = new Date(today - this.cfg.prsLookbackDays * 86_400_000).toISOString().slice(0, 10);
       const groups = new Map<string, SyncedGroup>();
@@ -304,7 +304,7 @@ export class SyncService {
       for (const g of groups.values()) await this.prs.upsertGroup(g);
     }
 
-    // 3) Para cada issue acompanhada: todos os PRs ligados (qualquer autor/repo) + data do Project.
+    // 3) For each tracked issue: every linked PR (any author/repo) + the Project date.
     const refs = await this.prs.issueRefsToTrack();
     const links = await this.withProject(withProject => fetchIssueLinks(gh, refs, withProject));
     for (const issue of links) {
@@ -316,17 +316,17 @@ export class SyncService {
     }
   }
 
-  /** Começa a acompanhar uma issue (link ou org/repo#n ou número do board) e já busca os PRs dela. */
+  /** Starts tracking an issue (link, org/repo#n or board number) and fetches its PRs right away. */
   async trackIssue(ref: string, deployDate?: string): Promise<{ key: string; title: string; prs: number }> {
-    if (!this.gh || !this.cfg.github.org) throw Object.assign(new Error('GitHub não configurado'), { statusCode: 503 });
+    if (!this.gh || !this.cfg.github.org) throw Object.assign(new Error('GitHub not configured'), { statusCode: 503 });
     await this.store.connect();
     const org = this.cfg.github.org;
     const normalized = /^\d+$/.test(ref.trim())
       ? (this.cfg.github.boardRepo ? `${org}/${this.cfg.github.boardRepo}#${ref.trim()}` : '')
       : ref.trim();
-    if (!parseIssueRef(normalized)) throw Object.assign(new Error('informe o link da issue, org/repo#número ou o número (com GITHUB_BOARD_REPO)'), { statusCode: 400 });
+    if (!parseIssueRef(normalized)) throw Object.assign(new Error('give the issue link, org/repo#number or the number (with GITHUB_BOARD_REPO)'), { statusCode: 400 });
     const [issue] = await this.withProject(withProject => fetchIssueLinks(this.gh!, [normalized], withProject));
-    if (!issue) throw Object.assign(new Error('issue não encontrada (ou sem acesso)'), { statusCode: 404 });
+    if (!issue) throw Object.assign(new Error('issue not found (or no access)'), { statusCode: 404 });
     const names = new Map(this.cfg.github.team.map(t => [t.login.toLowerCase(), t.name]));
     const prs = issue.prs.map(pr => this.toSyncedPr(pr, names));
     await this.prs.upsertGroup({

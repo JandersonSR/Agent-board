@@ -1,5 +1,5 @@
-// Registro de decisões do time: design docs, RFCs e ADRs, com prazo para decidir.
-// Os ADRs dos clones locais são importados lendo só o título, o status e a data.
+// The team's decision log: design docs, RFCs and ADRs, with a decide-by date.
+// ADRs from local clones are imported by reading only the title, status and date.
 
 export const DECISION_KINDS = ['adr', 'design_doc', 'rfc'] as const;
 export type DecisionKind = (typeof DECISION_KINDS)[number];
@@ -34,8 +34,8 @@ export function normalizeStatus(word: string | undefined): DecisionStatus | unde
 export interface ParsedAdr { title: string; status: DecisionStatus; date?: string | undefined }
 
 /**
- * Lê título (primeiro "# "), status e data de um ADR em Markdown.
- * Aceita "Status: aceito", "- **Status:** accepted" e a seção "## Status" com a palavra na linha seguinte.
+ * Reads the title (first "# "), status and date of a Markdown ADR.
+ * Accepts "Status: aceito", "- **Status:** accepted" and a "## Status" section with the word on the next line.
  */
 export function parseAdr(text: string, fileName: string): ParsedAdr {
   const lines = text.split(/\r?\n/).slice(0, 80);
@@ -59,7 +59,7 @@ export function parseAdr(text: string, fileName: string): ParsedAdr {
 
 export interface DecisionAlerts { open: number; overdue: number; stale: number; dueSoon: number }
 
-/** Atrasadas (prazo vencido), paradas (abertas há mais de `staleDays` sem prazo) e com prazo nos próximos 7 dias. */
+/** Overdue (deadline passed), stalled (open for more than `staleDays` without a deadline) and due in the next 7 days. */
 export function decisionAlerts(list: Decision[], today: string, staleDays = 21): DecisionAlerts {
   const open = list.filter(d => OPEN_DECISION.includes(d.status));
   const in7 = new Date(Date.parse(`${today}T00:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10);

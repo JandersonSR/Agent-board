@@ -1,5 +1,5 @@
-// Azure (service principal com papel de leitura, ex.: "Monitoring Reader"): saúde dos recursos (Resource Health)
-// e alertas do Azure Monitor (Alerts Management). Token por client credentials, renovado antes de expirar.
+// Azure (service principal with a read role, e.g. "Monitoring Reader"): resource health (Resource Health)
+// and Azure Monitor alerts (Alerts Management). Token by client credentials, renewed before it expires.
 import { z } from 'zod';
 import { getJson, postForm, type Fetcher } from './http.js';
 import type { AlertSeverity, InfraAlert, InfraProvider, InfraResource, ResourceStatus } from './types.js';
@@ -38,7 +38,7 @@ export function healthStatus(state: string | null | undefined): ResourceStatus {
   return state === 'Available' ? 'ok' : state === 'Degraded' ? 'warn' : state === 'Unavailable' ? 'down' : 'unknown';
 }
 
-/** Sev0/Sev1 = crítico, Sev2 = atenção, Sev3/Sev4 = informativo. */
+/** Sev0/Sev1 = critical, Sev2 = warning, Sev3/Sev4 = informational. */
 export function azureSeverity(s: string | undefined): AlertSeverity {
   return s === 'Sev0' || s === 'Sev1' ? 'critical' : s === 'Sev2' ? 'warning' : 'info';
 }

@@ -1,5 +1,5 @@
-// Tarefa de ponta a ponta: plano só de leitura → aprovação → implementação em worktree isolada →
-// verificação independente → PR em rascunho só com clique.
+// End-to-end task: read-only plan → approval → implementation in an isolated worktree →
+// independent verification → draft PR only on click.
 import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
@@ -18,20 +18,20 @@ export class TaskService {
 
   private async fetchIssue(url: string): Promise<IssueInput & { owner: string; repo: string; number: number }> {
     const ref = parseIssueUrl(url);
-    if (!ref) throw Object.assign(new Error('URL de issue inválida'), { statusCode: 400 });
+    if (!ref) throw Object.assign(new Error('invalid issue URL'), { statusCode: 400 });
     const data = await this.ctx.requireGh().rest('GET', `/repos/${ref.owner}/${ref.repo}/issues/${ref.number}`,
       z.object({ title: z.string(), body: z.string().nullable().optional(), pull_request: z.unknown().optional() }));
-    if (data.pull_request) throw Object.assign(new Error('isto é um PR, não uma issue'), { statusCode: 400 });
+    if (data.pull_request) throw Object.assign(new Error('this is a PR, not an issue'), { statusCode: 400 });
     return { ...ref, url, title: this.ctx.mask(data.title).text, body: this.ctx.mask((data.body ?? '').slice(0, 20_000)).text };
   }
 
   private repoPathOf(repo: string): string {
     const p = this.ctx.resolveRepoPath(repo);
-    if (!p) throw Object.assign(new Error(`clone local de ${repo} não encontrado (REPOS ou REPOS_ROOT)`), { statusCode: 404 });
+    if (!p) throw Object.assign(new Error(`local clone of ${repo} not found (REPOS or REPOS_ROOT)`), { statusCode: 404 });
     return p;
   }
 
-  /** Prévia do prompt de planejamento (o Tech Lead pode editar antes de começar). */
+  /** Planning prompt preview (the Tech Lead can edit it before starting). */
   async previewTask(issueUrl: string) {
     return this.taskPreviewFor(await this.fetchIssue(issueUrl));
   }
@@ -40,7 +40,7 @@ export class TaskService {
     const repoPath = this.repoPathOf(issue.repo);
     const { hits } = await this.ctx.featMaps.search(`${issue.title} ${issue.repo}`, { repo: issue.repo, limit: 3 });
     const ctx = await this.ctx.featContext(`${issue.title} ${issue.repo}`, issue.repo);
-    const raw = buildPlanPrompt({ issue, featContext: ctx, repoInstructions: repoInstructions(repoPath) });
+    const raw = buildPlanPrompt({ issue, featContext: ctx, repoInstructions: repoInstructions(repoPath), lang: this.ctx.cfg.contentLang });
     const m = this.ctx.mask(raw);
     return {
       prompt: m.text, masked: m.total, features: hits.map(h => `${h.pack.map}:${h.pack.id}`),
@@ -54,7 +54,7 @@ export class TaskService {
     return this.ctx.cfg.tasks.verify.find(v => v.repo.toLowerCase() === name || v.repo.toLowerCase() === repo.toLowerCase())?.command;
   }
 
-  /** Etapa 1: cria a worktree e roda o agente só com leitura para propor um plano. */
+  /** Stage 1: creates the worktree and runs the agent read-only to propose a plan. */
   async startTask(input: { issueUrl: string; prompt?: string | undefined }): Promise<{ id: string }> {
     await this.ctx.checkLimits();
     const issue = await this.fetchIssue(input.issueUrl);
@@ -82,7 +82,7 @@ export class TaskService {
       if (plan?.ok) {
         await this.ctx.runs.patchTask(id, { phase: 'awaiting_approval', plan: plan.value }, { status: 'done', endedAt: new Date(), ...(r.usage ? { usage: r.usage } : {}) });
       } else {
-        const error = this.ctx.mask(r.error ?? (plan && !plan.ok ? plan.error : 'falhou')).text;
+        const error = this.ctx.mask(r.error ?? (plan && !plan.ok ? plan.error : 'failed')).text;
         await this.ctx.runs.patchTask(id, { phase: 'failed', error }, { status: r.timedOut ? 'timeout' : r.cancelled ? 'cancelled' : 'failed', endedAt: new Date(), result: { error, text: this.ctx.mask(r.resultText).text.slice(0, 20_000) }, ...(r.usage ? { usage: r.usage } : {}) });
       }
     });
@@ -91,22 +91,22 @@ export class TaskService {
 
   private async getTask(id: string, phases: TaskState['phase'][]): Promise<RunDoc & { task: TaskState }> {
     const run = await this.ctx.runs.get(id);
-    if (!run || run.kind !== 'task' || !run.task) throw Object.assign(new Error('tarefa não encontrada'), { statusCode: 404 });
-    if (!phases.includes(run.task.phase)) throw Object.assign(new Error(`a tarefa está em "${run.task.phase}"`), { statusCode: 409 });
+    if (!run || run.kind !== 'task' || !run.task) throw Object.assign(new Error('task not found'), { statusCode: 404 });
+    if (!phases.includes(run.task.phase)) throw Object.assign(new Error(`the task is in "${run.task.phase}"`), { statusCode: 409 });
     return run as RunDoc & { task: TaskState };
   }
 
-  /** Etapa 2: plano aprovado → implementação na worktree, depois verificação independente. */
+  /** Stage 2: plan approved → implementation in the worktree, then independent verification. */
   async approveTask(id: string, notes?: string): Promise<void> {
     const run = await this.getTask(id, ['awaiting_approval']);
-    if (this.ctx.active.size >= this.ctx.cfg.limits.maxConcurrent) throw Object.assign(new Error('limite de execuções simultâneas atingido'), { statusCode: 429 });
+    if (this.ctx.active.size >= this.ctx.cfg.limits.maxConcurrent) throw Object.assign(new Error('concurrent run limit reached'), { statusCode: 429 });
     const t = run.task;
     const cleanNotes = notes?.trim() ? this.ctx.mask(notes.trim().slice(0, 4000)).text : undefined;
     const prompt = this.ctx.mask(buildImplementPrompt({
-      issue: { url: t.issueUrl, title: t.issueTitle, body: t.issueBody ?? '' }, plan: t.plan!, notes: cleanNotes, testCommands: this.ctx.cfg.tasks.testCommands,
+      issue: { url: t.issueUrl, title: t.issueTitle, body: t.issueBody ?? '' }, plan: t.plan!, notes: cleanNotes, testCommands: this.ctx.cfg.tasks.testCommands, lang: this.ctx.cfg.contentLang,
     })).text;
     await this.ctx.runs.patchTask(id, { phase: 'implementing', approvedAt: new Date(), ...(cleanNotes ? { notes: cleanNotes } : {}) }, { status: 'running' });
-    await this.ctx.runs.appendLog(id, [{ at: new Date(), type: 'start', text: 'plano aprovado — implementação' }]);
+    await this.ctx.runs.appendLog(id, [{ at: new Date(), type: 'start', text: 'plan approved — implementation' }]);
     const tools = implementationTools(this.ctx.cfg.tasks.testCommands);
     this.ctx.launch(id, {
       prompt, cwd: t.worktree, model: run.model, tools: tools.tools, allowedTools: tools.allowed,
@@ -118,7 +118,7 @@ export class TaskService {
       const ahead = await commitsAhead(t.worktree, t.base);
       const usage = r.usage ? { usage: this.sumUsage(run.usage, r.usage) } : {};
       if (!impl?.ok || ahead === 0) {
-        const error = this.ctx.mask(ahead === 0 && r.ok ? 'o agente não gerou mudanças' : r.error ?? (impl && !impl.ok ? impl.error : 'falhou')).text;
+        const error = this.ctx.mask(ahead === 0 && r.ok ? 'the agent made no changes' : r.error ?? (impl && !impl.ok ? impl.error : 'failed')).text;
         await this.ctx.runs.patchTask(id, { phase: 'failed', error }, { status: r.timedOut ? 'timeout' : r.cancelled ? 'cancelled' : 'failed', endedAt: new Date(), ...usage });
         return;
       }
@@ -145,7 +145,7 @@ ${v.stderr}`.trim().slice(-6000)).text;
     };
   }
 
-  /** Etapa 3 (só com clique): push da branch e PR em rascunho no GitHub. */
+  /** Stage 3 (only on click): push the branch and open a draft PR on GitHub. */
   async openTaskPr(id: string): Promise<{ url: string }> {
     const run = await this.getTask(id, ['ready']);
     const t = run.task;
@@ -154,7 +154,7 @@ ${v.stderr}`.trim().slice(-6000)).text;
     await pushBranch(t.worktree, t.branch);
     const pr = await gh.rest('POST', `/repos/${ref.owner}/${ref.repo}/pulls`, z.object({ html_url: z.string() }), {
       title: t.issueTitle, head: t.branch, base: t.base.replace(/^origin\//, ''), draft: true,
-      body: buildPrBody({ issueNumber: ref.number, plan: t.plan, impl: t.implementation, verify: t.verify }),
+      body: buildPrBody({ issueNumber: ref.number, plan: t.plan, impl: t.implementation, verify: t.verify, lang: this.ctx.cfg.contentLang }),
     });
     await this.ctx.runs.patchTask(id, { phase: 'pr_opened', prUrl: pr.html_url });
     await this.ctx.runs.addAction(id, { type: 'draft_pr', at: new Date(), ok: true, detail: pr.html_url });
@@ -172,8 +172,8 @@ ${v.stderr}`.trim().slice(-6000)).text;
 
   async taskDiff(id: string) {
     const run = await this.getTask(id, ['implementing', 'verifying', 'ready', 'pr_opened', 'failed']);
-    if (!fs.existsSync(run.task.worktree)) throw Object.assign(new Error('a worktree da tarefa não existe mais'), { statusCode: 410 });
-    return (await v2.git.diffSummary(run.task.worktree)) ?? { error: 'não é um repositório git' };
+    if (!fs.existsSync(run.task.worktree)) throw Object.assign(new Error('the task worktree no longer exists'), { statusCode: 410 });
+    return (await v2.git.diffSummary(run.task.worktree)) ?? { error: 'not a git repository' };
   }
 
   async taskPatch(id: string, file?: string): Promise<string> {

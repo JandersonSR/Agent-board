@@ -1,4 +1,4 @@
-// Conjunto fixo de avaliação: casos com problemas conhecidos para medir o que a review por IA deixa passar.
+// Fixed evaluation set: cases with known problems to measure what the AI review misses.
 import { recallByVersion, type EvalCase } from '../domain/review-eval.js';
 import { DocRepo } from '../store/doc-repo.js';
 import { parsePrUrl, type AgentContext } from './context.js';
@@ -7,7 +7,7 @@ import type { ReviewService } from './review-service.js';
 export class EvalService {
   constructor(private readonly ctx: AgentContext, private readonly reviews: ReviewService) {}
 
-    private get evalCases() { return new DocRepo<EvalCase>(this.ctx.store, 'painel_avaliacoes'); }
+    private get evalCases() { return new DocRepo<EvalCase>(this.ctx.store, 'deck_evals'); }
   evalState: { running: boolean; total: number; done: number; current?: string | undefined; error?: string | undefined; startedAt?: Date | undefined } = { running: false, total: 0, done: 0 };
 
   async listEvalCases(): Promise<Array<EvalCase & { _id: string }>> {
@@ -22,10 +22,10 @@ export class EvalService {
 
   async saveEvalCase(id: string | undefined, input: Omit<EvalCase, '_id' | 'createdAt'>): Promise<{ id: string }> {
     await this.ctx.needStore();
-    if (!parsePrUrl(input.prUrl)) throw Object.assign(new Error('URL de PR inválida'), { statusCode: 400 });
+    if (!parsePrUrl(input.prUrl)) throw Object.assign(new Error('invalid PR URL'), { statusCode: 400 });
     const doc = this.maskCase(input);
     if (id) {
-      if (!(await this.evalCases.update(id, doc))) throw Object.assign(new Error('caso não encontrado'), { statusCode: 404 });
+      if (!(await this.evalCases.update(id, doc))) throw Object.assign(new Error('case not found'), { statusCode: 404 });
       return { id };
     }
     return { id: await this.evalCases.create({ ...doc, createdAt: new Date() }) };
@@ -50,12 +50,12 @@ export class EvalService {
     };
   }
 
-  /** Roda a review atual em cada caso, um de cada vez (respeita os limites de custo). */
+  /** Runs the current review on each case, one at a time (respects the cost limits). */
   async runEvals(ids?: string[]): Promise<{ total: number }> {
-    if (this.evalState.running) throw Object.assign(new Error('a avaliação já está rodando'), { statusCode: 409 });
+    if (this.evalState.running) throw Object.assign(new Error('the evaluation is already running'), { statusCode: 409 });
     const all = await this.listEvalCases();
     const cases = ids?.length ? all.filter(c => ids.includes(c._id)) : all;
-    if (!cases.length) throw Object.assign(new Error('nenhum caso para rodar'), { statusCode: 400 });
+    if (!cases.length) throw Object.assign(new Error('no case to run'), { statusCode: 400 });
     this.evalState = { running: true, total: cases.length, done: 0, startedAt: new Date() };
     void (async () => {
       for (const c of cases) {

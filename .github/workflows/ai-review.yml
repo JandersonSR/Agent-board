@@ -1,6 +1,6 @@
-# Pré-review por IA, reutilizável pelos repositórios do time (opt-in).
-# Só comenta: nunca aprova, nunca pede mudanças, nunca faz push. Veja docs/ci-ai-review.md.
-# Exige aprovação da empresa para enviar código ao provedor do modelo e um secret ANTHROPIC_API_KEY no repositório que chama.
+# AI pre-review, reusable by the team's repositories (opt-in).
+# It only comments: never approves, never requests changes, never pushes. See docs/ci-ai-review.md.
+# It needs the company's approval to send code to the model provider and an ANTHROPIC_API_KEY secret in the calling repository.
 name: AI pre-review
 
 on:
@@ -10,18 +10,18 @@ on:
         type: string
         default: sonnet
       max-lines:
-        description: PRs maiores que isso são pulados com um aviso
+        description: PRs larger than this are skipped with a note
         type: number
         default: 2000
       language:
-        description: pt-BR ou en
+        description: en or pt-BR
         type: string
-        default: pt-BR
+        default: en
       skip-label:
         type: string
         default: no-ai-review
       tldeck-ref:
-        description: Versão do TLDeck usada (tag ou SHA; fixe para não mudar sem você saber)
+        description: TLDeck version used (tag or SHA; pin it so it does not change without you knowing)
         type: string
         default: main
     secrets:
@@ -62,7 +62,7 @@ jobs:
           node-version: 22
       - name: Claude Code
         run: npm install -g @anthropic-ai/claude-code
-      - name: Pré-review
+      - name: Pre-review
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           GH_TOKEN: ${{ github.token }}

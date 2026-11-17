@@ -1,5 +1,5 @@
-// Conjunto fixo de avaliação da review por IA: PRs com problemas conhecidos.
-// A precisão (ADR 0012) mede o que a IA apontou à toa; aqui medimos o que ela deixou passar (recall).
+// Fixed evaluation set for the AI review: PRs with known problems.
+// Precision (ADR 0012) measures what the AI flagged for nothing; here we measure what it missed (recall).
 
 export interface ExpectedFinding { id: string; path?: string | undefined; line?: number | undefined; keywords: string[]; note?: string | undefined }
 export interface EvalCase { _id?: unknown; name: string; prUrl: string; expected: ExpectedFinding[]; createdAt?: Date | string }
@@ -10,9 +10,9 @@ export const LINE_TOLERANCE = 10;
 const normPath = (p: string) => p.trim().replace(/^\.?\//, '').toLowerCase();
 
 /**
- * Um achado cobre o esperado quando o arquivo bate (se o esperado tiver arquivo) e
- * aparece uma das palavras-chave OU a linha fica a até 10 linhas da esperada.
- * Sem palavras-chave e sem linha, basta o arquivo.
+ * A finding covers the expected one when the file matches (if the expected one has a file) and
+ * one of the keywords shows up OR the line is within 10 lines of the expected one.
+ * Without keywords and without a line, the file is enough.
  */
 export function covers(e: ExpectedFinding, f: FoundFinding): boolean {
   if (e.path) {
@@ -47,7 +47,7 @@ export interface VersionRecall {
   perCase: Array<{ caseId: string; found: number; expected: number; missed: string[]; extra: number }>;
 }
 
-/** Recall por versão do prompt, usando a execução concluída mais recente de cada caso nessa versão. */
+/** Recall per prompt version, using the most recent finished run of each case in that version. */
 export function recallByVersion(cases: EvalCase[], runs: EvalRunLite[]): VersionRecall[] {
   const byId = new Map(cases.map(c => [String(c._id), c]));
   const latest = new Map<string, EvalRunLite>();

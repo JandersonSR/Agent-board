@@ -1,4 +1,4 @@
-// Dados da visão de Staff: DORA, conhecimento, incidentes, decisões, produto e avaliação da IA.
+// Staff view data: DORA, knowledge, incidents, decisions, product and AI evaluation.
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -102,8 +102,8 @@ export const useEvals = () => useQuery({
 });
 
 // ---------- Escrita ----------
-/** Mutação que invalida as consultas relacionadas e mostra o toast. Mensagens são chaves de tradução. */
-function useWrite<V, R = unknown>(fn: (v: V) => Promise<R>, keys: string[], ok?: string, fail = k('Não foi possível salvar')) {
+/** A mutation that invalidates the related queries and shows the toast. Messages are translation keys. */
+function useWrite<V, R = unknown>(fn: (v: V) => Promise<R>, keys: string[], ok?: string, fail = k('Could not save')) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
@@ -115,38 +115,38 @@ function useWrite<V, R = unknown>(fn: (v: V) => Promise<R>, keys: string[], ok?:
 export type IncidentInput = Partial<Omit<Incident, '_id' | 'createdAt' | 'updatedAt'>>;
 export const useSaveIncident = () => useWrite(
   ({ id, body }: { id?: string; body: IncidentInput }) => (id ? api.patch<unknown>(`/api/incidents/${id}`, body) : api.post<unknown>("/api/incidents", body)),
-  ['incidents', 'dora'], k('Incidente salvo'),
+  ['incidents', 'dora'], k('Incident saved'),
 );
-export const useDeleteIncident = () => useWrite((id: string) => api.del(`/api/incidents/${id}`), ['incidents', 'dora'], k('Incidente apagado'), k('Não foi possível apagar'));
+export const useDeleteIncident = () => useWrite((id: string) => api.del(`/api/incidents/${id}`), ['incidents', 'dora'], k('Incident deleted'), k('Could not delete'));
 
 export type DecisionInput = Partial<Pick<Decision, 'title' | 'kind' | 'status' | 'owner' | 'deciders' | 'url' | 'context' | 'decision' | 'decideBy' | 'decidedAt'>>;
 export const useSaveDecision = () => useWrite(
   ({ id, body }: { id?: string; body: DecisionInput }) => (id ? api.patch(`/api/decisions/${id}`, body) : api.post('/api/decisions', body)),
-  ['decisions'], k('Decisão salva'),
+  ['decisions'], k('Decision saved'),
 );
-export const useDeleteDecision = () => useWrite((id: string) => api.del(`/api/decisions/${id}`), ['decisions'], k('Decisão apagada'), k('Não foi possível apagar'));
+export const useDeleteDecision = () => useWrite((id: string) => api.del(`/api/decisions/${id}`), ['decisions'], k('Decision deleted'), k('Could not delete'));
 export const useImportAdrs = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: () => api.post<{ repos: number; files: number; added: number; updated: number }>('/api/decisions/import'),
     onSuccess: r => {
       void qc.invalidateQueries({ queryKey: ['decisions'] });
-      toast.success(t('{files} ADRs em {repos} repositórios: {added} novos, {updated} atualizados', r));
+      toast.success(t('{files} ADRs in {repos} repositories: {added} new, {updated} updated', r));
     },
-    onError: (e: Error) => toast.error(t('Não foi possível importar'), { description: e.message }),
+    onError: (e: Error) => toast.error(t('Could not import'), { description: e.message }),
   });
 };
 
 export type InitiativeInput = Partial<Pick<Initiative, 'name' | 'goal' | 'status' | 'targetDate' | 'stages'>>;
 export const useSaveInitiative = () => useWrite(
   ({ id, body }: { id?: string; body: InitiativeInput }) => (id ? api.patch(`/api/initiatives/${id}`, body) : api.post('/api/initiatives', body)),
-  ['initiatives'], k('Iniciativa salva'),
+  ['initiatives'], k('Initiative saved'),
 );
-export const useDeleteInitiative = () => useWrite((id: string) => api.del(`/api/initiatives/${id}`), ['initiatives'], k('Iniciativa apagada'), k('Não foi possível apagar'));
+export const useDeleteInitiative = () => useWrite((id: string) => api.del(`/api/initiatives/${id}`), ['initiatives'], k('Initiative deleted'), k('Could not delete'));
 
 export const useSaveEvalCase = () => useWrite(
   ({ id, body }: { id?: string; body: Omit<EvalCase, '_id'> }) => (id ? api.put(`/api/evals/${id}`, body) : api.post('/api/evals', body)),
-  ['evals'], k('Caso salvo'),
+  ['evals'], k('Case saved'),
 );
-export const useDeleteEvalCase = () => useWrite((id: string) => api.del(`/api/evals/${id}`), ['evals'], k('Caso apagado'), k('Não foi possível apagar'));
-export const useRunEvals = () => useWrite((ids?: string[]) => api.post<{ total: number }>('/api/evals/run', ids ? { ids } : {}), ['evals', 'runs'], k('Avaliação iniciada'), k('Não foi possível iniciar'));
+export const useDeleteEvalCase = () => useWrite((id: string) => api.del(`/api/evals/${id}`), ['evals'], k('Case deleted'), k('Could not delete'));
+export const useRunEvals = () => useWrite((ids?: string[]) => api.post<{ total: number }>('/api/evals/run', ids ? { ids } : {}), ['evals', 'runs'], k('Evaluation started'), k('Could not start'));
