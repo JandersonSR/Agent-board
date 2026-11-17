@@ -10,6 +10,7 @@ require('./lib/env');
 const store = require('./lib/store');
 const { apply, trim } = require('./lib/state');
 const { updateUsage } = require('./lib/transcript');
+const { cleanStdin } = require('./lib/encoding');
 
 const NTFY = process.env.AGENT_BOARD_NTFY; // ex.: https://ntfy.sh/meu-topico-secreto (opcional)
 const APPROVAL_WAIT = Number(process.env.AGENT_BOARD_APPROVAL_WAIT || 120); // segundos; 0 desliga
@@ -81,7 +82,8 @@ function normalize(ev) {
     tool: 'cursor',
     source: ev.hook_event_name,
     session_id: ev.conversation_id,
-    cwd: (ev.workspace_roots && ev.workspace_roots[0]) || ev.cwd,
+    // Cursor on Windows sends "/C:/Users/...": drop the slash before the drive letter.
+    cwd: ((ev.workspace_roots && ev.workspace_roots[0]) || ev.cwd || '').replace(/^\/([a-z]:)/i, '$1') || undefined,
     hook_event_name: name,
     prompt: ev.prompt,
     message: ev.text,
@@ -144,7 +146,8 @@ function updateApproval(file, requestId, change) {
 
 async function main() {
   let raw;
-  try { raw = JSON.parse(fs.readFileSync(0, 'utf8')); } catch { return; }
+  // On Windows Cursor pipes stdin through PowerShell 5.1: BOM in front and accents mangled (see lib/encoding.js).
+  try { raw = JSON.parse(cleanStdin(fs.readFileSync(0, 'utf8'))); } catch { return; }
   // Cursor expects an answer on this event; answering "continue" makes sure the prompt is never blocked.
   if (raw && raw.hook_event_name === 'beforeSubmitPrompt') process.stdout.write('{"continue":true}');
   const ev = raw && normalize(raw);

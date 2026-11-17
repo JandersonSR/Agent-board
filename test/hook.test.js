@@ -39,6 +39,17 @@ test('Cursor: answers continue on beforeSubmitPrompt', () => {
   assert.equal(read('c1').tool, 'cursor');
 });
 
+test('Cursor on Windows: accepts stdin with a BOM (PowerShell) and cwd "/C:/..."', () => {
+  const BOM = String.fromCharCode(0xfeff);
+  const ev = { conversation_id: 'c-bom', session_id: 'c-bom', workspace_roots: ['/C:/Users/x/proj'], hook_event_name: 'beforeSubmitPrompt', prompt: 'x' };
+  const out = execFileSync(process.execPath, [HOOK], { input: `${BOM}${JSON.stringify(ev)}\r\n`, env }).toString();
+  assert.equal(out, '{"continue":true}');
+  const s = read('c-bom');
+  assert.equal(s.tool, 'cursor');
+  assert.equal(s.cwd, 'C:/Users/x/proj');
+  assert.equal(s.project, 'proj');
+});
+
 test('permission without the deck open: does not wait, the terminal decides', async () => {
   fs.rmSync(path.join(root, 'server.json'), { force: true });
   const t0 = Date.now();
