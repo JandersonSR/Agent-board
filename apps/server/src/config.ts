@@ -37,7 +37,7 @@ const EnvSchema = z.object({
   AGENT_BOARD_APPROVAL_WAIT: intWithDefault(120, 0, 3600),
 
   MONGO_URI: optStr,
-  STORAGE: z.enum(['auto', 'sqlite', 'mongo', 'none']).default('auto'),
+  STORAGE: z.preprocess(empty, z.enum(['auto', 'sqlite', 'mongo', 'none']).default('auto')),
   AGENT_BOARD_DB: optStr,
   MONGO_DATABASE_NAME: optStr,
   MONGO_DATABASE_USER: optStr,

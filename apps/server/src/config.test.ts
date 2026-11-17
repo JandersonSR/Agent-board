@@ -15,6 +15,11 @@ describe('parseConfig', () => {
     expect(c.limits.maxConcurrent).toBe(2);
   });
 
+  it('STORAGE vazio (como no .env.example) vale auto', () => {
+    expect(parseConfig({ STORAGE: '' }).mongo.storage).toBe('sqlite');
+    expect(parseConfig({ STORAGE: '', MONGO_URI: 'mongodb://localhost/x' }).mongo.storage).toBe('mongo');
+  });
+
   it('monta a URI do Mongo no formato legado (inclusive a grafia antiga CUSTERNAME)', () => {
     const c = parseConfig({
       MONGO_DATABASE_NAME: 'db', MONGO_DATABASE_USER: 'u@x', MONGO_DATABASE_PASS: 'p/s', MONGO_DATABASE_CUSTERNAME: 'c0',
