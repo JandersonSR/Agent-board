@@ -14,7 +14,7 @@ const {
 } = require('./lib/metrics');
 
 const PORT = Number(process.env.AGENT_BOARD_PORT || 9999);
-const HOST = String(process.env.AGENT_BOARD_HOST || '127.0.0.1'); // only on your machine: the state includes paths and prompts
+const HOST = '127.0.0.1'; // only on your machine (not configurable): the state includes paths and prompts
 const PAGE = path.join(__dirname, 'public', 'index.html');
 const APPROVAL_WAIT = Number(process.env.AGENT_BOARD_APPROVAL_WAIT || 120);
 
