@@ -1,5 +1,5 @@
 {
-  "name": "lead-deck",
+  "name": "tldeck",
   "version": "0.4.0",
   "private": true,
   "description": "The local cockpit for Tech Leads who work with AI agents: team, queue, delivery and AI under control and measured.",
@@ -32,11 +32,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/JandersonSR/lead-deck.git"
+    "url": "https://github.com/JandersonSR/tldeck.git"
   },
-  "homepage": "https://github.com/JandersonSR/lead-deck#readme",
+  "homepage": "https://github.com/JandersonSR/tldeck#readme",
   "bugs": {
-    "url": "https://github.com/JandersonSR/lead-deck/issues"
+    "url": "https://github.com/JandersonSR/tldeck/issues"
   },
   "keywords": [
     "tech-lead",

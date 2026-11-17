@@ -1,6 +1,6 @@
-# Lead Deck
+# TLDeck
 
-[![CI](https://github.com/JandersonSR/lead-deck/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/lead-deck/actions/workflows/ci.yml)
+[![CI](https://github.com/JandersonSR/tldeck/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/tldeck/actions/workflows/ci.yml)
 [![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-blue.svg)](LICENSE)
 ![Node 22.13+](https://img.shields.io/badge/node-22.13%2B-339933)
 ![Só local](https://img.shields.io/badge/roda-s%C3%B3%20na%20sua%20m%C3%A1quina-555)
@@ -9,21 +9,21 @@
 
 **O painel local do Tech Lead que trabalha com agentes de IA.** O time, a fila, as entregas e os agentes de IA numa tela só, com a IA sob controle e medida. Tudo roda só na sua máquina.
 
-Se você lidera um time e roda agentes do Claude Code ou do Cursor em paralelo, o seu dia fica espalhado entre Discord, GitHub, terminais e planilhas. O Lead Deck junta tudo:
+Se você lidera um time e roda agentes do Claude Code ou do Cursor em paralelo, o seu dia fica espalhado entre Discord, GitHub, terminais e planilhas. O TLDeck junta tudo:
 
 - **Dia a dia:** a daily do time, os bloqueios com o tempo de cada um, a sua fila (bugs, tickets, menções sem resposta), os reviews pendentes por tamanho e espera, e um bloco **Atenção** com o que está atrasado ou parado.
 - **Entrega e confiabilidade:** acompanhamento de PRs e deploy por issue, fluxo do time, métricas **DORA**, incidentes com postmortem sem culpados, as decisões do time com dono e prazo, e o produto dividido em etapas com dependências, riscos e caminho crítico.
 - **IA sob controle:** todas as sessões de agentes num lugar, reviews de PR e tarefas da issue até o PR em rascunho em segundo plano, com portão humano em cada passo, e a IA **medida** pelos dois lados: o que ela aponta à toa (precisão) e o que deixa passar (recall).
 
-![Lead Deck: um tour de 15 segundos pelo demo](docs/lead-deck-tour.pt-BR.gif)
+![TLDeck: um tour de 15 segundos pelo demo](docs/tldeck-tour.pt-BR.gif)
 
 ## Teste em um minuto
 
 Sem configurar nada. Precisa do Node.js 22.13 ou mais novo.
 
 ```bash
-git clone https://github.com/JandersonSR/lead-deck.git
-cd lead-deck
+git clone https://github.com/JandersonSR/tldeck.git
+cd tldeck
 npm install
 npm run demo        # abre em http://127.0.0.1:9999 com dados fictícios (-- --en para inglês)
 ```
@@ -32,9 +32,9 @@ O demo não usa nenhuma integração real, mesmo que exista um `.env`, e guarda 
 
 ## Por que não X?
 
-Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que você precisa; o Lead Deck é para o Tech Lead que precisa das partes juntas, na própria máquina.
+Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que você precisa; o TLDeck é para o Tech Lead que precisa das partes juntas, na própria máquina.
 
-| Se você só precisa de… | Uma boa escolha | O que o Lead Deck acrescenta |
+| Se você só precisa de… | Uma boa escolha | O que o TLDeck acrescenta |
 | --- | --- | --- |
 | Gerenciar sessões paralelas do Claude Code | O agent view do próprio Claude Code (`claude agents`) | Sessões do Cursor também, aprovação pelo navegador e essas sessões ao lado da fila, dos reviews e do time (a aba **Em segundo plano** lê o `claude agents`) |
 | DORA e métricas de engenharia de muitos times | Apache DevLake, Middleware | Nada para configurar (SQLite local), incidente ligado à mudança que o causou, concentração de conhecimento, decisões e etapas do produto no mesmo lugar |
@@ -59,13 +59,14 @@ Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que voc
 6. [Sessões de agentes (hooks)](#sessões-de-agentes-hooks)
 7. [Execuções em segundo plano](#execuções-em-segundo-plano)
 8. [Visão de Staff](#visão-de-staff)
-9. [Configuração](#configuração)
-10. [Privacidade e segurança](#privacidade-e-segurança)
-11. [Idioma](#idioma)
-12. [Desenvolvimento](#desenvolvimento)
-13. [Problemas comuns](#problemas-comuns)
-14. [Desinstalação](#desinstalação)
-15. [Como contribuir e roadmap](#como-contribuir-e-roadmap)
+9. [Infra em tempo real](#infra-em-tempo-real)
+10. [Configuração](#configuração)
+11. [Privacidade e segurança](#privacidade-e-segurança)
+12. [Idioma](#idioma)
+13. [Desenvolvimento](#desenvolvimento)
+14. [Problemas comuns](#problemas-comuns)
+15. [Desinstalação](#desinstalação)
+16. [Como contribuir e roadmap](#como-contribuir-e-roadmap)
 
 ---
 
@@ -78,6 +79,7 @@ Boas ferramentas já cobrem partes disso. Use-as se uma parte é tudo de que voc
 | **PRs e deploy** | Acompanhamento por issue. Os PRs ligados a cada issue são encontrados e atualizados sozinhos, de qualquer autor e repositório, com o status da fila de review até o merge e a data de deploy |
 | **Execuções** | Reviews e tarefas em segundo plano, com log ao vivo, resultado e o prompt mascarado. Cada achado de review pode ser mantido ou descartado; tarefas mostram plano, implementação, verificação e diff |
 | **Produto** | A iniciativa dividida em etapas com donos (duplas), dependências, datas alvo e riscos. O progresso vem das issues ligadas em PRs e deploy; o caminho crítico mostra o que segura a entrega |
+| **Infra** | Servidores e apps do DigitalOcean, Heroku, Azure e Grafana em tempo real: estado, CPU e memória, alertas disparados com o deploy que pode ter causado, e linha do tempo. Tokens só de leitura |
 | **Incidentes** | Registro com severidade, linha do tempo, impacto, as mudanças que causaram, ações com dono e prazo, e postmortem sem culpados exportado em Markdown |
 | **Decisões** | Design docs, RFCs e ADRs do time com status, dono e prazo para decidir. Os ADRs dos clones locais são importados com um clique |
 | **Métricas** | **Agentes** (tempo trabalhando e esperando você, custo), **Time** (fluxo a partir do histórico de status dos PRs), **DORA** (frequência de deploy, tempo de entrega, taxa de falha de mudança, tempo de recuperação), **Conhecimento** (fator de ônibus por repositório, quem escreve e quem revisa) e **Qualidade da IA** (precisão por versão do prompt e um conjunto fixo que mede o que a IA deixa passar) |
@@ -91,7 +93,7 @@ Outros detalhes:
 - Toda integração é opcional. Um bloco sem a integração dele diz o que falta e como configurar.
 
 
-![Tela "Hoje" do Lead Deck com dados de exemplo](docs/lead-deck-today.pt-BR.jpg)
+![Tela "Hoje" do TLDeck com dados de exemplo](docs/tldeck-today.pt-BR.jpg)
 
 *Dados de exemplo do demo. A interface está em português e inglês (aperte `L` para trocar).*
 
@@ -133,8 +135,8 @@ As decisões de arquitetura ficam em [`docs/adr/`](docs/adr/).
 ## Instalação para uso real
 
 ```bash
-git clone https://github.com/JandersonSR/lead-deck.git
-cd lead-deck
+git clone https://github.com/JandersonSR/tldeck.git
+cd tldeck
 npm install
 cp .env.example .env      # preencha só o que usar; vazio = integração desligada
 npm run install-hooks     # hooks do Claude Code (o Cursor está mais abaixo)
@@ -255,6 +257,29 @@ A precisão só mostra o que a IA apontou à toa. **Métricas → Qualidade da I
 
 Esses números medem o processo, não as pessoas. Use na retro e no planejamento para achar gargalos e riscos, e para mostrar o antes e depois quando mudar alguma coisa.
 
+---
+
+## Infra em tempo real
+
+A tela **Infra** (`G S`) mostra seus servidores e apps, os alertas disparados e os deploys, atualizados a cada minuto. Ela só **lê**: todos os tokens abaixo podem ser só de leitura, e nada na sua infraestrutura é alterado.
+
+| Provedor | O que lê | Acesso só de leitura |
+| --- | --- | --- |
+| **DigitalOcean** | Droplets (estado, CPU e memória pela API de monitoramento), apps do App Platform e seus deployments | Token pessoal com escopo **read** (`DIGITALOCEAN_TOKEN`). `DIGITALOCEAN_TAG` limita aos droplets com uma tag |
+| **Heroku** | Apps, estado dos dynos (no ar, travado, subindo) e releases | `HEROKU_API_KEY` de uma conta com acesso de visualização; liste os apps em `HEROKU_APPS` |
+| **Azure** | Resource Health (disponível, degradado, indisponível) e alertas disparados do Azure Monitor da assinatura | Service principal com o papel **Monitoring Reader**: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SUBSCRIPTION_ID` |
+| **Grafana** | Alertas disparados do Grafana Alerting (vale também para alertas sobre dados do Prometheus, Loki ou Datadog) | Token de service account com papel **Viewer**: `GRAFANA_URL`, `GRAFANA_TOKEN` |
+
+**O que ele faz com isso:**
+
+- **Alertas por limite:** CPU acima de `INFRA_CPU_CRIT` (90%) ou memória acima de `INFRA_MEM_CRIT` (90%) por `INFRA_SUSTAIN_MIN` (5) minutos vira alerta crítico; acima de `INFRA_CPU_WARN` (80%), aviso. Recurso fora do ar também é alerta crítico. Os alertas dos provedores (Azure Monitor, Grafana) entram como vierem.
+- **Possível causa:** um deploy bem-sucedido do mesmo app até 60 minutos antes do alerta aparece ao lado dele.
+- **Incidente a partir do alerta:** alerta crítico num recurso de produção (nome que casa com `INFRA_PROD_RE`, padrão `prod|production|prd`) abre um incidente SEV2 com o alerta e o deploy suspeito na linha do tempo, no máximo 5 por hora (`INFRA_AUTO_INCIDENT=off` desliga). Quando o alerta some, o incidente fica **mitigado**; resolver e escrever o postmortem continua com você. Qualquer outro alerta vira incidente com um clique.
+- **DORA real:** deploys de produção bem-sucedidos do Heroku e do DigitalOcean substituem as datas das issues na frequência de deploy, e o tempo de recuperação conta até a mitigação.
+- **Bloco Atenção** em Hoje: alertas críticos, avisos e recursos fora do ar.
+- **Linha do tempo** de mudanças de estado, alertas e deploys de 24 horas, 7 ou 30 dias (guardada em `painel_eventos`).
+
+Se um provedor não responder, o último estado conhecido é mantido e o erro aparece no chip dele; uma leitura que falhou nunca resolve alertas. Os textos gerados seguem `INFRA_LANG` (`pt-BR` ou `en`).
 
 ---
 
@@ -314,7 +339,7 @@ npm run build && npm start
 ```
 
 ```
-lead-deck/
+tldeck/
 ├── apps/
 │   ├── server/        # Fastify + Zod: rotas, sincronização GitHub/Discord, MongoDB, execuções, mascaramento
 │   └── web/           # React + Vite + Tailwind + shadcn/ui

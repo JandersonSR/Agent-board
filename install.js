@@ -37,7 +37,7 @@ if (fs.existsSync(TARGET.file)) {
 }
 
 const isOurs = h => typeof h.command === 'string' &&
-  (h.command.includes(HOOK) || ((h.command.includes('agent-board') || h.command.includes('lead-deck')) && h.command.includes('hook.js')));
+  (h.command.includes(HOOK) || ((h.command.includes('agent-board') || h.command.includes('tldeck')) && h.command.includes('hook.js')));
 config.hooks = config.hooks || {};
 if (cursor) config.version = config.version || 1;
 

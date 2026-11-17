@@ -16,6 +16,7 @@ import { computeKnowledge, type KnowledgePr } from '../domain/knowledge.js';
 import { DocRepo, isId, maskFields } from '../store/doc-repo.js';
 import type { PainelStore } from '../store/mongo.js';
 import { PrsRepo } from '../store/prs-repo.js';
+import type { InfraService } from '../infra/service.js';
 
 type Mask = (s: string) => { text: string; total: number };
 
@@ -137,7 +138,7 @@ function maskInitiative(x: InitiativeInput, m: (s: string) => string): Initiativ
 
 const localToday = (tzOffsetMin: number) => new Date(Date.now() + tzOffsetMin * 60_000).toISOString().slice(0, 10);
 
-export async function staffRoutes(app: FastifyInstance, opts: { config: Config; store: PainelStore; mask: Mask }): Promise<void> {
+export async function staffRoutes(app: FastifyInstance, opts: { config: Config; store: PainelStore; mask: Mask; infra?: InfraService }): Promise<void> {
   const { config, store } = opts;
   const m = (s: string) => opts.mask(s).text;
   const prs = new PrsRepo(store);
@@ -155,13 +156,14 @@ export async function staffRoutes(app: FastifyInstance, opts: { config: Config; 
     const empty = computeDora([], [], { days, tzOffsetMin: tz, failureRe: config.dora.failureRe });
     if (!(await ready())) return { configured: false, ...empty };
     const since = new Date(Date.now() - days * 86_400_000);
-    const [issues, incs] = await Promise.all([
+    const [issues, incs, realDeploys] = await Promise.all([
       prs.listForDora(new Date(since.getTime() + tz * 60_000).toISOString().slice(0, 10)),
       incidents.list({ $or: [{ startedAt: { $gte: since } }, { resolvedAt: { $gte: since } }, { status: { $ne: 'resolved' } }] } as never, { startedAt: -1 }, 2000),
+      opts.infra?.productionDeploys(since.getTime()) ?? Promise.resolve([]),
     ]);
     return {
       configured: true, failureRe: config.dora.failureRe,
-      ...computeDora(issues.map(i => ({ ...i, prs: i.prs ?? [] })), incs, { days, tzOffsetMin: tz, failureRe: config.dora.failureRe }),
+      ...computeDora(issues.map(i => ({ ...i, prs: i.prs ?? [] })), incs, { days, tzOffsetMin: tz, failureRe: config.dora.failureRe, realDeploys }),
     };
   });
 
@@ -330,6 +332,7 @@ export async function staffRoutes(app: FastifyInstance, opts: { config: Config; 
         const v = computeInitiative(i, tracked, today);
         return { _id: String(i._id), name: i.name, progress: v.progress, late: v.late, blocked: v.blocked, highRisks: v.highRisks };
       }),
+      ...(opts.infra?.configured ? { infra: opts.infra.view().summary } : {}),
     };
   });
 }

@@ -2,7 +2,7 @@ import { useState, type ComponentType } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import {
-  BarChart3, Bot, Flag, Landmark, Siren, Sparkles, Command as CommandIcon, Keyboard, Languages, LayoutDashboard, Loader2, Monitor, Moon, Plus, RefreshCw, Rocket, Settings, Sun,
+  BarChart3, Bot, Flag, Landmark, Server, Siren, Sparkles, Command as CommandIcon, Keyboard, Languages, LayoutDashboard, Loader2, Monitor, Moon, Plus, RefreshCw, Rocket, Settings, Sun,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,11 +28,12 @@ import { MetricsView } from '@/features/metrics/metrics-view';
 import { ProductView } from '@/features/product/product-view';
 import { IncidentsView } from '@/features/incidents/incidents-view';
 import { DecisionsView } from '@/features/decisions/decisions-view';
+import { InfraView } from '@/features/infra/infra-view';
 import { OverviewView } from '@/features/overview/overview-view';
 import { SettingsView } from '@/features/settings/settings-view';
 
 // label, subtitle e as descrições dos atalhos são chaves de tradução (texto em português).
-type View = 'overview' | 'agents' | 'deploy' | 'runs' | 'product' | 'incidents' | 'decisions' | 'metrics' | 'settings';
+type View = 'overview' | 'agents' | 'deploy' | 'runs' | 'product' | 'infra' | 'incidents' | 'decisions' | 'metrics' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: string }>; keys: string; subtitle: string }> = [
   { id: 'overview', label: k('Hoje'), icon: LayoutDashboard, keys: 'G H', subtitle: k('Time, fila, reviews e bloqueios num só lugar') },
@@ -40,6 +41,7 @@ const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: st
   { id: 'deploy', label: k('PRs e deploy'), icon: Rocket, keys: 'G D', subtitle: k('Do review ao merge, por issue, sem cadastro manual') },
   { id: 'runs', label: k('Execuções'), icon: Sparkles, keys: 'G E', subtitle: k('Reviews e tarefas feitas por agentes, com log e resultado') },
   { id: 'product', label: k('Produto'), icon: Flag, keys: 'G P', subtitle: k('Etapas, duplas, dependências e riscos da iniciativa') },
+  { id: 'infra', label: k('Infra'), icon: Server, keys: 'G S', subtitle: k('Servidores, apps, alertas e deploys em tempo real') },
   { id: 'incidents', label: k('Incidentes'), icon: Siren, keys: 'G I', subtitle: k('Registro, ações e postmortems sem culpados') },
   { id: 'decisions', label: k('Decisões'), icon: Landmark, keys: 'G R', subtitle: k('Design docs, RFCs e ADRs do time, com dono e prazo') },
   { id: 'metrics', label: k('Métricas'), icon: BarChart3, keys: 'G M', subtitle: k('Agentes, fluxo do time, DORA, conhecimento e qualidade da IA') },
@@ -47,7 +49,7 @@ const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: st
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
-  ['Ctrl K', k('Paleta de comandos')], ['G H', k('Ir para Hoje')], ['G A', k('Ir para Agentes')], ['G D', k('Ir para PRs e deploy')], ['G E', k('Ir para Execuções')], ['G P', k('Ir para Produto')], ['G I', k('Ir para Incidentes')], ['G R', k('Ir para Decisões')], ['G M', k('Ir para Métricas')],
+  ['Ctrl K', k('Paleta de comandos')], ['G H', k('Ir para Hoje')], ['G A', k('Ir para Agentes')], ['G D', k('Ir para PRs e deploy')], ['G E', k('Ir para Execuções')], ['G P', k('Ir para Produto')], ['G S', k('Ir para Infra')], ['G I', k('Ir para Incidentes')], ['G R', k('Ir para Decisões')], ['G M', k('Ir para Métricas')],
   ['G C', k('Ir para Configuração')], ['N', k('Nova tarefa de agente')], ['R', k('Sincronizar agora (GitHub/Discord)')], ['T', k('Alternar tema')], ['L', k('Mudar idioma (português / inglês)')], ['?', k('Mostrar atalhos')],
 ];
 
@@ -73,7 +75,7 @@ export function App() {
   const live = useAgentSessionsStream(notifyPref === 'on');
   const needs = live.sessions.filter(s => s.state === 'needs_you').length;
   const review = live.sessions.filter(s => s.state === 'review').length;
-  document.title = needs + review ? `(${needs + review}) Lead Deck` : 'Lead Deck';
+  document.title = needs + review ? `(${needs + review}) TLDeck` : 'TLDeck';
 
   const syncNow = useSyncNow();
   const boardStatus = useBoardStatus().data;
@@ -85,7 +87,7 @@ export function App() {
 
   useHotkeys({
     'mod+k': () => setPalette(v => !v),
-    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g d': () => setView('deploy'), 'g e': () => setView('runs'), 'g m': () => setView('metrics'), 'g p': () => setView('product'), 'g i': () => setView('incidents'), 'g r': () => setView('decisions'), 'g c': () => setView('settings'),
+    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g d': () => setView('deploy'), 'g e': () => setView('runs'), 'g m': () => setView('metrics'), 'g p': () => setView('product'), 'g s': () => setView('infra'), 'g i': () => setView('incidents'), 'g r': () => setView('decisions'), 'g c': () => setView('settings'),
     n: () => setLaunch(true), r: refresh, t: cycleTheme, l: toggleLang, '?': () => setHelp(true),
   });
 
@@ -101,7 +103,7 @@ export function App() {
           <div className="flex h-14 items-center gap-2 px-4">
             <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" /></div>
             <div className="leading-tight">
-              <p className="text-sm font-semibold tracking-tight">Lead Deck</p>
+              <p className="text-sm font-semibold tracking-tight">TLDeck</p>
               <p className="text-[11px] text-muted-foreground">{t('painel do Tech Lead')}</p>
             </div>
           </div>
@@ -176,6 +178,7 @@ export function App() {
             {view === 'deploy' && <DeployView />}
             {view === 'metrics' && <MetricsView />}
             {view === 'product' && <ProductView />}
+            {view === 'infra' && <InfraView goToIncidents={() => setView('incidents')} />}
             {view === 'incidents' && <IncidentsView />}
             {view === 'decisions' && <DecisionsView />}
             {view === 'settings' && (

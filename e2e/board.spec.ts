@@ -20,7 +20,7 @@ test('todas as telas abrem sem erro, com o aviso de demonstração', async ({ pa
   await expect(page.getByRole('region', { name: 'Attention' })).toBeVisible();
   for (const [screen, marker] of [
     ['Agents', 'Needs you'], ['PRs and deploys', 'Hotfix: installment off by one cent'], ['Runs', 'Simulation: per-installment rounding'],
-    ['Product', 'Critical path'], ['Incidents', 'Simulation down after deploy'], ['Decisions', 'Outbox for proposal events'],
+    ['Product', 'Critical path'], ['Infra', 'Firing alerts'], ['Incidents', 'Simulation down after deploy'], ['Decisions', 'Outbox for proposal events'],
     ['Metrics', 'Agents'], ['Settings', 'Board data'], ['Today', 'Team daily'],
   ] as const) {
     await nav(page, screen).click();
@@ -90,4 +90,21 @@ test('agentes em segundo plano (claude agents): logs e parar com confirmação',
   await page.getByRole('button', { name: 'Stop' }).first().click();
   await page.getByRole('alertdialog').getByRole('button', { name: 'Stop' }).click();
   await expect(page.getByText('Session stopped')).toBeVisible();
+});
+
+test('infra: alertas em tempo real, possível causa e incidente aberto pela regra', async ({ page }) => {
+  const errors = await open(page, 'infra');
+  await expect(page.getByRole('heading', { level: 1, name: 'Infra' })).toBeVisible();
+  const alerts = page.getByTestId('infra-alert');
+  await expect(alerts.filter({ hasText: 'High CPU on api-prod' })).toBeVisible();
+  const latency = alerts.filter({ hasText: 'High p95 latency on loans-api-prod' });
+  await expect(latency.getByText(/possible cause: Deploy #121 of loans-api-prod/)).toBeVisible();
+  await expect(latency.getByRole('button', { name: 'View incident' })).toBeVisible(); // aberto pela regra automática
+  await alerts.filter({ hasText: 'DTU above 85%' }).getByRole('button', { name: 'Open incident' }).click();
+  await expect(page.getByText('Incident opened from the alert')).toBeVisible();
+  await expect(page.getByTestId('infra-resource').first()).toBeVisible();
+  await latency.getByRole('button', { name: 'View incident' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: 'Incidents' })).toBeVisible();
+  await expect(page.getByText('High p95 latency on loans-api-prod').first()).toBeVisible();
+  expect(errors).toEqual([]);
 });

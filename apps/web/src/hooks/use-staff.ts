@@ -7,7 +7,7 @@ import { k, t } from '@/lib/i18n';
 // ---------- Tipos (espelham o servidor) ----------
 export interface Dora {
   configured: boolean; days: number; failureRe?: string;
-  deploys: { items: number; days: number; itemsPerWeek: number; daysPerWeek: number };
+  deploys: { items: number; days: number; itemsPerWeek: number; daysPerWeek: number; source?: 'issues' | 'infra'; real?: { count: number; days: number; perWeek: number } };
   leadTime: { medianMs: number | null; p90Ms: number | null; measured: number };
   changeFailure: { failures: number; rate: number | null; fixes: number; incidents: number };
   recovery: { resolved: number; medianMs: number | null; medianDetectMs: number | null; open: number };
@@ -75,6 +75,7 @@ export interface StaffAlerts {
   configured: boolean;
   incidents?: IncidentAlerts; decisions?: DecisionAlerts;
   initiatives?: Array<{ _id: string; name: string; progress: number; late: number; blocked: number; highRisks: number }>;
+  infra?: { ok: number; warn: number; down: number; critical: number; warning: number };
 }
 
 export interface ExpectedFinding { id: string; path?: string; line?: number; keywords: string[]; note?: string }

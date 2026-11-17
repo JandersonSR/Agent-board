@@ -16,6 +16,8 @@ import { AgentService } from './agents/service.js';
 import { runsRoutes } from './routes/runs.js';
 import { staffRoutes } from './routes/staff.js';
 import { claudeAgentsRoutes } from './routes/claude-agents.js';
+import { infraRoutes } from './routes/infra.js';
+import { InfraService } from './infra/service.js';
 import { ClaudeAgents, DemoClaudeAgents } from './sources/claude-agents.js';
 import { peopleRoutes } from './routes/people.js';
 import { GitHubClient } from './sources/github.js';
@@ -67,7 +69,9 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
 
   const sync = new SyncService(config, store, mask, app.log);
   await app.register(boardRoutes, { sync, store });
-  await app.register(staffRoutes, { config, store, mask });
+  const infra = new InfraService(config, store, mask, app.log);
+  await app.register(infraRoutes, { infra });
+  await app.register(staffRoutes, { config, store, mask, infra });
   await app.register(claudeAgentsRoutes, { port: config.demo.on ? new DemoClaudeAgents() : new ClaudeAgents(), mask });
 
   const gh = config.github.org ? new GitHubClient({ token: config.github.token, login: config.github.login }) : undefined;
@@ -76,8 +80,8 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
   await app.register(peopleRoutes, { gh, org: config.github.org });
   if (startSync) app.addHook('onReady', async () => { await agents.init().catch(() => undefined); });
   if (startSync) {
-    app.addHook('onReady', async () => sync.start());
-    app.addHook('onClose', async () => sync.stop());
+    app.addHook('onReady', async () => { sync.start(); infra.start(); });
+    app.addHook('onClose', async () => { sync.stop(); infra.stop(); });
   }
 
   const webDist = path.join(REPO_ROOT, 'apps', 'web', 'dist');

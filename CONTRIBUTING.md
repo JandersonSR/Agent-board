@@ -1,12 +1,12 @@
-# Contributing to Lead Deck
+# Contributing to TLDeck
 
 Thanks for helping. *Português abaixo.*
 
 ## Setup
 
 ```bash
-git clone https://github.com/JandersonSR/lead-deck.git
-cd lead-deck
+git clone https://github.com/JandersonSR/tldeck.git
+cd tldeck
 npm install
 npm run demo        # the whole app with fictitious data, nothing to configure
 npm run dev         # API (tsx watch) + web (Vite) for development

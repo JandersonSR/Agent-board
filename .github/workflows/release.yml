@@ -26,4 +26,4 @@ jobs:
       - name: Criar a versão
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" --title "Lead Deck $GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+        run: gh release create "$GITHUB_REF_NAME" --title "TLDeck $GITHUB_REF_NAME" --notes-file notes.md --verify-tag
