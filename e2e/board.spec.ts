@@ -78,3 +78,16 @@ test('atalho L troca o idioma', async ({ page }) => {
   await page.keyboard.press('l');
   await expect(page.getByRole('heading', { name: 'Hoje' })).toBeVisible();
 });
+
+test('agentes em segundo plano (claude agents): logs e parar com confirmação', async ({ page }) => {
+  await open(page, 'agents');
+  await page.getByRole('tab', { name: /Background/ }).click();
+  await expect(page.getByText('flaky-test-fix')).toBeVisible();
+  await expect(page.getByText('permission request')).toBeVisible();
+  await page.getByRole('button', { name: 'Logs' }).first().click();
+  await expect(page.getByText('Allow Bash(npm run migrate)?')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Stop' }).first().click();
+  await page.getByRole('alertdialog').getByRole('button', { name: 'Stop' }).click();
+  await expect(page.getByText('Session stopped')).toBeVisible();
+});

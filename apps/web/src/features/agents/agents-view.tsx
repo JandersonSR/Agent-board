@@ -11,10 +11,13 @@ import { t } from '@/lib/i18n';
 import { usePref } from '@/lib/prefs';
 import { SessionCard } from './session-card';
 import { COLUMNS, groupByColumn, groupByTask } from './session-meta';
+import { BackgroundSessions, useBackgroundSessions } from './background-sessions';
 
 export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: () => void }) {
   const { sessions, flashed } = useAgentSessionsContext();
-  const [layout, setLayout] = usePref<'board' | 'tasks'>('agents.layout', 'board');
+  const [layout, setLayout] = usePref<'board' | 'tasks' | 'background'>('agents.layout', 'board');
+  const bg = useBackgroundSessions().data;
+  const bgBlocked = bg?.available ? bg.sessions.filter(s => s.state === 'blocked').length : 0;
   const clear = useMutation({
     mutationFn: () => api.post('/api/clear-ended'),
     onSuccess: () => toast.success(t('Sessões encerradas arquivadas')),
@@ -24,10 +27,11 @@ export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: (
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Tabs value={layout} onValueChange={v => setLayout(v as 'board' | 'tasks')}>
+        <Tabs value={layout} onValueChange={v => setLayout(v as 'board' | 'tasks' | 'background')}>
           <TabsList>
             <TabsTrigger value="board">{t('Quadro')}</TabsTrigger>
             <TabsTrigger value="tasks">{t('Por tarefa')}</TabsTrigger>
+            <TabsTrigger value="background">{t('Em segundo plano')}{bgBlocked > 0 && <Pill tone="danger" className="ml-1.5">{bgBlocked}</Pill>}</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="ml-auto flex items-center gap-2">
@@ -35,7 +39,7 @@ export function AgentsView({ editor, onNewTask }: { editor: string; onNewTask: (
         </div>
       </div>
 
-      {sessions.length === 0 ? (
+      {layout === 'background' ? <BackgroundSessions /> : sessions.length === 0 ? (
         <div className="rounded-xl border border-dashed">
           <EmptyState icon={Bot} title={t('Nenhuma sessão de agente')}
             description={<>{t('As sessões do Claude Code e do Cursor aparecem aqui assim que começam (hooks instalados com')} <code className="font-mono">npm run install-hooks</code>).</>}
