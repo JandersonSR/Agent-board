@@ -36,14 +36,14 @@ export function DoraView() {
       {d && !d.configured && (
         <div className="rounded-xl border border-dashed"><EmptyState icon={Rocket} title={t('MongoDB não configurado')} description={t('As métricas DORA vêm das datas de deploy em PRs e deploy e do registro de incidentes.')} /></div>
       )}
-      {d?.configured && d.deploys.items === 0 && d.recovery.resolved === 0 && (
+      {d?.configured && d.deploys.items === 0 && !d.deploys.real && d.recovery.resolved === 0 && (
         <div className="rounded-xl border border-dashed"><EmptyState icon={Rocket} title={t('Ainda sem entregas no período')} description={t('Issues mergeadas com data de deploy aparecem aqui. Registre incidentes em Incidentes para medir a recuperação.')} /></div>
       )}
-      {d?.configured && (d.deploys.items > 0 || d.recovery.resolved > 0) && (
+      {d?.configured && (d.deploys.items > 0 || !!d.deploys.real || d.recovery.resolved > 0) && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tile label={t('Frequência de deploy')} value={t('{n}/semana', { n: num(d.deploys.daysPerWeek) })}
-              sub={t('{days} dias de deploy · {items} entregas', { days: d.deploys.days, items: d.deploys.items })} />
+              sub={d.deploys.real ? t('{n} deploys reais de produção em {days} dias · {items} entregas', { n: d.deploys.real.count, days: d.deploys.real.days, items: d.deploys.items }) : t('{days} dias de deploy · {items} entregas', { days: d.deploys.days, items: d.deploys.items })} />
             <Tile label={t('Tempo de entrega (mediana)')} value={durDays(d.leadTime.medianMs)}
               sub={d.leadTime.p90Ms !== null ? t('90% em até {d}', { d: durDays(d.leadTime.p90Ms) }) : undefined} />
             <Tile label={t('Taxa de falha de mudança')} value={pct(d.changeFailure.rate)}

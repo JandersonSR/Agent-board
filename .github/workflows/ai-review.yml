@@ -20,8 +20,8 @@ on:
       skip-label:
         type: string
         default: no-ai-review
-      agent-board-ref:
-        description: Versão do agent-board usada (tag ou SHA; fixe para não mudar sem você saber)
+      tldeck-ref:
+        description: Versão do TLDeck usada (tag ou SHA; fixe para não mudar sem você saber)
         type: string
         default: main
     secrets:
@@ -52,9 +52,9 @@ jobs:
       - name: Script de review
         uses: actions/checkout@v4
         with:
-          repository: JandersonSR/agent-board
-          ref: ${{ inputs.agent-board-ref }}
-          path: .agent-board
+          repository: JandersonSR/tldeck
+          ref: ${{ inputs.tldeck-ref }}
+          path: .tldeck
           sparse-checkout: ci
           persist-credentials: false
       - uses: actions/setup-node@v4
@@ -71,4 +71,4 @@ jobs:
           MODEL: ${{ inputs.model }}
           MAX_LINES: ${{ inputs.max-lines }}
           LANG_OUT: ${{ inputs.language }}
-        run: node .agent-board/ci/ai-review.mjs
+        run: node .tldeck/ci/ai-review.mjs

@@ -18,4 +18,4 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
 await app.listen({ host: HOST, port: config.port });
-app.log.info(`tldeck em http://localhost:${config.port}`);
+app.log.info(`TLDeck em http://localhost:${config.port}`);

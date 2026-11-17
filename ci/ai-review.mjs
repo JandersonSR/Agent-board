@@ -12,7 +12,9 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 
-export const MARKER = '<!-- agent-board:ai-review -->';
+export const MARKER = '<!-- tldeck:ai-review -->';
+/** Marcador antigo (antes do nome TLDeck): o comentário existente continua sendo atualizado. */
+const LEGACY_MARKERS = ['<!-- agent-board:ai-review -->'];
 
 const JSON_CONTRACT = `{
   "verdict": "approve" | "request_changes" | "comment",
@@ -108,7 +110,7 @@ const gh = (args, input) => execFileSync('gh', args, { encoding: 'utf8', input, 
 function upsertComment(repo, pr, body) {
   if (process.env.DRY_RUN === '1') { console.log(body); return; }
   const comments = JSON.parse(gh(['api', `repos/${repo}/issues/${pr}/comments?per_page=100`]));
-  const mine = comments.find(c => typeof c.body === 'string' && c.body.startsWith(MARKER));
+  const mine = comments.find(c => typeof c.body === 'string' && [MARKER, ...LEGACY_MARKERS].some(m => c.body.startsWith(m)));
   const payload = JSON.stringify({ body });
   if (mine) gh(['api', '--method', 'PATCH', `repos/${repo}/issues/comments/${mine.id}`, '--input', '-'], payload);
   else gh(['api', '--method', 'POST', `repos/${repo}/issues/${pr}/comments`, '--input', '-'], payload);

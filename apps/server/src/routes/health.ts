@@ -88,6 +88,15 @@ function reposCheck(cfg: Config, tr: Tr): Check {
     : { ...base, state: 'ok', detail: `${repos.length} ${tr('configurados', 'configured')}: ${repos.map(r => r.slug).join(', ')}` };
 }
 
+export function infraCheck(cfg: Config, tr: Tr): Check {
+  const base = { id: 'infra', label: tr('Infra (DigitalOcean, Heroku, Azure, Grafana)', 'Infra (DigitalOcean, Heroku, Azure, Grafana)') };
+  const i = cfg.infra;
+  const on = [i.digitalocean && 'DigitalOcean', i.heroku && 'Heroku', i.azure && 'Azure', i.grafana && 'Grafana'].filter(Boolean) as string[];
+  if (cfg.demo.on) return { ...base, state: 'ok', detail: tr('dados fictícios do modo demonstração', 'demo mode fictitious data') };
+  if (!on.length) return { ...base, state: 'off', detail: tr('nenhum provedor configurado', 'no provider configured'), hint: tr('Use tokens só de leitura: DIGITALOCEAN_TOKEN, HEROKU_API_KEY, AZURE_* (service principal com Monitoring Reader) ou GRAFANA_URL + GRAFANA_TOKEN (Viewer).', 'Use read-only tokens: DIGITALOCEAN_TOKEN, HEROKU_API_KEY, AZURE_* (service principal with Monitoring Reader) or GRAFANA_URL + GRAFANA_TOKEN (Viewer).') };
+  return { ...base, state: 'ok', detail: `${on.join(', ')} · ${tr('leitura a cada', 'polling every')} ${i.pollSec} s` };
+}
+
 export async function healthRoutes(app: FastifyInstance, opts: { config: Config; store: PainelStore; featMaps: FeatMapRegistry }): Promise<void> {
   const cache = new Map<string, { at: number; checks: Check[] }>(); // por idioma
 
@@ -101,7 +110,7 @@ export async function healthRoutes(app: FastifyInstance, opts: { config: Config;
       return { checks: [mongoCheck(opts.store, tr), ...hit.checks.filter(c => c.id !== 'mongo')], limits: opts.config.limits };
     }
     const [claude, github, featmap] = await Promise.all([claudeCheck(tr), githubCheck(opts.config, tr), featMapCheck(opts.featMaps, tr)]);
-    const checks = [mongoCheck(opts.store, tr), github, discordCheck(opts.config, tr), claude, featmap, skillsCheck(opts.config, tr), reposCheck(opts.config, tr)];
+    const checks = [mongoCheck(opts.store, tr), github, discordCheck(opts.config, tr), infraCheck(opts.config, tr), claude, featmap, skillsCheck(opts.config, tr), reposCheck(opts.config, tr)];
     cache.set(lang, { at: Date.now(), checks });
     return { checks, limits: opts.config.limits };
   });

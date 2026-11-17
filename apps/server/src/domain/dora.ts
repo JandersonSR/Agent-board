@@ -5,7 +5,9 @@
 // - Entrega = issue mergeada com data de deploy no período. Dia de deploy = data distinta.
 // - Tempo de entrega (lead time) = do primeiro PR visto pelo painel até o meio-dia (hora do time) da data de deploy.
 // - Mudança com falha = entrega que é correção (hotfix, rollback, revert… pela regex) ou que um incidente aponta como causa.
-// - Tempo de recuperação = do início ao fim dos incidentes resolvidos no período.
+// - Tempo de recuperação = do início até o serviço voltar (mitigação; sem ela, a resolução) dos incidentes do período.
+// - Frequência de deploy: quando há deploys reais de produção (Heroku, DigitalOcean… via Infra), eles valem;
+//   senão, os dias com data de deploy das issues.
 import { median, weekOf } from './team-metrics.js';
 
 type When = Date | string;
@@ -17,7 +19,7 @@ export interface DoraIssue {
   deployDate?: string | undefined; status: string; prs: DoraPr[];
 }
 export interface DoraIncident {
-  severity: string; startedAt: When; detectedAt?: When | null | undefined; resolvedAt?: When | null | undefined;
+  severity: string; startedAt: When; detectedAt?: When | null | undefined; mitigatedAt?: When | null | undefined; resolvedAt?: When | null | undefined;
   causeChanges?: string[] | undefined;
 }
 
@@ -29,7 +31,7 @@ export interface DoraWeek { week: string; deploys: number; deployDays: number; f
 
 export interface Dora {
   days: number;
-  deploys: { items: number; days: number; itemsPerWeek: number; daysPerWeek: number };
+  deploys: { items: number; days: number; itemsPerWeek: number; daysPerWeek: number; source: 'issues' | 'infra'; real?: { count: number; days: number; perWeek: number } | undefined };
   leadTime: { medianMs: number | null; p90Ms: number | null; measured: number };
   changeFailure: { failures: number; rate: number | null; fixes: number; incidents: number };
   recovery: { resolved: number; medianMs: number | null; medianDetectMs: number | null; open: number };
@@ -60,7 +62,7 @@ export function causedIncident(issue: DoraIssue, incidents: DoraIncident[]): boo
 
 export function computeDora(
   issues: DoraIssue[], incidents: DoraIncident[],
-  opts: { days: number; now?: number; tzOffsetMin?: number; failureRe?: string },
+  opts: { days: number; now?: number; tzOffsetMin?: number; failureRe?: string; realDeploys?: Array<{ at: When; resource: string }> },
 ): Dora {
   const now = opts.now ?? Date.now();
   const tz = opts.tzOffsetMin ?? 0;
@@ -95,14 +97,19 @@ export function computeDora(
   }
 
   const inWindow = (t: number) => Number.isFinite(t) && t >= since && t <= now;
-  const resolved = incidents.filter(i => inWindow(ts(i.resolvedAt)));
+  const restoredAt = (i: DoraIncident) => (Number.isFinite(ts(i.mitigatedAt)) ? ts(i.mitigatedAt) : ts(i.resolvedAt));
+  const resolved = incidents.filter(i => inWindow(restoredAt(i)));
+  const real = (opts.realDeploys ?? []).filter(d => inWindow(ts(d.at)));
+  const realDays = new Set(real.map(d => localDay(ts(d.at)))).size;
   const weeksInPeriod = Math.max(1, opts.days / 7);
 
   return {
     days: opts.days,
     deploys: {
-      items: rows.length, days: new Set(rows.map(r => r.day)).size,
-      itemsPerWeek: rows.length / weeksInPeriod, daysPerWeek: new Set(rows.map(r => r.day)).size / weeksInPeriod,
+      items: rows.length, days: real.length ? realDays : new Set(rows.map(r => r.day)).size,
+      itemsPerWeek: rows.length / weeksInPeriod, daysPerWeek: (real.length ? realDays : new Set(rows.map(r => r.day)).size) / weeksInPeriod,
+      source: real.length ? 'infra' : 'issues',
+      ...(real.length ? { real: { count: real.length, days: realDays, perWeek: real.length / weeksInPeriod } } : {}),
     },
     leadTime: { medianMs: median(leads), p90Ms: p90(leads), measured: leads.length },
     changeFailure: {
@@ -111,7 +118,7 @@ export function computeDora(
     },
     recovery: {
       resolved: resolved.length,
-      medianMs: median(resolved.map(i => ts(i.resolvedAt) - ts(i.startedAt)).filter(x => x >= 0)),
+      medianMs: median(resolved.map(i => restoredAt(i) - ts(i.startedAt)).filter(x => x >= 0)),
       medianDetectMs: median(resolved.map(i => ts(i.detectedAt) - ts(i.startedAt)).filter(x => Number.isFinite(x) && x >= 0)),
       open: incidents.filter(i => !i.resolvedAt).length,
     },

@@ -1,4 +1,5 @@
-// Integração com banco real (SQLite em arquivo temporário): rotas → repositórios → armazenamento.
+// Integração com banco real: rotas → repositórios → armazenamento.
+// Roda sempre com SQLite (arquivo temporário) e, quando MONGO_TEST_URI existe (CI), também com MongoDB.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -8,6 +9,12 @@ import type { FastifyInstance } from 'fastify';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ld-int-'));
 process.env.AGENT_BOARD_DIR = path.join(tmp, 'sessions');
 
+const backends: Array<[string, Record<string, string>]> = [
+  ['SQLite', { AGENT_BOARD_DB: path.join(tmp, 'data.db') }],
+  ...(process.env.MONGO_TEST_URI ? [['MongoDB', { MONGO_URI: process.env.MONGO_TEST_URI, MONGO_DATABASE_NAME: `ld_test_${Date.now().toString(36)}` }] as [string, Record<string, string>]] : []),
+];
+
+describe.each(backends)('com %s real', (_name, backendEnv) => {
 let app: FastifyInstance;
 let close: () => Promise<void>;
 const H = { host: '127.0.0.1:9999' };
@@ -20,7 +27,7 @@ beforeAll(async () => {
   const { parseConfig } = await import('./config.js');
   const { PainelStore } = await import('./store/mongo.js');
   const { PrsRepo } = await import('./store/prs-repo.js');
-  const config = parseConfig({ AGENT_BOARD_DB: path.join(tmp, 'data.db'), TEAM_TZ_OFFSET_MIN: '0' });
+  const config = parseConfig({ ...backendEnv, TEAM_TZ_OFFSET_MIN: '0' });
   const store = new PainelStore(config.mongo);
   await store.connect();
   // Duas entregas: uma normal e um hotfix, com PRs revisados.
@@ -35,9 +42,8 @@ beforeAll(async () => {
   app = await buildApp({ config, store, serveWeb: false });
   close = async () => { await app.close(); await store.close(); };
 });
-afterAll(async () => { await close(); fs.rmSync(tmp, { recursive: true, force: true }); });
+afterAll(async () => { await close(); });
 
-describe('com SQLite real', () => {
   it('incidente: cria, edita, lista com avisos e exporta o postmortem', async () => {
     const c = await app.inject({ method: 'POST', url: '/api/incidents', headers: W, payload: { title: 'Simulação fora do ar', severity: 'sev2', startedAt: new Date(Date.now() - 3 * 3_600_000).toISOString(), causeChanges: ['https://github.com/acme/api/issues/1'] } });
     expect(c.statusCode).toBe(200);
@@ -84,3 +90,5 @@ describe('com SQLite real', () => {
     expect(t).toMatchObject({ configured: true, summary: { merged: 2 } });
   });
 });
+
+afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
