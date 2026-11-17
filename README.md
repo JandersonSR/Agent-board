@@ -1,23 +1,60 @@
-# Agent Board
+# Lead Deck
 
-[![CI](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml)
+[![CI](https://github.com/JandersonSR/lead-deck/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/lead-deck/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Node 22.13+](https://img.shields.io/badge/node-22.13%2B-339933)
+![Local-first](https://img.shields.io/badge/runs-only%20on%20your%20machine-555)
 
 **English** · [Português](README.pt-BR.md)
 
-**A local cockpit for Tech Leads.** One screen with your team's daily, your queue, pending reviews, PR and deploy tracking, and the Claude Code and Cursor agents you run in parallel. It runs on your machine only.
+**The local cockpit for Tech Leads who work with AI agents.** Your team, your queue, your deliveries and your AI agents on one screen, with the AI kept under control and measured. It runs only on your machine.
 
-![Agent Board "Today" screen with sample data](docs/preview-v3.en.jpg)
+If you lead a team and run Claude Code or Cursor agents in parallel, your day is scattered across Discord, GitHub, terminals and spreadsheets. Lead Deck puts it together:
 
-*Sample data. The interface is available in English and Portuguese (press `L` to switch).*
+- **Day to day:** the team daily, blockers with how long each one has been open, your queue (bugs, tickets, mentions you have not answered), pending reviews by size and wait time, and an **Attention** block for what is late or stalled.
+- **Delivery and reliability:** PR and deploy tracking per issue, team flow, **DORA** metrics, incidents with blameless postmortems, the team's decisions with owner and deadline, and the product split into stages with dependencies, risks and the critical path.
+- **AI under control:** every agent session in one place, background PR reviews and tasks from issue to draft PR with a human gate at every step, and the AI **measured** both ways: what it flags for nothing (precision) and what it misses (recall).
 
----
+![Lead Deck: a 15-second tour of the demo](docs/lead-deck-tour.en.gif)
+
+## Try it in one minute
+
+Nothing to configure. Needs Node.js 22.13 or newer.
+
+```bash
+git clone https://github.com/JandersonSR/lead-deck.git
+cd lead-deck
+npm install
+npm run demo        # opens on http://127.0.0.1:9999 with fictitious data (-- --pt for Portuguese)
+```
+
+The demo uses no real integration, even if you have a `.env`, and keeps its data in a temporary folder.
+
+## Why not X?
+
+Good tools already cover parts of this. Use them if one part is all you need; Lead Deck is for the Tech Lead who needs the parts together, locally.
+
+| If you only need… | A good choice | What Lead Deck adds |
+| --- | --- | --- |
+| To manage parallel Claude Code sessions | Claude Code's own agent view (`claude agents`) | Cursor sessions too, approvals from the browser, and those sessions next to your queue, reviews and team (the **Background** tab reads `claude agents`) |
+| DORA and engineering metrics across many teams | Apache DevLake, Middleware | Zero setup (local SQLite), incidents linked to the change that caused them, knowledge concentration, decisions and product stages in the same place |
+| AI pull request review in CI | PR-Agent, CodeRabbit | Precision and recall measured per prompt version, findings you judge before anything reaches GitHub, and an opt-in CI pre-review that only comments |
+| Delivery analytics as a service | LinearB, Swarmia and similar | Runs only on your machine, personal data masked before anything is stored or sent to a model |
+
+## Security and privacy
+
+- The server listens **only on 127.0.0.1**, checks the `Host` header and requires a local `Origin` plus a custom header on every write, so no website you visit can trigger actions.
+- **Personal data is masked** (CPF, CNPJ, emails, phones, cards, bank data, income, tokens) before any text goes to a model, to the database or into an error message.
+- **Nothing is posted without your click:** draft PRs, pending reviews and stopping an agent always ask for confirmation. The Discord bot is read-only.
+- Background agents run isolated from your global settings; review agents are read-only.
+- Before using it at work, check that your company allows the AI tools and integrations you turn on. Details in [Privacy and security](#privacy-and-security).
 
 ## Contents
 
 1. [What it does](#what-it-does)
 2. [How it works](#how-it-works)
 3. [Requirements](#requirements)
-4. [Quick start](#quick-start)
+4. [Install for real](#install-for-real)
 5. [Connecting your tools](#connecting-your-tools)
 6. [Agent sessions (hooks)](#agent-sessions-hooks)
 7. [Background agent runs](#background-agent-runs)
@@ -28,6 +65,7 @@
 12. [Development](#development)
 13. [Troubleshooting](#troubleshooting)
 14. [Uninstalling](#uninstalling)
+15. [Contributing and roadmap](#contributing-and-roadmap)
 
 ---
 
@@ -52,6 +90,11 @@ Other details:
 - Desktop notifications when an agent needs you or is ready for review.
 - Every integration is optional. A block without its integration says what is missing and how to set it up.
 
+
+![Lead Deck "Today" screen with sample data](docs/lead-deck-today.en.jpg)
+
+*Sample data from the demo. The interface is available in English and Portuguese (press `L` to switch).*
+
 ---
 
 ## How it works
@@ -61,15 +104,16 @@ Claude Code / Cursor ──hook──▶ hook.js ──▶ ~/.agent-board/sessio
                                                                            ▼
 GitHub (GraphQL, polling) ─────────────────────────────▶  apps/server (Fastify, 127.0.0.1)  ──▶  apps/web (React)
 Discord (read-only bot, polling) ──────────────────────▶        │                                 in your browser
-Feature RAGs (local git clones) ───────────────────────▶        ├─▶ MongoDB: board collections painel_* only
+Feature RAGs (local git clones) ───────────────────────▶        ├─▶ local SQLite file (or MongoDB): board data only
                                                                  └─▶ claude -p (isolated background runs)
 ```
 
 - **`hook.js`** runs on every agent event and writes the session state to a small JSON file. It never blocks your agent.
-- **`apps/server`** reads the sessions, polls GitHub and Discord every few minutes, stores its own data in MongoDB and runs background reviews.
+- **`apps/server`** reads the sessions, polls GitHub and Discord every few minutes, stores its own data in a local SQLite file (or MongoDB) and runs background reviews.
 - **`apps/web`** is a single-page app served by the server.
 
 Design decisions are recorded in [`docs/adr/`](docs/adr/).
+
 
 ---
 
@@ -83,26 +127,14 @@ Design decisions are recorded in [`docs/adr/`](docs/adr/).
 | MongoDB (optional) | Only if you want a shared database; the default is a local SQLite file | A database just for the board |
 | A Discord bot (read-only) | Daily, blockers, Discord mentions | See [Discord](#discord) |
 
+
 ---
 
-## Quick start
-
-**Try it in one minute, nothing to configure:**
+## Install for real
 
 ```bash
-git clone https://github.com/JandersonSR/agent-board.git
-cd agent-board
-npm install
-npm run demo              # http://127.0.0.1:9999 with fictitious data (add -- --en or -- --pt)
-```
-
-The demo uses no real integration, even if you have a `.env`, and keeps its data in a temporary folder.
-
-**Use it for real:**
-
-```bash
-git clone https://github.com/JandersonSR/agent-board.git
-cd agent-board
+git clone https://github.com/JandersonSR/lead-deck.git
+cd lead-deck
 npm install
 cp .env.example .env      # fill in only what you use; empty = integration off
 npm run install-hooks     # Claude Code hooks (see below for Cursor)
@@ -113,6 +145,7 @@ npm start                 # http://localhost:9999
 The hooks point to this folder's absolute path. Keep the project in a permanent place, and run `npm run install-hooks` again if you move it.
 
 To add sample agent cards to a real board, run `npm run demo:sessions` in a second terminal. Remove them with `npm run demo:sessions -- --clear`.
+
 
 ---
 
@@ -144,6 +177,7 @@ The board only writes to its own collections, `painel_resumos`, `painel_sessoes`
 
 Background reviews can use one or more feature maps (git clones with `AGENTS.md` and `packs/_index.yaml`) and the review skill from your team's skills kit. Set `FEAT_MAPS`, `FEAT_MAP_ROUTES`, `SKILLS_KIT_PATH` and `SKILL_NAMES`. **Settings** shows the status of each map and lets you test the search.
 
+
 ---
 
 ## Agent sessions (hooks)
@@ -169,6 +203,7 @@ On the **Agents** screen:
 - **New task** (`N`): creates a git worktree and opens Claude Code or Cursor in it.
 - **By task:** groups sessions by task ID (`FEAT-123`) found in the branch or the first prompt.
 - **Phone push (optional):** set `AGENT_BOARD_NTFY` to an [ntfy](https://ntfy.sh) topic. The push carries only the folder, branch and state. Anyone who knows the topic name can read it, so pick a hard-to-guess name or a self-hosted server.
+
 
 ---
 
@@ -205,6 +240,7 @@ The wand on a GitHub issue in **My queue** runs a task in three gated steps:
 
 Precision only shows what the AI flagged for nothing. **Metrics → AI quality → Fixed set** measures recall: register 5 to 10 PRs (old ones are fine) with problems you already know, giving for each one the file and the words a good review would use. **Run all** reviews each case with the current prompt version, one at a time and within the cost limits. A problem counts as found when a finding is in the same file and has one of the words, or is within 10 lines. Evaluation runs never become a GitHub review. The cases live in the board's MongoDB, not in the repository.
 
+
 ---
 
 ## Staff view
@@ -218,6 +254,7 @@ Precision only shows what the AI flagged for nothing. **Metrics → AI quality �
 | **Product** | Progress per stage, stages waiting on a dependency, late stages, open high risks, critical path | Issues tracked in PRs and deploys, linked by URL, `repo#123` or text in the title |
 
 These numbers measure the process, not people. Use them in retros and planning to find bottlenecks and risks, and to show before-and-after when you change something.
+
 
 ---
 
@@ -240,6 +277,7 @@ All settings live in `.env`. [`.env.example`](.env.example) lists every variable
 
 Real environment variables take priority over `.env`. Restart the server after changing it.
 
+
 ---
 
 ## Privacy and security
@@ -253,6 +291,7 @@ Real environment variables take priority over `.env`. Restart the server after c
 - Secrets live only in `.env`, which is git-ignored. They are never shown on screen or logged.
 - Before using it at work, check that your company allows the AI tools and the integrations you turn on.
 
+
 ---
 
 ## Language
@@ -260,6 +299,7 @@ Real environment variables take priority over `.env`. Restart the server after c
 The interface is available in **English** and **Portuguese (Brazil)**. The first visit follows your browser language. Switch any time with the **EN/PT** button in the header, the `L` shortcut or **Settings → Language**.
 
 Texts written by people and tools (issue titles, daily messages, agent replies) stay in their original language.
+
 
 ---
 
@@ -269,11 +309,12 @@ Texts written by people and tools (issue titles, daily messages, agent replies) 
 npm run dev          # API (tsx watch) + web (Vite, http://127.0.0.1:5173)
 npm test             # hooks (node --test) + server + web (Vitest)
 npm run typecheck
+npm run test:e2e     # interface end to end (Playwright) on the demo
 npm run build && npm start
 ```
 
 ```
-agent-board/
+lead-deck/
 ├── apps/
 │   ├── server/        # Fastify + Zod: routes, GitHub/Discord sync, MongoDB, agent runs, masking
 │   └── web/           # React + Vite + Tailwind + shadcn/ui
@@ -291,6 +332,7 @@ agent-board/
 
 The previous single-file server is still available as `npm run start:legacy` until it is removed.
 
+
 ---
 
 ## Troubleshooting
@@ -304,6 +346,7 @@ The previous single-file server is still available as `npm run start:legacy` unt
 | Project dates don't show | The token lacks `read:project`. Run `gh auth refresh -s read:project` and set `GITHUB_PROJECTS` |
 | Installer says "invalid JSON" | Fix your `settings.json`/`hooks.json` or restore the `.bak-agent-board` backup, then install again |
 
+
 ---
 
 ## Uninstalling
@@ -314,6 +357,16 @@ npm run uninstall-cursor    # Cursor
 ```
 
 Only the board's hooks are removed. Then delete the project folder and, if you want, `~/.agent-board`.
+
+---
+
+## Contributing and roadmap
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the setup, the checks a PR must pass and how decisions are recorded. The plan for the next versions is in [ROADMAP.md](ROADMAP.md), and the changes per version in [CHANGELOG.md](CHANGELOG.md). To report a vulnerability, follow [SECURITY.md](SECURITY.md).
+
+**Name change:** this project was called *Agent Board* until v0.3. Environment variables (`AGENT_BOARD_*`), the data folder (`~/.agent-board`) and the request header keep the old name so existing installs keep working.
+
+---
 
 ## License
 

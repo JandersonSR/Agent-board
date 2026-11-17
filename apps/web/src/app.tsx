@@ -73,7 +73,7 @@ export function App() {
   const live = useAgentSessionsStream(notifyPref === 'on');
   const needs = live.sessions.filter(s => s.state === 'needs_you').length;
   const review = live.sessions.filter(s => s.state === 'review').length;
-  document.title = needs + review ? `(${needs + review}) Agent Board` : 'Agent Board';
+  document.title = needs + review ? `(${needs + review}) Lead Deck` : 'Lead Deck';
 
   const syncNow = useSyncNow();
   const boardStatus = useBoardStatus().data;
@@ -101,7 +101,7 @@ export function App() {
           <div className="flex h-14 items-center gap-2 px-4">
             <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Bot className="size-4" /></div>
             <div className="leading-tight">
-              <p className="text-sm font-semibold tracking-tight">Agent Board</p>
+              <p className="text-sm font-semibold tracking-tight">Lead Deck</p>
               <p className="text-[11px] text-muted-foreground">{t('painel do Tech Lead')}</p>
             </div>
           </div>

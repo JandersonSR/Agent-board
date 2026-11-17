@@ -1,8 +1,8 @@
 {
-  "name": "agent-board",
-  "version": "0.3.0",
+  "name": "lead-deck",
+  "version": "0.4.0",
   "private": true,
-  "description": "Painel local do Tech Lead: acompanha o time, a fila, reviews, PRs e sessões de agentes de IA",
+  "description": "The local cockpit for Tech Leads who work with AI agents: team, queue, delivery and AI under control and measured.",
   "license": "MIT",
   "workspaces": [
     "apps/server",
@@ -29,5 +29,24 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.65.1"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JandersonSR/lead-deck.git"
+  },
+  "homepage": "https://github.com/JandersonSR/lead-deck#readme",
+  "bugs": {
+    "url": "https://github.com/JandersonSR/lead-deck/issues"
+  },
+  "keywords": [
+    "tech-lead",
+    "engineering-metrics",
+    "dora",
+    "claude-code",
+    "cursor",
+    "ai-agents",
+    "code-review",
+    "dashboard",
+    "local-first"
+  ]
 }

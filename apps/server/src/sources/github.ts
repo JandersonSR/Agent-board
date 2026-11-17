@@ -29,7 +29,7 @@ export class GitHubClient {
       method,
       headers: {
         Authorization: `bearer ${await this.getToken()}`, Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'agent-board-local',
+        'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'lead-deck-local',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
       },
       ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
@@ -46,7 +46,7 @@ export class GitHubClient {
   async graphql<T>(query: string, variables: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
     const res = await fetch(GQL_URL, {
       method: 'POST',
-      headers: { Authorization: `bearer ${await this.getToken()}`, 'Content-Type': 'application/json', 'User-Agent': 'agent-board-local' },
+      headers: { Authorization: `bearer ${await this.getToken()}`, 'Content-Type': 'application/json', 'User-Agent': 'lead-deck-local' },
       body: JSON.stringify({ query, variables }),
       signal: AbortSignal.timeout(30_000),
     });
