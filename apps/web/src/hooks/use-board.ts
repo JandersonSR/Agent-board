@@ -11,7 +11,7 @@ export const useBoardStatus = () =>
   useQuery({ queryKey: ['board-status'], queryFn: () => api.get<{ sources: Sources; demo?: boolean }>('/api/board/status'), refetchInterval: 15_000 });
 
 export const useQueue = () =>
-  useQuery({ queryKey: ['queue'], queryFn: () => api.get<{ source: { github: SourceState; discord: SourceState }; items: QueueItem[] }>('/api/queue'), refetchInterval: every });
+  useQuery({ queryKey: ['queue'], queryFn: () => api.get<{ source: { github: SourceState; chat: SourceState; tracker?: SourceState }; items: QueueItem[] }>('/api/queue'), refetchInterval: every });
 
 export const useReviews = () =>
   useQuery({ queryKey: ['reviews'], queryFn: () => api.get<{ source: SourceState; items: ReviewItem[] }>('/api/reviews'), refetchInterval: every });
@@ -55,7 +55,7 @@ export function useSetPrStatus() {
   });
 }
 
-/** Syncs now (GitHub + Discord + PRs) and reloads everything. */
+/** Syncs now (GitHub, chat, trackers and PRs) and reloads everything. */
 export function useSyncNow() {
   const qc = useQueryClient();
   return useMutation({

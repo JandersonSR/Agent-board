@@ -26,13 +26,13 @@ export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncServic
 
   app.post('/api/sync', async () => { await sync.run(); return { sources: sync.state }; });
 
-  app.get('/api/queue', async () => ({ source: { github: sync.state.github, discord: sync.state.discord }, items: sync.queue }));
+  app.get('/api/queue', async () => ({ source: { github: sync.state.github, chat: sync.state.chat, tracker: sync.state.tracker }, items: sync.queue }));
 
   app.get('/api/reviews', async () => ({ source: sync.state.github, items: sync.reviews }));
 
-  app.get('/api/daily', async () => ({ source: sync.state.discord, summary: sync.daily ?? null }));
+  app.get('/api/daily', async () => ({ source: sync.state.chat, summary: sync.daily ?? null }));
 
-  app.get('/api/blockers', async () => ({ source: sync.state.discord, items: sync.blockers }));
+  app.get('/api/blockers', async () => ({ source: sync.state.chat, items: sync.blockers }));
 
   app.get('/api/prs', async (req) => {
     const { all } = z.object({ all: z.string().optional() }).parse(req.query);

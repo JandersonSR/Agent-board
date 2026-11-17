@@ -209,6 +209,17 @@ export class PrsRepo {
     return [...new Set(docs.map(d => String((d as TrackedIssue).reference)))];
   }
 
+  /** References to Jira/Linear issues still being tracked (same rules as the GitHub ones). */
+  async trackerRefsToTrack(days = 3): Promise<string[]> {
+    const docs = await this.col.find({
+      archived: { $ne: true },
+      status: { $ne: 'production' },
+      reference: { $regex: '/browse/[A-Z][A-Z0-9_]*-\\d+$|linear\\.app/[^/]+/issue/' },
+      $or: [{ status: { $ne: 'merged' } }, { mergedAt: { $gte: new Date(Date.now() - days * 86_400_000) } }],
+    }, { projection: { reference: 1 } }).toArray();
+    return [...new Set(docs.map(d => String((d as TrackedIssue).reference)))];
+  }
+
   async patch(id: string, fields: Partial<Pick<TrackedIssue, 'deployDate' | 'team' | 'owner' | 'title' | 'deployOrder'>>): Promise<TrackedIssue | null> {
     const set: Document = { ...fields, updatedAt: new Date() };
     if (fields.deployDate !== undefined) set.deployDateSource = 'manual';

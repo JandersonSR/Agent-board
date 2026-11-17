@@ -42,8 +42,10 @@ export function demoData(lang: DemoLang, now = Date.now()) {
     { key: 'b2', member: team[3]!, text: L('Aguardando contrato do evento de parcelas', 'Waiting on the installments event contract'), dependsOn: 'Carla', since: iso(30 * MIN), ageMs: 30 * MIN, source: 'channel', channel: 'loans-squad', inferred: true },
   ];
 
-  const q = (key: string, type: string, rank: number, title: string, repo: string | undefined, num: number | undefined, reasons: string[], mins: number, answered = true, source: 'github' | 'discord' = 'github', label?: string): QueueItem => ({
-    key, source, kind: source === 'github' ? 'issue' : 'message', type, rank, title, url: repo && num ? gh(repo, 'issues', num) : 'https://discord.com',
+  const q = (key: string, type: string, rank: number, title: string, repo: string | undefined, num: number | undefined, reasons: string[], mins: number, answered = true, source: 'github' | 'chat' | 'jira' = 'github', label?: string): QueueItem => ({
+    key, source, kind: source === 'chat' ? 'message' : 'issue', type, rank, title,
+    url: repo && num ? gh(repo, 'issues', num) : source === 'jira' ? `https://acme.atlassian.net/browse/${label}` : 'https://discord.com',
+    ...(source === 'chat' ? { origin: `Discord · ${label}` } : source === 'jira' ? { origin: `Jira · ${label}` } : {}),
     repo: source === 'github' ? `acme/${repo}` : undefined, number: num, labels: label ? [label] : [],
     createdAt: iso(mins * MIN), updatedAt: iso((mins / 2) * MIN), reasons, answered,
   } as QueueItem);
@@ -52,7 +54,8 @@ export function demoData(lang: DemoLang, now = Date.now()) {
     q('q2', 'Ticket', 0, L('Cliente não recebe o contrato por e-mail', 'Customer does not get the contract by email'), 'notifications', 87, ['mentioned'], 50, false),
     q('q3', L('Ajuste', 'Fix'), 2, L('Ajustar limite de simulação por produto', 'Adjust simulation limit per product'), 'loans-api', 425, ['assigned'], 600),
     q('q4', L('Tarefa', 'Task'), 3, L('Revisar a RFC do outbox de eventos', 'Review the event outbox RFC'), 'architecture', 19, ['assigned', 'mentioned'], 1500),
-    q('q5', 'Ticket', 0, L('Dúvida do suporte sobre quitação antecipada', 'Support question about early payoff'), undefined, undefined, ['mentioned'], 20, false, 'discord', L('suporte', 'support')),
+    q('q5', 'Ticket', 0, L('Dúvida do suporte sobre quitação antecipada', 'Support question about early payoff'), undefined, undefined, ['mentioned'], 20, false, 'chat', L('suporte', 'support')),
+    q('q6', 'Story', 4, L('Cliente acompanha a proposta pelo app', 'Customer follows the proposal in the app'), undefined, undefined, ['assigned'], 2900, false, 'jira', 'LOAN-214'),
   ];
 
   const r = (key: string, title: string, repo: string, num: number, author: string, add: number, del: number, daysWaiting: number, draft = false): ReviewItem =>

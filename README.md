@@ -169,6 +169,28 @@ The board reads Discord through a private bot with **read-only** permissions. It
 4. A server admin opens the URL and adds the bot.
 5. With Developer Mode on, copy the server, channel and user IDs into `.env` (`DISCORD_GUILD_ID`, `DISCORD_DAILY_CHANNEL_ID`, `DISCORD_WATCH_CHANNELS`, `DISCORD_MY_USER_ID`, `TEAM_DISCORD_MEMBERS`).
 
+### Slack (instead of Discord)
+
+The same blocks (team daily, blockers, mentions in your queue) can read Slack. One chat at a time: Slack is used when only `SLACK_BOT_TOKEN` is set, or with `CHAT_PROVIDER=slack`.
+
+1. api.slack.com/apps → **Create New App** in your own workspace (an internal app; Slack's stricter history limits apply only to apps distributed outside the Marketplace).
+2. **OAuth & Permissions** → bot scopes **only** `channels:history`, `groups:history`, `users:read` and `usergroups:read`. Install it and copy the **Bot User OAuth Token** to `SLACK_BOT_TOKEN`.
+3. Invite the app to the daily channel and the watched channels (`/invite @your-app`).
+4. Fill in `SLACK_DAILY_CHANNEL_ID`, `SLACK_WATCH_CHANNELS` (`label:channelId`), `SLACK_MY_USER_ID`, `SLACK_MY_GROUP_IDS` (user groups that mention you, e.g. `@leads`) and `TEAM_SLACK_MEMBERS` (`memberId:name`).
+
+A mention counts as answered when you replied in its thread or wrote later in the channel. The daily format is the same as on Discord (bold with `*x*` works too).
+
+### Jira and Linear
+
+Besides GitHub Issues (and GitHub Projects for deploy dates), the queue and the deploy tracking can read Jira and Linear, read-only.
+
+| Tracker | Access | What it adds |
+| --- | --- | --- |
+| **Jira Cloud** | `JIRA_BASE_URL`, `JIRA_EMAIL` and an API token (`JIRA_API_TOKEN`) from an account with read access | Your queue: `JIRA_JQL` (default: assigned to you and not done). Deploy date from a date field (`JIRA_DEPLOY_DATE_FIELD`, e.g. `customfield_10050`) |
+| **Linear** | A personal API key (`LINEAR_API_KEY`) | Your queue: issues assigned to you and not finished. With `LINEAR_DUE_DATE_IS_DEPLOY=true`, the due date is the deploy date |
+
+With the project keys (`JIRA_PROJECT_KEYS=LOAN,CRM`, `LINEAR_TEAM_KEYS=ENG`), PRs that mention a key in the title, branch or body are grouped under that issue in **PRs and deploys**, with the tracker's title, state and deploy date. You can also track an issue by typing its key (`LOAN-214`) or link.
+
 ### Data: local SQLite or MongoDB
 
 By default the board keeps its data in a local SQLite file (`~/.agent-board/data.db`, or `AGENT_BOARD_DB`). No server, nothing to install. Set `MONGO_URI` (or `MONGO_DATABASE_*`) to use MongoDB instead, for example to share the data across machines.

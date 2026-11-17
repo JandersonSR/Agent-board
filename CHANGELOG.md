@@ -4,6 +4,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 
 ## [Unreleased]
 
+### Added
+- **Slack** as the team chat, instead of Discord: daily, blockers and mentions (thread answers count as answered). One chat at a time (`CHAT_PROVIDER`).
+- **Jira Cloud and Linear**, read-only: issues assigned to you in your queue, and PRs that mention an issue key grouped under that issue in PRs and deploys, with its title, state and deploy date (a Jira date field or Linear's due date). Track an issue by key or link.
+- Chat and trackers are adapters (`sources/chat.ts`, `sources/trackers.ts`); GitHub Issues and Projects keep working as before.
+- Slack, Linear and Jira tokens are masked like the other secrets.
+
 ### Changed
 - **Code and data in English.** Comments, test names, log and error messages, agent prompts and the interface's source texts are now in English; the Portuguese interface comes from `i18n-pt.ts`. Fixed server errors are still shown in Portuguese when that is the language chosen.
 - **Collections renamed** from `painel_*` to `deck_*` (`painel_sessoes` → `deck_runs`, `painel_avaliacoes` → `deck_evals`, …). The first start renames them in place, in SQLite and MongoDB; nothing is copied or lost. If both an old and a new collection hold data, the old one is left untouched and a warning is logged.
