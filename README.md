@@ -1,4 +1,4 @@
-# Agent Board
+# tldeck
 
 [![CI](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml)
 
@@ -6,7 +6,7 @@
 
 **A local cockpit for Tech Leads.** One screen with your team's daily, your queue, pending reviews, PR and deploy tracking, and the Claude Code and Cursor agents you run in parallel. It runs on your machine only.
 
-![Agent Board "Today" screen with sample data](docs/preview-v3.en.jpg)
+![tldeck "Today" screen with sample data](docs/preview-v3.en.jpg)
 
 *Sample data. The interface is available in English and Portuguese (press `L` to switch).*
 

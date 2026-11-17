@@ -1,4 +1,4 @@
-# Agent Board
+# tldeck
 
 [![CI](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml/badge.svg)](https://github.com/JandersonSR/agent-board/actions/workflows/ci.yml)
 
@@ -6,7 +6,7 @@
 
 **Um painel local para Tech Leads.** Numa só tela: a daily do time, a sua fila, os reviews pendentes, o acompanhamento de PRs e deploys e os agentes do Claude Code e do Cursor que você roda em paralelo. Tudo roda só na sua máquina.
 
-![Tela "Hoje" do Agent Board com dados de exemplo](docs/preview-v3.pt-BR.jpg)
+![Tela "Hoje" do tldeck com dados de exemplo](docs/preview-v3.pt-BR.jpg)
 
 *Dados de exemplo. A interface existe em português e inglês (aperte `L` para trocar).*
 
