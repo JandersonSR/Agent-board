@@ -9,6 +9,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 - **Incident from an alert:** critical production alerts open a SEV2 incident (at most 5 per hour, can be turned off) and are marked mitigated when the alert clears; any alert becomes an incident in one click.
 - **DORA with real deploys:** production deploys from the providers drive deploy frequency, and time to restore counts until mitigation.
 - Infra items in the Attention block and an Infra check in Settings.
+- **"In production" deploy status:** a PR merged into a production branch (`DEPLOY_PROD_BRANCHES`, default `production,production-*`) becomes *In production*; an issue with every PR delivered and at least one in production does too. *Merged* and *In production* can also be set by hand. A card in production leaves automatic tracking (setting it back to automatic resumes it).
+
+### Fixed
+- **DigitalOcean with a custom-scope token:** a part the token cannot read (e.g. droplets with an `app:read`-only token) no longer fails the whole provider. The rest is read and the provider shows *partial* with the missing scope; it only fails when nothing is readable.
 
 ## [0.4.0] - 2026-11-16
 

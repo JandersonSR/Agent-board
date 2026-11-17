@@ -74,7 +74,7 @@ export function computeDora(
 
   const seen = new Set<string>();
   const deploys = issues.filter(i => {
-    if (i.status !== 'merged' || !i.deployDate || i.deployDate < fromDay || i.deployDate > today || seen.has(i.key)) return false;
+    if ((i.status !== 'merged' && i.status !== 'production') || !i.deployDate || i.deployDate < fromDay || i.deployDate > today || seen.has(i.key)) return false;
     seen.add(i.key);
     return true;
   });

@@ -30,6 +30,19 @@ describe('mergeGroup (sync de painel_prs)', () => {
     expect(doc.mergedAt).toEqual(t0);
   });
 
+  it('em produção: grupo encerra com mergedAt e o tempo não conta para merged/production', () => {
+    const first = mergeGroup(null, { key: 'k', title: 'T', owner: 'd', prs: [pr('a', 'merged', 'merged')] }, t0);
+    const doc = setPrOverride(first, 'a', 'production', t1);
+    expect(doc.status).toBe('production');
+    expect(doc.prs[0]).toMatchObject({ status: 'production', statusOverride: { status: 'production', basis: 'merged' } });
+    expect(doc.mergedAt).toEqual(t0);
+    expect(Object.keys(doc.prs[0]!.statusStats ?? {})).toEqual([]); // merged → production não acumula tempo
+    // Sync seguinte (GitHub continua "merged"): o ajuste vale.
+    expect(mergeGroup(doc, { key: 'k', title: 'T', owner: 'd', prs: [pr('a', 'merged', 'merged')] }, t1).status).toBe('production');
+    // Voltar ao automático destrava.
+    expect(setPrOverride(doc, 'a', null, t1).status).toBe('merged');
+  });
+
   it('não troca título editado à mão (legado/manual)', () => {
     const legacy = { ...mergeGroup(null, { key: 'k', title: 'Auto', owner: 'd', prs: [] }, t0), title: 'Título manual', source: 'legacy' as const };
     expect(mergeGroup(legacy, { key: 'k', title: 'Outro', owner: 'd', prs: [pr('a', 'reviewing')] }, t1).title).toBe('Título manual');
@@ -68,5 +81,46 @@ describe('data de deploy e ajuste manual', () => {
     doc = setPrOverride(doc, 'a', 're_review', t1);
     doc = setPrOverride(doc, 'a', null, t1);
     expect(doc.prs[0]).toMatchObject({ status: 'rcs', statusOverride: null });
+  });
+});
+
+describe('PrsRepo: card em produção sai do acompanhamento', () => {
+  it('a rotina não atualiza nem consulta o card em produção; voltar ao automático destrava', async () => {
+    const { PainelStore } = await import('./mongo.js');
+    const { PrsRepo } = await import('./prs-repo.js');
+    const store = new PainelStore({ uri: undefined, dbName: undefined, legacyPr: undefined, storage: 'sqlite', sqliteFile: ':memory:' });
+    await store.connect();
+    const repo = new PrsRepo(store);
+    const key = 'https://github.com/o/board/issues/7';
+    const group = (title: string, prs: SyncedGroup['prs']): SyncedGroup => ({ key, reference: key, title, owner: 'd', prs });
+
+    await repo.upsertGroup(group('T', [pr('https://github.com/o/r/pull/1', 'merged', 'merged')]));
+    expect(await repo.issueRefsToTrack()).toEqual([key]);
+    const doc = (await repo.list({ includeOldMerged: true }))[0]!;
+    await repo.setOverride(String(doc._id), 'https://github.com/o/r/pull/1', 'production');
+
+    expect(await repo.issueRefsToTrack()).toEqual([]);
+    await repo.upsertGroup(group('Título novo', [pr('https://github.com/o/r/pull/1', 'merged', 'merged'), pr('https://github.com/o/r/pull/2', 'reviewing')]));
+    const frozen = (await repo.list({ includeOldMerged: true }))[0]!;
+    expect(frozen).toMatchObject({ status: 'production', title: 'T' });
+    expect(frozen.prs).toHaveLength(1);
+
+    await repo.setOverride(String(doc._id), 'https://github.com/o/r/pull/1', null);
+    expect(await repo.issueRefsToTrack()).toEqual([key]);
+    await store.close();
+  });
+
+  it('merge numa branch de produção vindo do sync congela o card', async () => {
+    const { PainelStore } = await import('./mongo.js');
+    const { PrsRepo } = await import('./prs-repo.js');
+    const store = new PainelStore({ uri: undefined, dbName: undefined, legacyPr: undefined, storage: 'sqlite', sqliteFile: ':memory:' });
+    await store.connect();
+    const repo = new PrsRepo(store);
+    await repo.upsertGroup({ key: 'k', title: 'T', owner: 'd', prs: [{ ...pr('u1', 'production', 'merged'), base: 'production' }] });
+    await repo.upsertGroup({ key: 'k', title: 'T', owner: 'd', prs: [{ ...pr('u1', 'production', 'merged'), base: 'production' }, pr('u2', 'review_queue')] });
+    const [doc] = await repo.list({ includeOldMerged: true });
+    expect(doc).toMatchObject({ status: 'production' });
+    expect(doc!.prs.map(p => p.url)).toEqual(['u1']);
+    await store.close();
   });
 });

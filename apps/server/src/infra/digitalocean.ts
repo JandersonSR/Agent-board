@@ -4,7 +4,7 @@
 // As políticas de alerta do DigitalOcean não informam o que está disparando; os alertas de limite saem do
 // acompanhamento do painel (CPU/memória sustentadas), em tracker.ts.
 import { z } from 'zod';
-import { getJson, type Fetcher } from './http.js';
+import { getJson, isScopeError, type Fetcher } from './http.js';
 import { pct, type InfraDeploy, type InfraProvider, type InfraResource, type ResourceStatus } from './types.js';
 
 const API = 'https://api.digitalocean.com';
@@ -80,7 +80,21 @@ export function digitalOceanProvider(opts: { token: string; tag?: string | undef
       const resources: InfraResource[] = [];
       const deploys: InfraDeploy[] = [];
       const dropletsUrl = `${API}/v2/droplets?per_page=200${opts.tag ? `&tag_name=${encodeURIComponent(opts.tag)}` : ''}`;
-      const [d, apps] = await Promise.all([getJson(fetcher, dropletsUrl, h, Droplets), getJson(fetcher, `${API}/v2/apps?per_page=100`, h, Apps)]);
+      // Tokens com escopo customizado (ex.: só app:read, como o de um watcher do App Platform) recebem 403 numa parte da API.
+      // Cada parte sem escopo vira aviso e lista vazia; só falha de verdade se nenhuma parte puder ser lida.
+      const warnings: string[] = [];
+      const scopeErrors: unknown[] = [];
+      const part = <T>(p: Promise<T>, what: string, scope: string, empty: T): Promise<T> => p.catch((e: unknown) => {
+        if (!isScopeError(e)) throw e;
+        scopeErrors.push(e);
+        warnings.push(`${what}: token sem escopo ${scope}`);
+        return empty;
+      });
+      const [d, apps] = await Promise.all([
+        part(getJson(fetcher, dropletsUrl, h, Droplets), 'droplets', 'droplet:read', { droplets: [] }),
+        part(getJson(fetcher, `${API}/v2/apps?per_page=100`, h, Apps), 'apps', 'app:read', { apps: [] }),
+      ]);
+      if (scopeErrors.length === 2) throw scopeErrors[0];
 
       await Promise.all(d.droplets.map(async drop => {
         const st = dropletStatus(drop.status);
@@ -105,7 +119,7 @@ export function digitalOceanProvider(opts: { token: string; tag?: string | undef
           deploys.push({ key: `digitalocean:${app.id}:${dep.id}`, provider: 'digitalocean', resourceId: id, resourceName: app.spec.name, version: dep.id.slice(0, 8), status: deployPhase(dep.phase), at: dep.created_at ?? dep.updated_at ?? new Date(now).toISOString(), description: dep.cause });
         }
       }));
-      return { resources, alerts: [], deploys };
+      return { resources, alerts: [], deploys, ...(warnings.length ? { warnings } : {}) };
     },
   };
 }

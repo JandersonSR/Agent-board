@@ -15,7 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { EmptyState, Mono, Pill } from '@/components/common';
 import { useArchiveIssue, usePatchPr, usePrs, useSetPrStatus, useTrackIssue } from '@/hooks/use-board';
-import { DEPLOY_STATUSES, STATUS_META, type DeployStatus, type TrackedIssue, type TrackedPr } from '@/lib/board-types';
+import { DEPLOY_STATUSES, isDone, STATUS_META, type DeployStatus, type TrackedIssue, type TrackedPr } from '@/lib/board-types';
 import { ago, dur } from '@/lib/format';
 import { k, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
@@ -79,7 +79,7 @@ function PrChip({ issue, pr, wide = false }: { issue: TrackedIssue; pr: TrackedP
         <DropdownMenuItem onSelect={() => window.open(pr.url, '_blank', 'noopener')}><ExternalLink /> {t('Abrir PR')}</DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuLabel className="text-xs">{t('Ajustar status')}</DropdownMenuLabel>
-        {DEPLOY_STATUSES.filter(s => s !== 'merged').map(s => (
+        {DEPLOY_STATUSES.map(s => (
           <DropdownMenuItem key={s} disabled={setStatus.isPending} onSelect={() => setStatus.mutate({ id: issue._id, url: pr.url, status: s })}>
             {pr.status === s ? <Check /> : <span className="size-4" />} {t(STATUS_META[s].label)}
           </DropdownMenuItem>
@@ -124,7 +124,7 @@ export function DeployView() {
   const [filter, setFilter] = useState<Filter>('open');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const archive = useArchiveIssue();
-  const q = usePrs(filter === 'all' || filter === 'merged');
+  const q = usePrs(filter === 'all' || filter === 'merged' || filter === 'production');
   const [filters, setFilters] = useFilters('deploy');
   const people = usePeople().data;
   const raw = useMemo(() => q.data?.items ?? [], [q.data]);
@@ -136,7 +136,7 @@ export function DeployView() {
   const filtered = useMemo(() => applyFilters(raw, issueFilterable, filters, people), [raw, filters, people]);
   const items = useMemo(() => {
     const all = filtered;
-    if (filter === 'open') return all.filter(i => i.status !== 'merged');
+    if (filter === 'open') return all.filter(i => !isDone(i.status));
     if (filter === 'overdue') return all.filter(i => i.overdue);
     if (filter === 'all') return all;
     return all.filter(i => i.status === filter);
@@ -144,7 +144,7 @@ export function DeployView() {
   const counts = useMemo(() => {
     const all = filtered;
     const by = Object.fromEntries(DEPLOY_STATUSES.map(s => [s, all.filter(i => i.status === s).length])) as Record<DeployStatus, number>;
-    return { open: all.filter(i => i.status !== 'merged').length, overdue: all.filter(i => i.overdue).length, by };
+    return { open: all.filter(i => !isDone(i.status)).length, overdue: all.filter(i => i.overdue).length, by };
   }, [filtered]);
   const toggle = (id: string) => setOpen(s => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
@@ -174,7 +174,7 @@ export function DeployView() {
           <TabsTrigger value="open">{t('Em andamento')} <Pill className="ml-1">{counts.open}</Pill></TabsTrigger>
           <TabsTrigger value="overdue">{t('Atrasados')} {counts.overdue > 0 && <Pill tone="danger" className="ml-1">{counts.overdue}</Pill>}</TabsTrigger>
           {DEPLOY_STATUSES.map(s => (
-            <TabsTrigger key={s} value={s}>{t(STATUS_META[s].label)}{s !== 'merged' && counts.by[s] > 0 && <Pill tone={STATUS_META[s].tone} className="ml-1">{counts.by[s]}</Pill>}</TabsTrigger>
+            <TabsTrigger key={s} value={s}>{t(STATUS_META[s].label)}{!isDone(s) && counts.by[s] > 0 && <Pill tone={STATUS_META[s].tone} className="ml-1">{counts.by[s]}</Pill>}</TabsTrigger>
           ))}
           <TabsTrigger value="all">{t('Todos')}</TabsTrigger>
         </TabsList>
@@ -266,7 +266,7 @@ export function DeployView() {
             </div>
           )}
       </div>
-      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Hand className="size-3" /> {t('= status ajustado à mão. Ele volta ao automático sozinho quando o GitHub muda (novo review, aprovação ou merge).')}</p>
+      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground"><Hand className="size-3" /> {t('= status ajustado à mão. Ele volta ao automático sozinho quando o GitHub muda (novo review, aprovação ou merge).')} {t('Em produção, o card sai do acompanhamento automático.')}</p>
     </div>
   );
 }

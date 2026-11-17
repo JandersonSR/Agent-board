@@ -92,7 +92,7 @@ export function InfraView({ goToIncidents }: { goToIncidents: () => void }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         {d.providers.map(p => (
-          <Pill key={p.id} tone={p.ok === false ? 'danger' : p.ok ? 'success' : 'neutral'} title={p.error ?? (p.lastPoll ? ago(Date.parse(p.lastPoll)) : '')}>{p.label}{p.ok === false ? ` · ${t('falhou')}` : ''}</Pill>
+          <Pill key={p.id} tone={p.ok === false ? 'danger' : p.ok && p.warning ? 'warning' : p.ok ? 'success' : 'neutral'} title={p.error ?? p.warning ?? (p.lastPoll ? ago(Date.parse(p.lastPoll)) : '')}>{p.label}{p.ok === false ? ` · ${t('falhou')}` : p.ok && p.warning ? ` · ${t('parcial')}` : ''}</Pill>
         ))}
         <span className="text-xs text-muted-foreground">{d.lastPoll ? t('lido {when} · a cada {n} s', { when: ago(Date.parse(d.lastPoll)), n: d.pollSec }) : t('lendo…')}</span>
         <Button size="sm" variant="outline" className="ml-auto" onClick={() => refresh.mutate()} disabled={refresh.isPending}>

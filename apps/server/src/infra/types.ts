@@ -44,7 +44,11 @@ export interface InfraDeploy {
   url?: string | undefined;
 }
 
-export interface InfraSnapshot { resources: InfraResource[]; alerts: InfraAlert[]; deploys: InfraDeploy[] }
+export interface InfraSnapshot {
+  resources: InfraResource[]; alerts: InfraAlert[]; deploys: InfraDeploy[];
+  /** Leitura parcial: partes que o token não alcança (ex.: sem escopo de droplets). O resto segue normal. */
+  warnings?: string[] | undefined;
+}
 
 export interface InfraProvider {
   id: InfraProviderId;
