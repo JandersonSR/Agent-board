@@ -37,7 +37,7 @@ function RunsBlock({ goTo }: { goTo: (v: OverviewTarget, id?: string) => void })
   );
 }
 
-export type OverviewTarget = 'agents' | 'settings' | 'deploy' | 'runs' | 'product' | 'infra' | 'incidents' | 'decisions';
+export type OverviewTarget = 'agents' | 'settings' | 'deploy' | 'runs' | 'product' | 'infra' | 'incidents' | 'decisions' | 'queue';
 
 function AgentsBlock({ goTo }: { goTo: (v: OverviewTarget) => void }) {
   const { sessions } = useAgentSessionsContext();

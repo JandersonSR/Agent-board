@@ -12,6 +12,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 - **Infra filters:** one tab per active provider (with its resource count and read health), filter by name, state (several at once) and kind, and sort by state, name, CPU or memory. Alerts and the timeline follow the chosen provider.
 - **What runs each app:** Heroku dynos per process type (how many are up, size) and DigitalOcean App Platform components (instance size and count).
 - **Agents by tool:** Claude Code and Cursor apart (All · Claude Code · Cursor, with counts) on the board and the task view. The demo has a Cursor session too.
+- **Queue screen** (`G Q`): tickets, bugs, fixes, tasks and other items assigned to you or mentioning you, one tab per type in priority order, with filters by text, origin and unanswered mentions, three sort orders, and *Open incident* on any issue. *My queue* on Today links to it (*See all*).
 - **DigitalOcean app CPU and memory** (with `monitoring:read`), read at most every 5 minutes; without the scope the provider shows *partial* and the cards show sizes instead.
 
 ### Changed

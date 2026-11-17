@@ -19,7 +19,7 @@ test('every screen opens without errors, with the demo notice', async ({ page })
   await expect(page.getByText('demo mode')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Attention' })).toBeVisible();
   for (const [screen, marker] of [
-    ['Agents', 'Needs you'], ['PRs and deploys', 'Hotfix: installment off by one cent'], ['Runs', 'Simulation: per-installment rounding'],
+    ['Agents', 'Needs you'], ['Queue', 'Customer does not get the contract by email'], ['PRs and deploys', 'Hotfix: installment off by one cent'], ['Runs', 'Simulation: per-installment rounding'],
     ['Product', 'Critical path'], ['Infra', 'Firing alerts'], ['Incidents', 'Simulation down after deploy'], ['Decisions', 'Outbox for proposal events'],
     ['Metrics', 'Agents'], ['Settings', 'Board data'], ['Today', 'Team daily'],
   ] as const) {
@@ -141,5 +141,22 @@ test('agents: Claude Code and Cursor sessions apart', async ({ page }) => {
   await tools.getByRole('tab', { name: /Claude Code\s*4/ }).click();
   await expect(page.getByText('FEAT-101 Implement JWT login with tests', { exact: false }).first()).toBeVisible();
   await expect(page.getByText('DOC-7 Update the setup guide for Node 22')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('queue: tickets, bugs and the rest by type, with text and unanswered filters', async ({ page }) => {
+  const errors = await open(page, 'queue');
+  const types = page.getByRole('tablist', { name: 'Item type' });
+  await expect(types.getByRole('tab', { name: /All\s*6/ })).toBeVisible();
+  await types.getByRole('tab', { name: /Bug\s*1/ }).click();
+  const list = page.getByTestId('queue-list');
+  await expect(list.getByText('Last installment is off by one cent')).toBeVisible();
+  await expect(list.getByText('Customer does not get the contract by email')).toHaveCount(0);
+  await types.getByRole('tab', { name: /Ticket\s*2/ }).click();
+  await page.getByRole('button', { name: /Unanswered/ }).click();
+  await expect(list.locator('li')).toHaveCount(2);
+  await page.getByLabel('Filter by title, key or label').fill('early payoff');
+  await expect(list.locator('li')).toHaveCount(1);
+  await page.screenshot({ path: process.env.E2E_SHOT_QUEUE ?? 'test-results/queue.png' });
   expect(errors).toEqual([]);
 });

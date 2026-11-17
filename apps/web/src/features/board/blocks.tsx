@@ -31,10 +31,10 @@ export const issueFilterable = (i: TrackedIssue): Filterable => ({
 /** "filtered/total" count when there is a filter. */
 const countLabel = (shown: number, total: number, filtered: boolean) => (filtered && shown !== total ? `${shown}/${total}` : total || undefined);
 
-type GoTo = (view: 'settings' | 'deploy' | 'runs', runId?: string) => void;
+type GoTo = (view: 'settings' | 'deploy' | 'runs' | 'queue', runId?: string) => void;
 
 /** Block state from the source and the query. */
-function statusOf(q: { isLoading: boolean; error: unknown; refetch: () => unknown }, source: SourceState | undefined, what: string, goTo: GoTo): BlockStatus {
+export function statusOf(q: { isLoading: boolean; error: unknown; refetch: () => unknown }, source: SourceState | undefined, what: string, goTo: GoTo): BlockStatus {
   if (q.isLoading) return { kind: 'loading' };
   if (q.error) return { kind: 'error', message: (q.error as Error).message, retry: () => void q.refetch() };
   if (source && !source.configured) return { kind: 'not_configured', what: t(what), onConfigure: () => goTo('settings') };
@@ -42,7 +42,7 @@ function statusOf(q: { isLoading: boolean; error: unknown; refetch: () => unknow
   return { kind: 'ready' };
 }
 
-function SourceFooter({ source }: { source: SourceState | undefined }) {
+export function SourceFooter({ source }: { source: SourceState | undefined }) {
   if (!source?.configured) return null;
   return (
     <div className={cn('flex items-center gap-1.5 border-t px-3.5 py-1.5 text-[11px] text-muted-foreground', source.error && 'text-danger')}>
@@ -52,7 +52,7 @@ function SourceFooter({ source }: { source: SourceState | undefined }) {
   );
 }
 
-const rankTone = (rank: number): Tone => (rank === 0 ? 'danger' : rank === 1 ? 'danger' : rank === 2 ? 'warning' : rank === 3 ? 'info' : 'neutral');
+export const rankTone = (rank: number): Tone => (rank === 0 ? 'danger' : rank === 1 ? 'danger' : rank === 2 ? 'warning' : rank === 3 ? 'info' : 'neutral');
 const sizeTone: Record<PrSize, Tone> = { XS: 'neutral', S: 'neutral', M: 'info', L: 'warning', XL: 'danger' };
 
 function Row({ href, children, className, trailing }: { href: string; children: React.ReactNode; className?: string; trailing?: React.ReactNode }) {
@@ -92,6 +92,7 @@ export function QueueBlock({ goTo, className }: { goTo: GoTo; className?: string
       actions={
         <>
           <FilterMenu filters={filters} onChange={setFilters} options={options} />
+          <Button size="xs" variant="ghost" onClick={() => goTo('queue')}>{t('See all')}</Button>
           <Tabs value={filter} onValueChange={v => setFilter(v as QueueFilter)}>
             <TabsList className="h-7">
               <TabsTrigger value="top" className="px-2 text-xs">{t('Priority')}</TabsTrigger>
@@ -112,11 +113,12 @@ export function QueueBlock({ goTo, className }: { goTo: GoTo; className?: string
   );
 }
 
-function QueueRow({ item: i, onStarted }: { item: QueueItem; onStarted: (id: string) => void }) {
+export function QueueRow({ item: i, onStarted, extra }: { item: QueueItem; onStarted: (id: string) => void; extra?: React.ReactNode }) {
   const created = Date.parse(i.createdAt);
   const canTask = i.source === 'github' && i.kind === 'issue';
+  const trailing = canTask || extra ? <div className="flex items-center gap-1">{extra}{canTask && <TaskActions url={i.url} title={i.title} onStarted={onStarted} />}</div> : undefined;
   return (
-    <Row href={i.url} trailing={canTask ? <TaskActions url={i.url} title={i.title} onStarted={onStarted} /> : undefined}>
+    <Row href={i.url} trailing={trailing}>
       <Pill tone={rankTone(i.rank)} className="w-24 justify-center truncate" title={i.type}>{i.type}</Pill>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px]">{i.title}</p>

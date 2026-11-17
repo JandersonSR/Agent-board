@@ -2,7 +2,7 @@ import { useState, type ComponentType } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import {
-  BarChart3, Bot, Flag, Landmark, Server, Siren, Sparkles, Command as CommandIcon, Keyboard, Languages, LayoutDashboard, Loader2, Monitor, Moon, Plus, RefreshCw, Rocket, Settings, Sun,
+  BarChart3, Bot, Flag, Inbox, Landmark, Server, Siren, Sparkles, Command as CommandIcon, Keyboard, Languages, LayoutDashboard, Loader2, Monitor, Moon, Plus, RefreshCw, Rocket, Settings, Sun,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,14 +30,16 @@ import { IncidentsView } from '@/features/incidents/incidents-view';
 import { DecisionsView } from '@/features/decisions/decisions-view';
 import { InfraView } from '@/features/infra/infra-view';
 import { OverviewView } from '@/features/overview/overview-view';
+import { QueueView } from '@/features/queue/queue-view';
 import { SettingsView } from '@/features/settings/settings-view';
 
 // label, subtitle and the shortcut descriptions are translation keys (English text).
-type View = 'overview' | 'agents' | 'deploy' | 'runs' | 'product' | 'infra' | 'incidents' | 'decisions' | 'metrics' | 'settings';
+type View = 'overview' | 'agents' | 'queue' | 'deploy' | 'runs' | 'product' | 'infra' | 'incidents' | 'decisions' | 'metrics' | 'settings';
 
 const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: string }>; keys: string; subtitle: string }> = [
   { id: 'overview', label: k('Today'), icon: LayoutDashboard, keys: 'G H', subtitle: k('Team, queue, reviews and blockers in one place') },
   { id: 'agents', label: k('Agents'), icon: Bot, keys: 'G A', subtitle: k('Live Claude Code and Cursor sessions') },
+  { id: 'queue', label: k('Queue'), icon: Inbox, keys: 'G Q', subtitle: k('Tickets, bugs, fixes and tasks for you, by type') },
   { id: 'deploy', label: k('PRs and deploys'), icon: Rocket, keys: 'G D', subtitle: k('From review to merge, per issue, no manual entry') },
   { id: 'runs', label: k('Runs'), icon: Sparkles, keys: 'G E', subtitle: k('Reviews and tasks done by agents, with log and result') },
   { id: 'product', label: k('Product'), icon: Flag, keys: 'G P', subtitle: k('Stages, pairs, dependencies and risks of the initiative') },
@@ -49,7 +51,7 @@ const NAV: Array<{ id: View; label: string; icon: ComponentType<{ className?: st
 ];
 
 const SHORTCUTS: Array<[string, string]> = [
-  ['Ctrl K', k('Command palette')], ['G H', k('Go to Today')], ['G A', k('Go to Agents')], ['G D', k('Go to PRs and deploys')], ['G E', k('Go to Runs')], ['G P', k('Go to Product')], ['G S', k('Go to Infra')], ['G I', k('Go to Incidents')], ['G R', k('Go to Decisions')], ['G M', k('Go to Metrics')],
+  ['Ctrl K', k('Command palette')], ['G H', k('Go to Today')], ['G A', k('Go to Agents')], ['G Q', k('Go to Queue')], ['G D', k('Go to PRs and deploys')], ['G E', k('Go to Runs')], ['G P', k('Go to Product')], ['G S', k('Go to Infra')], ['G I', k('Go to Incidents')], ['G R', k('Go to Decisions')], ['G M', k('Go to Metrics')],
   ['G C', k('Go to Settings')], ['N', k('New agent task')], ['R', k('Sync now (GitHub, chat and trackers)')], ['T', k('Toggle theme')], ['L', k('Switch language (Portuguese / English)')], ['?', k('Show shortcuts')],
 ];
 
@@ -87,7 +89,7 @@ export function App() {
 
   useHotkeys({
     'mod+k': () => setPalette(v => !v),
-    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g d': () => setView('deploy'), 'g e': () => setView('runs'), 'g m': () => setView('metrics'), 'g p': () => setView('product'), 'g s': () => setView('infra'), 'g i': () => setView('incidents'), 'g r': () => setView('decisions'), 'g c': () => setView('settings'),
+    'g h': () => setView('overview'), 'g a': () => setView('agents'), 'g q': () => setView('queue'), 'g d': () => setView('deploy'), 'g e': () => setView('runs'), 'g m': () => setView('metrics'), 'g p': () => setView('product'), 'g s': () => setView('infra'), 'g i': () => setView('incidents'), 'g r': () => setView('decisions'), 'g c': () => setView('settings'),
     n: () => setLaunch(true), r: refresh, t: cycleTheme, l: toggleLang, '?': () => setHelp(true),
   });
 
@@ -175,6 +177,7 @@ export function App() {
             {view === 'overview' && <OverviewView goTo={goTo} />}
             {view === 'runs' && <RunsView selected={runId} onSelect={setRunId} />}
             {view === 'agents' && <AgentsView editor={editor} onNewTask={() => setLaunch(true)} />}
+            {view === 'queue' && <QueueView goTo={goTo} />}
             {view === 'deploy' && <DeployView />}
             {view === 'metrics' && <MetricsView />}
             {view === 'product' && <ProductView />}

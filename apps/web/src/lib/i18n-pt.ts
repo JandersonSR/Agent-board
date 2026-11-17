@@ -853,6 +853,24 @@ export const PT: Record<string, string> = {
   'an API token from an account with read access': 'um token de API de uma conta com acesso de leitura',
   'personal API key': 'chave de API pessoal',
   'Your queue shows the issues assigned to you. With the project keys (JIRA_PROJECT_KEYS, LINEAR_TEAM_KEYS), PRs that mention a key in the title, branch or body are grouped under that issue in PRs and deploys.': 'Sua fila mostra as issues atribuídas a você. Com as chaves dos projetos (JIRA_PROJECT_KEYS, LINEAR_TEAM_KEYS), os PRs que citam uma chave no título, na branch ou na descrição são agrupados nessa issue em PRs e deploy.',
+  // Queue view
+  'See all': 'Ver tudo',
+  'Queue': 'Fila',
+  'Item type': 'Tipo do item',
+  'Tickets, bugs, fixes and tasks for you, by type': 'Tickets, bugs, ajustes e tarefas para você, por tipo',
+  'Go to Queue': 'Ir para Fila',
+  'Type priority': 'Prioridade do tipo',
+  'Oldest first': 'Mais antigos primeiro',
+  'Longest without update': 'Mais tempo sem atualização',
+  'Chat': 'Chat',
+  'Origin': 'Origem',
+  'All origins': 'Todas as origens',
+  'No source configured': 'Nenhuma fonte configurada',
+  'Connect GitHub, Jira or Linear to see tickets, bugs and tasks assigned to you.': 'Conecte GitHub, Jira ou Linear para ver tickets, bugs e tarefas atribuídos a você.',
+  'Open settings': 'Abrir configurações',
+  'Opened from the queue: {type} {url}': 'Aberto a partir da fila: {type} {url}',
+  'Filter by title, key or label': 'Filtrar por título, chave ou etiqueta',
+  'Open an incident from this item': 'Abrir um incidente a partir deste item',
 };
 
 // Fixed error messages the server returns (in English). The screen shows them in Portuguese when that is the
