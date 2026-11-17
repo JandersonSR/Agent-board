@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-// Cada teste começa em inglês e no tema claro; erros de JavaScript na página derrubam o teste.
+// Each test starts in English with the light theme; JavaScript errors on the page fail the test.
 async function open(page: Page, view = 'overview') {
   const errors: string[] = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -14,7 +14,7 @@ async function open(page: Page, view = 'overview') {
 }
 const nav = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name });
 
-test('todas as telas abrem sem erro, com o aviso de demonstração', async ({ page }) => {
+test('every screen opens without errors, with the demo notice', async ({ page }) => {
   const errors = await open(page);
   await expect(page.getByText('demo mode')).toBeVisible();
   await expect(page.getByRole('region', { name: 'Attention' })).toBeVisible();
@@ -30,7 +30,7 @@ test('todas as telas abrem sem erro, com o aviso de demonstração', async ({ pa
   expect(errors).toEqual([]);
 });
 
-test('métricas: DORA e conhecimento com os dados do demo', async ({ page }) => {
+test('metrics: DORA and knowledge with the demo data', async ({ page }) => {
   await open(page, 'metrics');
   await page.getByRole('tab', { name: 'DORA' }).click();
   await expect(page.getByText('Deploy frequency')).toBeVisible();
@@ -40,7 +40,7 @@ test('métricas: DORA e conhecimento com os dados do demo', async ({ page }) => 
   await expect(page.getByText('Where only one person reviews')).toBeVisible();
 });
 
-test('incidente: registrar, adicionar ação e salvar', async ({ page }) => {
+test('incident: log it, add an action and save', async ({ page }) => {
   await open(page, 'incidents');
   await page.getByRole('button', { name: 'New', exact: true }).click();
   const dialog = page.getByRole('dialog');
@@ -54,7 +54,7 @@ test('incidente: registrar, adicionar ação e salvar', async ({ page }) => {
   await expect(page.getByText('0/1 actions')).toBeVisible();
 });
 
-test('decisão: criar e aparecer entre as abertas', async ({ page }) => {
+test('decision: create it and see it among the open ones', async ({ page }) => {
   await open(page, 'decisions');
   await page.getByRole('button', { name: 'New decision' }).click();
   const dialog = page.getByRole('dialog');
@@ -64,7 +64,7 @@ test('decisão: criar e aparecer entre as abertas', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'Adopt feature flags' })).toBeVisible();
 });
 
-test('execução de review: mudar o julgamento de um achado atualiza a contagem', async ({ page }) => {
+test('review run: changing a finding\'s judgment updates the count', async ({ page }) => {
   await open(page, 'runs');
   await page.getByText('Simulation: per-installment rounding').first().click();
   await expect(page.getByText('3 of 3 judged · 2 go into the review')).toBeVisible();
@@ -72,14 +72,14 @@ test('execução de review: mudar o julgamento de um achado atualiza a contagem'
   await expect(page.getByText('3 of 3 judged · 3 go into the review')).toBeVisible();
 });
 
-test('atalho L troca o idioma', async ({ page }) => {
+test('the L shortcut switches the language', async ({ page }) => {
   await open(page);
   await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
   await page.keyboard.press('l');
   await expect(page.getByRole('heading', { name: 'Hoje' })).toBeVisible();
 });
 
-test('agentes em segundo plano (claude agents): logs e parar com confirmação', async ({ page }) => {
+test('background agents (claude agents): logs and stop with confirmation', async ({ page }) => {
   await open(page, 'agents');
   await page.getByRole('tab', { name: /Background/ }).click();
   await expect(page.getByText('flaky-test-fix')).toBeVisible();
@@ -92,14 +92,14 @@ test('agentes em segundo plano (claude agents): logs e parar com confirmação',
   await expect(page.getByText('Session stopped')).toBeVisible();
 });
 
-test('infra: alertas em tempo real, possível causa e incidente aberto pela regra', async ({ page }) => {
+test('infra: real-time alerts, possible cause and an incident opened by the rule', async ({ page }) => {
   const errors = await open(page, 'infra');
   await expect(page.getByRole('heading', { level: 1, name: 'Infra' })).toBeVisible();
   const alerts = page.getByTestId('infra-alert');
   await expect(alerts.filter({ hasText: 'High CPU on api-prod' })).toBeVisible();
   const latency = alerts.filter({ hasText: 'High p95 latency on loans-api-prod' });
   await expect(latency.getByText(/possible cause: Deploy #121 of loans-api-prod/)).toBeVisible();
-  await expect(latency.getByRole('button', { name: 'View incident' })).toBeVisible(); // aberto pela regra automática
+  await expect(latency.getByRole('button', { name: 'View incident' })).toBeVisible(); // opened by the automatic rule
   await alerts.filter({ hasText: 'DTU above 85%' }).getByRole('button', { name: 'Open incident' }).click();
   await expect(page.getByText('Incident opened from the alert')).toBeVisible();
   await expect(page.getByTestId('infra-resource').first()).toBeVisible();

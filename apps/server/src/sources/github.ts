@@ -1,5 +1,5 @@
-// GitHub via GraphQL. Token: GITHUB_TOKEN ou `gh auth token` (nunca logado nem devolvido à tela).
-// Toda resposta é validada com Zod antes de ser usada.
+// GitHub via GraphQL. Token: GITHUB_TOKEN or `gh auth token` (never logged or returned to the screen).
+// Every response is validated with Zod before it is used.
 import { z } from 'zod';
 import { execCmd } from '../util/exec.js';
 
@@ -18,12 +18,12 @@ export class GitHubClient {
     if (this.token) return this.token;
     const r = await execCmd('gh', ['auth', 'token'], { timeoutMs: 15_000 });
     const t = r.stdout.trim();
-    if (!r.ok || !t) throw new Error('GitHub sem token: defina GITHUB_TOKEN ou rode gh auth login');
+    if (!r.ok || !t) throw new Error('GitHub without a token: set GITHUB_TOKEN or run gh auth login');
     this.token = t;
     return t;
   }
 
-  /** REST (para o que o GraphQL não cobre, ex.: criar review PENDING). Resposta validada com Zod. */
+  /** REST (for what GraphQL does not cover, e.g. creating a PENDING review). Response validated with Zod. */
   async rest<T>(method: 'GET' | 'POST', pathname: string, schema: z.ZodType<T>, body?: unknown): Promise<T> {
     const res = await fetch(`https://api.github.com${pathname}`, {
       method,
@@ -50,7 +50,7 @@ export class GitHubClient {
       body: JSON.stringify({ query, variables }),
       signal: AbortSignal.timeout(30_000),
     });
-    if (res.status === 401) { this.token = this.opts.token; throw new Error('GitHub recusou o token (401)'); }
+    if (res.status === 401) { this.token = this.opts.token; throw new Error('GitHub refused the token (401)'); }
     if (!res.ok) throw new Error(`GitHub HTTP ${res.status}`);
     const body = (await res.json()) as { data?: unknown; errors?: Array<{ message: string }> };
     if (body.errors?.length && !body.data) throw new Error(`GitHub: ${body.errors[0]!.message}`);
@@ -116,7 +116,7 @@ async function searchAll<T extends z.ZodTypeAny>(gh: GitHubClient, q: string, fi
   return out;
 }
 
-/** Itens abertos atribuídos a mim (exceto PRs que eu mesmo abri) ou que me mencionam. */
+/** Open items assigned to me (except PRs I opened myself) or that mention me. */
 export async function fetchMyItems(gh: GitHubClient, org: string) {
   const [assigned, mentioned] = await Promise.all([
     searchAll(gh, `org:${org} is:open archived:false assignee:@me -author:@me`, ITEM_FIELDS, SearchNode),
@@ -162,8 +162,8 @@ export async function fetchReviewRequests(gh: GitHubClient, org: string) {
   return raw.map(r => ReviewNode.safeParse(r)).filter(r => r.success).map(r => r.data!);
 }
 
-// ---------- PRs para o acompanhamento de deploy ----------
-/** Campos de PR usados no deploy: estado, decisão de review e datas para detectar re-review. */
+// ---------- PRs for deploy tracking ----------
+/** PR fields used in deploys: state, review decision and dates to detect a re-review. */
 export const PR_FRAGMENT = `fragment DeployPr on PullRequest {
   id number title url body state isDraft createdAt updatedAt mergedAt baseRefName headRefName reviewDecision
   additions deletions author { login } repository { nameWithOwner }
@@ -203,7 +203,7 @@ export function reviewTimes(pr: DeployPrNodeT) {
 
 const PageSchema = z.object({ search: z.object({ pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }), nodes: z.array(z.unknown()) }) });
 
-/** Busca PRs (com os campos de deploy) por uma consulta de search do GitHub. */
+/** Finds PRs (with the deploy fields) for a GitHub search query. */
 async function searchDeployPrs(gh: GitHubClient, q: string, maxPages = 4): Promise<DeployPrNodeT[]> {
   const query = `${PR_FRAGMENT}
 query($q: String!, $after: String) { search(query: $q, type: ISSUE, first: 50, after: $after) {
@@ -225,7 +225,7 @@ export async function fetchTeamPrs(gh: GitHubClient, org: string, logins: string
   return searchDeployPrs(gh, `org:${org} is:pr archived:false updated:>=${sinceDay} ${who}`);
 }
 
-/** PRs abertos e atualizados recentemente para as branches de deploy: é assim que uma entrega vira "deploy". */
+/** Open, recently updated PRs to the deploy branches: this is how a delivery becomes a "deploy". */
 export async function fetchOpenDeployPrs(gh: GitHubClient, org: string, bases: string[], sinceDay: string): Promise<DeployPrNodeT[]> {
   const out = new Map<string, DeployPrNodeT>();
   for (const base of bases) {
@@ -234,7 +234,7 @@ export async function fetchOpenDeployPrs(gh: GitHubClient, org: string, bases: s
   return [...out.values()];
 }
 
-// ---------- Issues: PRs ligados e campos do Project ----------
+// ---------- Issues: linked PRs and Project fields ----------
 const FIELD_VALUES = `fieldValues(first: 30) { nodes { __typename
   ... on ProjectV2ItemFieldDateValue { date field { ... on ProjectV2FieldCommon { name } } }
   ... on ProjectV2ItemFieldSingleSelectValue { name field { ... on ProjectV2FieldCommon { name } } }
@@ -279,20 +279,20 @@ export interface IssueLinks { url: string; number: number; title: string; state:
 export class MissingProjectScope extends Error {}
 const isScopeError = (e: unknown) => /read:project|INSUFFICIENT_SCOPES/i.test((e as Error)?.message ?? '');
 
-/** Parse de "https://github.com/org/repo/issues/123" ou "org/repo#123". */
+/** Parses "https://github.com/org/repo/issues/123" or "org/repo#123". */
 export function parseIssueRef(ref: string): { owner: string; repo: string; number: number } | undefined {
   const m = ref.match(/github\.com\/([\w.-]+)\/([\w.-]+)\/issues\/(\d+)/i) ?? ref.match(/^([\w.-]+)\/([\w.-]+)#(\d+)$/);
   return m ? { owner: m[1]!, repo: m[2]!, number: Number(m[3]) } : undefined;
 }
 
 /**
- * Para cada issue: PRs que a fecham, PRs ligados (connected) e PRs que a citam (cross-reference),
- * de qualquer autor/repo da org. Em lotes de 5 por consulta; se o GitHub recusar o lote (502/timeout
- * em consultas pesadas), o lote é dividido ao meio até uma issue por vez. Com withProject, traz os
- * campos do Project.
+ * For each issue: PRs that close it, linked (connected) PRs and PRs that mention it (cross-reference),
+ * from any author/repo in the org. In batches of 5 per query; if GitHub refuses the batch (502/timeout
+ * on heavy queries), the batch is split in half down to one issue at a time. With withProject, it also brings the
+ * Project fields.
  */
 export async function fetchIssueLinks(gh: GitHubClient, refs: string[], withProject: boolean): Promise<IssueLinks[]> {
-  // Índice global no alias: lotes divididos não colidem ao juntar os resultados.
+  // Global index in the alias: split batches do not collide when the results are merged.
   const parsed = refs.flatMap(r => { const p = parseIssueRef(r); return p ? [p] : []; }).map((p, idx) => ({ ...p, idx }));
   const out: IssueLinks[] = [];
 
@@ -343,7 +343,7 @@ const ProjectPage = z.object({ organization: z.object({ projectV2: z.object({ it
   })),
 }) }).nullable() }) });
 
-/** Issues de um Project da org com seus campos (para descobrir as que têm data de deploy). */
+/** Issues of an org Project with their fields (to find the ones with a deploy date). */
 export async function fetchProjectIssues(gh: GitHubClient, org: string, projectNumber: number, maxPages = 30) {
   const query = `query($org: String!, $n: Int!, $after: String) { organization(login: $org) { projectV2(number: $n) {
     items(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes {
@@ -370,7 +370,7 @@ export async function fetchProjectIssues(gh: GitHubClient, org: string, projectN
   return out;
 }
 
-/** Issue do board referenciada pelo PR (closing refs ou link/ref no corpo). */
+/** Board issue referenced by the PR (closing refs or a link/ref in the body). */
 export function boardIssueOf(pr: TeamPrNodeT, org: string, boardRepo: string | undefined): { url: string; number: number; title?: string } | undefined {
   const closing = pr.closingIssuesReferences.nodes;
   const fromBoard = boardRepo ? closing.find(c => c.repository.nameWithOwner.toLowerCase() === `${org}/${boardRepo}`.toLowerCase()) : undefined;
@@ -384,13 +384,13 @@ export function boardIssueOf(pr: TeamPrNodeT, org: string, boardRepo: string | u
   return n ? { url: `https://github.com/${org}/${boardRepo}/issues/${n}`, number: Number(n) } : undefined;
 }
 
-// ---------- Pessoas: times da org (filtro por time na tela) ----------
+// ---------- People: org teams (team filter on screen) ----------
 const TeamsPage = z.object({ organization: z.object({ teams: z.object({
   pageInfo: z.object({ hasNextPage: z.boolean(), endCursor: z.string().nullable() }),
   nodes: z.array(z.object({ slug: z.string(), name: z.string(), members: z.object({ nodes: z.array(z.object({ login: z.string() })) }) })),
 }) }).nullable() });
 
-/** Times da org com membros (até 100 por time). Exige read:org (já presente no token do gh). */
+/** Org teams with members (up to 100 per team). Needs read:org (already in the gh token). */
 export async function fetchOrgTeams(gh: GitHubClient, org: string): Promise<Array<{ slug: string; name: string; members: string[] }>> {
   const query = `query($org: String!, $after: String) { organization(login: $org) { teams(first: 50, after: $after) {
     pageInfo { hasNextPage endCursor } nodes { slug name members(first: 100) { nodes { login } } } } } }`;

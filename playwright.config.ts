@@ -1,5 +1,5 @@
-// Testes ponta a ponta da interface contra o modo demonstração (dados fictícios, nenhuma integração real).
-// Local: npm run test:e2e   (CHROME_PATH=/caminho/do/chrome para usar um Chrome já instalado)
+// End-to-end tests of the interface against demo mode (fictitious data, no real integration).
+// Local: npm run test:e2e   (CHROME_PATH=/path/to/chrome to use an installed Chrome)
 import { defineConfig } from '@playwright/test';
 
 const PORT = Number(process.env.E2E_PORT ?? 9997);

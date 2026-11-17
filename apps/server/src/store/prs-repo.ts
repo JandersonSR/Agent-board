@@ -1,23 +1,23 @@
-// painel_prs: acompanhamento de PR/deploy por issue (substitui o cadastro manual do painel anterior).
-// A rotina automática acha os PRs de cada issue no GitHub; campos manuais (data de deploy editada,
-// time, responsável, ordem, ajuste de status) nunca são sobrescritos por ela.
+// deck_prs: PR/deploy tracking per issue (replaces the previous board's manual entry).
+// The automatic routine finds each issue's PRs on GitHub; manual fields (edited deploy date,
+// team, owner, order, status override) are never overwritten by it.
 import { ObjectId, type Document } from 'mongodb';
 import {
   DONE_STATUSES, effectiveStatus, enterStatus, groupStatus, isDone,
   type DeployStatus, type StatusHistoryEntry, type StatusOverride, type StatusStats,
 } from '../domain/pr-status.js';
-import type { PainelStore } from './mongo.js';
+import type { DeckStore } from './store.js';
 
 export interface TrackedPr {
   _id?: ObjectId;
   url: string;
   title: string;
   owner: string;
-  /** Login do autor no GitHub (filtros por pessoa/time). */
+  /** Author's GitHub login (person/team filters). */
   author?: string;
-  /** Status efetivo (derivado do GitHub, ou o ajuste manual enquanto valer). */
+  /** Effective status (derived from GitHub, or the manual override while it holds). */
   status: DeployStatus;
-  /** Status derivado do GitHub na última sincronização. */
+  /** Status derived from GitHub on the last sync. */
   derivedStatus?: DeployStatus;
   statusOverride?: StatusOverride | null;
   state: 'open' | 'closed' | 'merged';
@@ -28,10 +28,10 @@ export interface TrackedPr {
   additions?: number;
   deletions?: number;
   mergedAt?: Date | null;
-  /** Branch de origem e labels (identificam hotfix/rollback nas métricas DORA). */
+  /** Head branch and labels (they identify hotfix/rollback in the DORA metrics). */
   head?: string;
   labels?: string[];
-  /** Quem revisou (nome do time quando conhecido). Só existe em PRs sincronizados a partir da v0.4. */
+  /** Who reviewed (team member name when known). Only exists on PRs synced from v0.4 on. */
   reviewers?: string[];
   statusHistory?: StatusHistoryEntry[];
   statusStats?: StatusStats;
@@ -44,7 +44,7 @@ export type DeployDateSource = 'project' | 'manual' | 'legacy';
 
 export interface TrackedIssue {
   _id?: ObjectId;
-  key: string;            // URL da issue (ou do PR quando não há issue)
+  key: string;            // Issue URL (or the PR's when there is no issue)
   title: string;
   reference?: string;
   owner: string;
@@ -74,7 +74,7 @@ export interface SyncedGroup {
   reference?: string | undefined;
   owner: string;
   prs: SyncedPr[];
-  /** Data de deploy vinda do Project (só aplicada se não houver data manual). */
+  /** Deploy date from the Project (only applied when there is no manual date). */
   projectDeployDate?: string | undefined;
   issueState?: 'OPEN' | 'CLOSED' | undefined;
   source?: TrackedIssue['source'];
@@ -90,7 +90,7 @@ function recomputeGroup(doc: TrackedIssue, now: Date): TrackedIssue {
   return next;
 }
 
-/** Junta PRs sincronizados num documento existente (ou novo), preservando o que é manual. */
+/** Merges synced PRs into an existing (or new) document, keeping what is manual. */
 export function mergeGroup(existing: TrackedIssue | null, group: SyncedGroup, now: Date): TrackedIssue {
   const base: TrackedIssue = existing ?? {
     key: group.key, title: group.title, reference: group.reference, owner: group.owner,
@@ -101,7 +101,7 @@ export function mergeGroup(existing: TrackedIssue | null, group: SyncedGroup, no
     const i = prs.findIndex(x => x.url === p.url);
     const prev: TrackedPr = i >= 0 ? prs[i]! : { ...p, source: 'auto', createdAt: now };
     const eff = effectiveStatus(p.status, prev.statusOverride);
-    // Mantém o status anterior no objeto para que enterStatus registre a transição.
+    // Keeps the previous status on the object so enterStatus records the transition.
     const next = enterStatus<TrackedPr>({
       ...prev, ...p, status: prev.status, derivedStatus: p.status, statusOverride: eff.override, source: prev.source, updatedAt: now,
     }, eff.status, now);
@@ -127,7 +127,7 @@ export function mergeGroup(existing: TrackedIssue | null, group: SyncedGroup, no
   return recomputeGroup(doc, now);
 }
 
-/** Marca (ou remove, com null) o ajuste manual de status de um PR da issue. */
+/** Sets (or removes, with null) the manual status override of one of the issue's PRs. */
 export function setPrOverride(doc: TrackedIssue, url: string, status: DeployStatus | null, now: Date): TrackedIssue {
   const prs = doc.prs.map(p => {
     if (p.url !== url) return p;
@@ -139,8 +139,8 @@ export function setPrOverride(doc: TrackedIssue, url: string, status: DeployStat
 }
 
 export class PrsRepo {
-  constructor(private readonly store: PainelStore) {}
-  private get col() { return this.store.collection<TrackedIssue>('painel_prs'); }
+  constructor(private readonly store: DeckStore) {}
+  private get col() { return this.store.collection<TrackedIssue>('deck_prs'); }
 
   async list(opts: { includeOldMerged?: boolean; mergedWithinDays?: number } = {}): Promise<TrackedIssue[]> {
     const days = opts.mergedWithinDays ?? 7;
@@ -151,7 +151,7 @@ export class PrsRepo {
     return this.col.find(filter).sort({ updatedAt: -1 }).limit(500).toArray() as Promise<TrackedIssue[]>;
   }
 
-  /** Issues com PR aberto ou mergeado desde `since`, só com o que as métricas do time usam. */
+  /** Issues with a PR open or merged since `since`, with only what the team metrics use. */
   async listForMetrics(since: Date): Promise<TrackedIssue[]> {
     return this.col.find(
       { archived: { $ne: true }, $or: [{ status: { $nin: [...DONE_STATUSES] } }, { mergedAt: { $gte: since } }, { 'prs.mergedAt': { $gte: since } }] },
@@ -159,7 +159,7 @@ export class PrsRepo {
     ).limit(2000).toArray() as Promise<TrackedIssue[]>;
   }
 
-  /** Issues com data de deploy desde `sinceDay` (YYYY-MM-DD), para as métricas DORA. */
+  /** Issues with a deploy date since `sinceDay` (YYYY-MM-DD), for the DORA metrics. */
   async listForDora(sinceDay: string): Promise<TrackedIssue[]> {
     return this.col.find(
       { archived: { $ne: true }, deployDate: { $gte: sinceDay } },
@@ -167,7 +167,7 @@ export class PrsRepo {
     ).limit(3000).toArray() as Promise<TrackedIssue[]>;
   }
 
-  /** PRs mergeados desde `since` com autor e revisores, para a concentração de conhecimento. */
+  /** PRs merged since `since` with author and reviewers, for knowledge concentration. */
   async listForKnowledge(since: Date): Promise<TrackedIssue[]> {
     return this.col.find(
       { 'prs.mergedAt': { $gte: since } },
@@ -175,7 +175,7 @@ export class PrsRepo {
     ).limit(5000).toArray() as Promise<TrackedIssue[]>;
   }
 
-  /** Versão leve de todas as issues acompanhadas, para o progresso das etapas do produto. */
+  /** Light version of every tracked issue, for the product stages' progress. */
   async listLite(): Promise<Array<Pick<TrackedIssue, 'key' | 'reference' | 'title' | 'status' | 'deployDate'>>> {
     return this.col.find({ archived: { $ne: true } }, { projection: { _id: 0, key: 1, reference: 1, title: 1, status: 1, deployDate: 1 } })
       .limit(5000).toArray() as Promise<Array<Pick<TrackedIssue, 'key' | 'reference' | 'title' | 'status' | 'deployDate'>>>;
@@ -190,15 +190,15 @@ export class PrsRepo {
     const or: Document[] = [{ key: group.key }, { reference: group.key }];
     if (urls.length) or.push({ 'prs.url': { $in: urls } });
     const existing = (await this.col.findOne({ $or: or })) as TrackedIssue | null;
-    if (existing?.archived) return; // parou de acompanhar: a rotina não ressuscita
-    if (existing?.status === 'production') return; // em produção: entrega encerrada, a rotina não mexe mais
+    if (existing?.archived) return; // stopped tracking: the routine does not bring it back
+    if (existing?.status === 'production') return; // in production: delivery closed, the routine no longer touches it
     const doc = mergeGroup(existing, group, now);
     const { _id, ...rest } = doc;
     if (_id) await this.col.replaceOne({ _id }, rest);
     else await this.col.insertOne(rest as TrackedIssue);
   }
 
-  /** Issues que a rotina deve consultar no GitHub: não arquivadas, não em produção e não mergeadas há mais de `days`. */
+  /** Issues the routine should query on GitHub: not archived, not in production and not merged more than `days` ago. */
   async issueRefsToTrack(days = 3): Promise<string[]> {
     const docs = await this.col.find({
       archived: { $ne: true },

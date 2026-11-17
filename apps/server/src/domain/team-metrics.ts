@@ -1,9 +1,9 @@
-// Métricas de entrega do time a partir do histórico de status dos PRs (painel_prs).
-// Mede o fluxo, não as pessoas: espera por review, idas e vindas de mudanças pedidas,
-// tamanho dos PRs e tempo até o merge. É o "antes e depois" de qualquer mudança de processo.
+// Team delivery metrics from the PR status history (deck_prs).
+// Measures the flow, not people: review wait, back-and-forth of requested changes,
+// PR size and time to merge. It is the "before and after" of any process change.
 //
-// Limite conhecido: o início de cada PR é quando o painel o viu pela primeira vez
-// (primeira entrada do histórico), não a criação no GitHub.
+// Known limit: each PR starts when the deck first saw it
+// (first history entry), not when it was created on GitHub.
 
 type When = Date | string;
 
@@ -29,16 +29,16 @@ export interface PrFacts {
   open: boolean;
   startedAt: number;
   mergedAt: number | null;
-  /** do início ao merge */
+  /** from start to merge */
   cycleMs: number | null;
-  /** tempo na fila até o primeiro review */
+  /** time in the queue until the first review */
   firstReviewWaitMs: number | null;
-  /** tempo total com mudanças pedidas */
+  /** total time with changes requested */
   changesRequestedMs: number;
-  /** quantas vezes entrou em "mudanças pedidas" */
+  /** how many times it entered "changes requested" */
   changesRequestedRounds: number;
   size: number | null;
-  /** aberto e ainda sem primeiro review */
+  /** open and still without a first review */
   waitingReviewNow: boolean;
 }
 
@@ -85,10 +85,10 @@ export interface FlowSummary {
   open: number;
   medianCycleMs: number | null;
   medianFirstReviewWaitMs: number | null;
-  /** fração dos PRs mergeados que tiveram mudanças pedidas */
+  /** share of merged PRs that had changes requested */
   changesRequestedRate: number | null;
   medianSize: number | null;
-  /** fração dos PRs mergeados acima de LARGE_PR_LINES linhas */
+  /** share of merged PRs above LARGE_PR_LINES lines */
   largeRate: number | null;
 }
 
@@ -108,14 +108,14 @@ function summarize(list: PrFacts[]): FlowSummary {
 export interface TeamMetrics {
   days: number;
   summary: FlowSummary;
-  /** abertos esperando o primeiro review há mais de 1 dia */
+  /** open and waiting for the first review for more than 1 day */
   waitingOverOneDay: number;
   weeks: Array<{ week: string; merged: number; medianCycleMs: number | null; medianFirstReviewWaitMs: number | null }>;
   byOwner: Array<FlowSummary & { key: string }>;
   byTeam: Array<FlowSummary & { key: string }>;
 }
 
-/** Segunda-feira (UTC) da semana do instante, como YYYY-MM-DD. */
+/** Monday (UTC) of the instant's week, as YYYY-MM-DD. */
 export function weekOf(t: number): string {
   const d = new Date(t);
   const day = (d.getUTCDay() + 6) % 7;
@@ -131,7 +131,7 @@ export function computeTeamMetrics(issues: MetricsIssue[], days: number, now = D
       if (seen.has(pr.url)) continue;
       seen.add(pr.url);
       const f = prFacts(pr, i.team || undefined, now);
-      // Entram os mergeados no período e os ainda abertos (o retrato de agora).
+      // Includes the PRs merged in the period and the ones still open (the current picture).
       if (f && ((f.merged && (f.mergedAt ?? 0) >= since) || f.open)) facts.push(f);
     }
   }

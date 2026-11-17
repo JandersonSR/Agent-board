@@ -1,10 +1,10 @@
-// Blocos do Tech Lead: fila, reviews, daily, bloqueios e PRs/deploy.
+// Tech Lead blocks: queue, reviews, daily, blockers and PRs/deploys.
 import type { FastifyInstance } from 'fastify';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import { isDone, STATUSES } from '../domain/pr-status.js';
 import { computeTeamMetrics } from '../domain/team-metrics.js';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import { PrsRepo, type TrackedIssue } from '../store/prs-repo.js';
 import type { SyncService } from '../sync/service.js';
 
@@ -18,7 +18,7 @@ const PatchPr = z.object({
 
 const isOverdue = (d: TrackedIssue, today: string) => !!d.deployDate && d.deployDate < today && !isDone(d.status);
 
-export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncService; store: PainelStore }): Promise<void> {
+export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncService; store: DeckStore }): Promise<void> {
   const { sync, store } = opts;
   const repo = new PrsRepo(store);
 
@@ -50,7 +50,7 @@ export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncServic
     return { source: sync.state.prs, items, statuses: STATUSES, projectScope: sync.projectScope, projects: sync.projectsConfigured };
   });
 
-  // Fluxo de entrega do time (espera por review, mudanças pedidas, tamanho, tempo até o merge).
+  // Team delivery flow (review wait, changes requested, size, time to merge).
   app.get('/api/team-metrics', async (req) => {
     const { days } = z.object({ days: z.coerce.number().int().min(7).max(365).default(30) }).parse(req.query);
     if (!store.configured) return { configured: false, ...computeTeamMetrics([], days) };
@@ -59,7 +59,7 @@ export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncServic
     return { configured: true, ...computeTeamMetrics(docs, days) };
   });
 
-  // Acompanhar uma issue: os PRs ligados a ela são encontrados e atualizados sozinhos.
+  // Track an issue: the PRs linked to it are found and updated on their own.
   app.post('/api/prs', async (req) => {
     const body = z.object({
       issue: z.string().trim().min(1).max(300),
@@ -69,29 +69,29 @@ export async function boardRoutes(app: FastifyInstance, opts: { sync: SyncServic
   });
 
   app.post('/api/prs/:id/archive', async (req, reply) => {
-    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'id inválido') }).parse(req.params);
+    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'invalid id') }).parse(req.params);
     const { archived } = z.object({ archived: z.boolean().default(true) }).parse(req.body ?? {});
     await store.connect();
-    if (!(await repo.archive(id, archived))) return reply.code(404).send({ error: 'não encontrado' });
+    if (!(await repo.archive(id, archived))) return reply.code(404).send({ error: 'not found' });
     return { ok: true };
   });
 
-  // Ajuste manual do status de um PR (ex.: re-review). null remove o ajuste.
+  // Manual status override of a PR (e.g. re-review). null removes the override.
   app.patch('/api/prs/:id/pr', async (req, reply) => {
-    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'id inválido') }).parse(req.params);
+    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'invalid id') }).parse(req.params);
     const body = z.object({ url: z.string().url(), status: z.enum(STATUSES).nullable() }).parse(req.body);
     await store.connect();
     const doc = await repo.setOverride(id, body.url, body.status);
-    if (!doc) return reply.code(404).send({ error: 'PR não encontrado nesta issue' });
+    if (!doc) return reply.code(404).send({ error: 'PR not found in this issue' });
     return { ...doc, _id: String(doc._id) };
   });
 
   app.patch('/api/prs/:id', async (req, reply) => {
-    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'id inválido') }).parse(req.params);
+    const { id } = z.object({ id: z.string().refine(ObjectId.isValid, 'invalid id') }).parse(req.params);
     const fields = PatchPr.parse(req.body);
     await store.connect();
     const doc = await repo.patch(id, fields);
-    if (!doc) return reply.code(404).send({ error: 'não encontrado' });
+    if (!doc) return reply.code(404).send({ error: 'not found' });
     return { ...doc, _id: String(doc._id) };
   });
 }

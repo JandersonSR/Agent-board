@@ -1,5 +1,5 @@
-// Visão do produto: uma iniciativa (ex.: o fluxo de empréstimo) dividida em etapas com dono,
-// dependências e riscos. O progresso de cada etapa vem das issues acompanhadas em PRs e deploy.
+// Product view: an initiative (e.g. the loan flow) split into stages with an owner,
+// dependencies and risks. Each stage's progress comes from the issues tracked in PRs and deploys.
 
 export const INITIATIVE_STATUSES = ['planned', 'active', 'paused', 'done'] as const;
 export type InitiativeStatus = (typeof INITIATIVE_STATUSES)[number];
@@ -11,7 +11,7 @@ export type RiskLevel = (typeof RISK_LEVELS)[number];
 export interface StageRisk { text: string; level: RiskLevel; mitigation?: string | undefined }
 export interface Stage {
   id: string; name: string; owners: string[]; status: StageStatus; dependsOn: string[];
-  /** URLs de issues (ou "repo#123") e/ou um texto buscado no título das issues acompanhadas. */
+  /** Issue URLs (or "repo#123") and/or a text searched in the titles of tracked issues. */
   issues: string[]; query?: string | undefined;
   targetDate?: string | undefined; notes?: string | undefined; risks: StageRisk[];
 }
@@ -26,16 +26,16 @@ export interface TrackedLite { key: string; reference?: string | undefined; titl
 export interface StageView extends Stage {
   matched: Array<{ key: string; title: string; status: string; deployDate?: string | undefined; deployed: boolean }>;
   merged: number; deployed: number; progress: number | null;
-  waitingOn: string[];     // dependências ainda não concluídas
-  late: boolean;           // passou da data alvo sem concluir
-  critical: boolean;       // está no caminho crítico
+  waitingOn: string[];     // dependencies not done yet
+  late: boolean;           // past the target date without finishing
+  critical: boolean;       // is on the critical path
 }
 export interface InitiativeView {
   stages: StageView[]; criticalPath: string[];
   progress: number; doneStages: number; highRisks: number; blocked: number; late: number;
 }
 
-/** Ciclo nas dependências (devolve os ids do ciclo) ou undefined. */
+/** Dependency cycle (returns the cycle ids) or undefined. */
 export function findCycle(stages: Array<Pick<Stage, 'id' | 'dependsOn'>>): string[] | undefined {
   const deps = new Map(stages.map(s => [s.id, s.dependsOn]));
   const state = new Map<string, 1 | 2>();
@@ -53,7 +53,7 @@ export function findCycle(stages: Array<Pick<Stage, 'id' | 'dependsOn'>>): strin
 }
 
 const norm = (u: string) => u.trim().replace(/\/+$/, '').toLowerCase();
-/** "owner/repo#12", "repo#12" ou URL completa da issue. */
+/** "owner/repo#12", "repo#12" or the full issue URL. */
 function refMatches(ref: string, t: TrackedLite): boolean {
   const r = norm(ref);
   const urls = [t.key, t.reference ?? ''].filter(Boolean).map(norm);
@@ -81,7 +81,7 @@ export function computeInitiative(init: Pick<Initiative, 'stages'>, tracked: Tra
     };
   });
 
-  // Caminho crítico: a maior cadeia de etapas não concluídas, pesada pelo trabalho que falta em cada uma.
+  // Critical path: the longest chain of unfinished stages, weighted by the work left in each.
   const view = new Map(stages.map(s => [s.id, s]));
   const remaining = (s: StageView) => (s.status === 'done' ? 0 : s.matched.length ? Math.max(1, s.matched.length - s.merged) : 1);
   const memo = new Map<string, { len: number; path: string[] }>();

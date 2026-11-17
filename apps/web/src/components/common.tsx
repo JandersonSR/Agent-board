@@ -1,4 +1,4 @@
-// Peças visuais reutilizadas em toda a tela: tom semântico, estados vazios e o cartão de bloco.
+// Visual pieces reused across the screen: semantic tone, empty states and the block card.
 import type { ComponentType, ReactNode } from 'react';
 import { AlertTriangle, Clock3, PlugZap, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -91,15 +91,15 @@ export function BlockCard({ icon: Icon, title, count, countTone = 'neutral', act
           </div>
         )}
         {status.kind === 'error' && (
-          <EmptyState icon={AlertTriangle} title={t('Não foi possível carregar')} description={status.message}
-            action={status.retry && <Button size="sm" variant="outline" onClick={status.retry}><RefreshCw /> {t('Tentar de novo')}</Button>} />
+          <EmptyState icon={AlertTriangle} title={t('Could not load')} description={status.message}
+            action={status.retry && <Button size="sm" variant="outline" onClick={status.retry}><RefreshCw /> {t('Try again')}</Button>} />
         )}
         {status.kind === 'not_configured' && (
-          <EmptyState icon={PlugZap} title={t('{what} não configurado', { what: status.what })} description={t('Preencha as variáveis no .env e reinicie o servidor. O passo a passo está em Configuração.')}
-            action={status.onConfigure && <Button size="sm" variant="outline" onClick={status.onConfigure}>{t('Abrir Configuração')}</Button>} />
+          <EmptyState icon={PlugZap} title={t('{what} not configured', { what: status.what })} description={t('Fill in the variables in .env and restart the server. The step-by-step guide is in Settings.')}
+            action={status.onConfigure && <Button size="sm" variant="outline" onClick={status.onConfigure}>{t('Open Settings')}</Button>} />
         )}
         {status.kind === 'coming' && (
-          <EmptyState icon={Clock3} title={t('Chega na {phase}', { phase: status.phase })} description={status.description} />
+          <EmptyState icon={Clock3} title={t('Arrives with the {phase}', { phase: status.phase })} description={status.description} />
         )}
       </div>
     </section>

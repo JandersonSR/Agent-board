@@ -1,5 +1,5 @@
-// Filtros por pessoa, time e repositório (mostrar só / ocultar), com atalhos para bots e os meus.
-// Clique num valor: nada → mostrar só (✓) → ocultar (⊘) → nada.
+// Filters by person, team and repository (show only / hide), with shortcuts for bots and mine.
+// Click a value: nothing → show only (✓) → hide (⊘) → nothing.
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Ban, Check, Filter, Search, X } from 'lucide-react';
@@ -25,7 +25,7 @@ export const usePeople = () => useQuery({
 
 export interface FacetOptions { author: Array<{ value: string; count: number }>; repo: Array<{ value: string; count: number }>; team?: Array<{ value: string; count: number }> }
 
-const FACET_LABEL: Record<FacetKey, string> = { author: k('Pessoa'), team: k('Time'), repo: k('Repositório') };
+const FACET_LABEL: Record<FacetKey, string> = { author: k('Person'), team: k('Team'), repo: k('Repository') };
 
 function StateIcon({ state }: { state: 'none' | 'include' | 'exclude' }) {
   if (state === 'include') return <Check className="size-3.5 text-success" />;
@@ -33,7 +33,7 @@ function StateIcon({ state }: { state: 'none' | 'include' | 'exclude' }) {
   return <span className="size-3.5" />;
 }
 
-/** Times que aparecem nos itens (pelos autores) + times explícitos. */
+/** Teams that show up in the items (from their authors) + explicit teams. */
 function teamOptions(people: People | undefined, authors: FacetOptions['author'], explicit: FacetOptions['team'] = []) {
   const counts = new Map<string, number>();
   for (const tm of people?.teams ?? []) {
@@ -57,18 +57,18 @@ export function FilterMenu({ filters, onChange, options, align = 'end', size = '
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size={size} variant={n ? 'secondary' : 'ghost'} aria-label={t('Filtros')}>
-          <Filter /> {t('Filtros')}{n > 0 && <span className="rounded bg-primary px-1 text-[10px] text-primary-foreground tabular-nums">{n}</span>}
+        <Button size={size} variant={n ? 'secondary' : 'ghost'} aria-label={t('Filters')}>
+          <Filter /> {t('Filters')}{n > 0 && <span className="rounded bg-primary px-1 text-[10px] text-primary-foreground tabular-nums">{n}</span>}
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align={align} className="w-64">
         <DropdownMenuCheckboxItem checked={filters.hideBots} onSelect={e => e.preventDefault()}
           onCheckedChange={v => onChange({ ...filters, hideBots: v === true })}>
-          {t('Ocultar bots')} <span className="ml-auto text-[11px] text-muted-foreground">{bots || ''}</span>
+          {t('Hide bots')} <span className="ml-auto text-[11px] text-muted-foreground">{bots || ''}</span>
         </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem checked={filters.hideMine} disabled={!people?.me} onSelect={e => e.preventDefault()}
           onCheckedChange={v => onChange({ ...filters, hideMine: v === true })}>
-          {t('Ocultar os meus')} {people?.me && <span className="ml-auto truncate text-[11px] text-muted-foreground">{people.me}</span>}
+          {t('Hide mine')} {people?.me && <span className="ml-auto truncate text-[11px] text-muted-foreground">{people.me}</span>}
         </DropdownMenuCheckboxItem>
         <DropdownMenuSeparator />
         {(['author', 'team', 'repo'] as const).map(key => (
@@ -80,7 +80,7 @@ export function FilterMenu({ filters, onChange, options, align = 'end', size = '
               )}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="max-h-80 w-64 overflow-auto">
-              <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">{t('Clique: mostrar só · de novo: ocultar · de novo: limpar')}</DropdownMenuLabel>
+              <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">{t('Click: show only · again: hide · again: clear')}</DropdownMenuLabel>
               {lists[key].map(o => {
                 const st = stateOf(filters, key, o.value);
                 return (
@@ -98,7 +98,7 @@ export function FilterMenu({ filters, onChange, options, align = 'end', size = '
         {n > 0 && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => onChange({ ...EMPTY_FILTERS, text: filters.text })}><X /> {t('Limpar filtros')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onChange({ ...EMPTY_FILTERS, text: filters.text })}><X /> {t('Clear filters')}</DropdownMenuItem>
           </>
         )}
       </DropdownMenuContent>
@@ -106,11 +106,11 @@ export function FilterMenu({ filters, onChange, options, align = 'end', size = '
   );
 }
 
-/** Etiquetas dos filtros ativos, com X para remover cada um. */
+/** Tags for the active filters, with an X to remove each one. */
 export function ActiveFilters({ filters, onChange, className }: { filters: Filters; onChange: (f: Filters) => void; className?: string }) {
   const chips: Array<{ id: string; label: string; exclude: boolean; remove: () => void }> = [];
-  if (filters.hideBots) chips.push({ id: 'bots', label: t('sem bots'), exclude: true, remove: () => onChange({ ...filters, hideBots: false }) });
-  if (filters.hideMine) chips.push({ id: 'mine', label: t('sem os meus'), exclude: true, remove: () => onChange({ ...filters, hideMine: false }) });
+  if (filters.hideBots) chips.push({ id: 'bots', label: t('no bots'), exclude: true, remove: () => onChange({ ...filters, hideBots: false }) });
+  if (filters.hideMine) chips.push({ id: 'mine', label: t('not mine'), exclude: true, remove: () => onChange({ ...filters, hideMine: false }) });
   for (const key of ['author', 'team', 'repo'] as const) {
     for (const v of filters[key].include) chips.push({ id: `${key}+${v}`, label: `${t(FACET_LABEL[key])}: ${key === 'repo' ? v.split('/').pop() : v}`, exclude: false, remove: () => onChange(setState(filters, key, v, 'none')) });
     for (const v of filters[key].exclude) chips.push({ id: `${key}-${v}`, label: `${t(FACET_LABEL[key])}: ${key === 'repo' ? v.split('/').pop() : v}`, exclude: true, remove: () => onChange(setState(filters, key, v, 'none')) });
@@ -122,20 +122,20 @@ export function ActiveFilters({ filters, onChange, className }: { filters: Filte
         <span key={c.id} className={cn('inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] ring-1 ring-inset',
           c.exclude ? 'bg-danger-soft text-danger ring-danger/20' : 'bg-success-soft text-success ring-success/20')}>
           {c.exclude ? <Ban className="size-3" /> : <Check className="size-3" />}{c.label}
-          <button type="button" onClick={c.remove} aria-label={t('Remover filtro {name}', { name: c.label })} className="rounded hover:bg-background/50"><X className="size-3" /></button>
+          <button type="button" onClick={c.remove} aria-label={t('Remove filter {name}', { name: c.label })} className="rounded hover:bg-background/50"><X className="size-3" /></button>
         </span>
       ))}
     </div>
   );
 }
 
-/** Busca por texto (título). */
+/** Text search (title). */
 export function FilterSearch({ filters, onChange, className }: { filters: Filters; onChange: (f: Filters) => void; className?: string }) {
   return (
     <div className={cn('relative', className)}>
       <Search className="pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-      <Input value={filters.text} onChange={e => onChange({ ...filters, text: e.target.value })} placeholder={t('Buscar no título…')}
-        aria-label={t('Buscar no título')} className="h-8 pl-7 text-xs" />
+      <Input value={filters.text} onChange={e => onChange({ ...filters, text: e.target.value })} placeholder={t('Search titles…')}
+        aria-label={t('Search titles')} className="h-8 pl-7 text-xs" />
     </div>
   );
 }

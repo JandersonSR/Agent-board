@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildArgs, parseStreamLine } from './claude-runner.js';
 
 describe('buildArgs', () => {
-  it('isola a execução e limita ferramentas', () => {
+  it('isolates the run and limits tools', () => {
     const args = buildArgs({
       prompt: 'x', cwd: '/tmp', model: 'sonnet', tools: ['Read', 'Bash'], allowedTools: ['Read', 'Bash(gh pr diff:*)'],
       disallowedTools: ['Bash(git push:*)'], timeoutMs: 1000,
@@ -13,10 +13,10 @@ describe('buildArgs', () => {
     expect(args[args.indexOf('--tools') + 1]).toBe('Read,Bash');
     expect(args).toContain('Bash(git push:*)');
     expect(args).toContain('--no-session-persistence');
-    expect(args).not.toContain('x'); // o prompt vai pela entrada padrão
+    expect(args).not.toContain('x'); // the prompt goes through standard input
   });
 
-  it('passa o MCP explícito e mantém a sessão quando pedido', () => {
+  it('passes the explicit MCP and keeps the session when asked', () => {
     const args = buildArgs({
       prompt: '', cwd: '/', model: 'm', tools: [], allowedTools: [], disallowedTools: [], timeoutMs: 1,
       mcpConfig: { 'feat-map': { command: 'node', args: ['s.mjs'] } }, persistSession: true,
@@ -27,7 +27,7 @@ describe('buildArgs', () => {
 });
 
 describe('parseStreamLine', () => {
-  it('início, texto, ferramenta e resultado', () => {
+  it('start, text, tool and result', () => {
     expect(parseStreamLine(JSON.stringify({ type: 'system', subtype: 'init', session_id: 's1', model: 'sonnet' })).events)
       .toEqual([{ type: 'start', sessionId: 's1', model: 'sonnet' }]);
     const a = parseStreamLine(JSON.stringify({ type: 'assistant', message: { content: [{ type: 'text', text: 'olá' }, { type: 'tool_use', name: 'Bash', input: { command: 'gh pr diff 1' } }] } }));
@@ -37,8 +37,8 @@ describe('parseStreamLine', () => {
     expect(r.events).toEqual([{ type: 'denied', name: 'Bash' }]);
   });
 
-  it('ignora linhas inválidas e eventos irrelevantes', () => {
-    expect(parseStreamLine('não é json').events).toEqual([]);
+  it('ignores invalid lines and irrelevant events', () => {
+    expect(parseStreamLine('not json').events).toEqual([]);
     expect(parseStreamLine(JSON.stringify({ type: 'rate_limit_event' })).events).toEqual([]);
   });
 });

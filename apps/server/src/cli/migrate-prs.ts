@@ -1,25 +1,25 @@
-// Migração única: copia a coleção do painel de PRs anterior para painel_prs.
-// Lê a origem em modo somente leitura; nunca altera nem apaga nada nela.
-// Uso: npm run migrate:prs -w apps/server            (simulação, não grava)
-//      npm run migrate:prs -w apps/server -- --apply (grava em painel_prs)
+// One-off migration: copies the previous PR board collection into deck_prs.
+// Reads the source read-only; never changes or deletes anything there.
+// Usage: npm run migrate:prs -w apps/server            (dry run, writes nothing)
+//      npm run migrate:prs -w apps/server -- --apply (writes to deck_prs)
 import { loadDotEnv, parseConfig } from '../config.js';
 import { STATUSES, type DeployStatus } from '../domain/pr-status.js';
 import { createMasker } from '../privacy/mask.js';
-import { PainelStore } from '../store/mongo.js';
+import { DeckStore } from '../store/store.js';
 import { PrsRepo, type TrackedIssue, type TrackedPr } from '../store/prs-repo.js';
 
 loadDotEnv();
 const apply = process.argv.includes('--apply');
 const config = parseConfig();
 const legacy = config.mongo.legacyPr;
-if (!legacy) { console.error('Defina MONGO_LEGACY_PR_DATABASE e MONGO_LEGACY_PR_COLLECTION no .env'); process.exit(1); }
+if (!legacy) { console.error('Set MONGO_LEGACY_PR_DATABASE and MONGO_LEGACY_PR_COLLECTION in .env'); process.exit(1); }
 
 const mask = createMasker(config.maskExtraPatterns);
 const m = (s: unknown) => mask(String(s ?? '')).text;
 const status = (s: unknown): DeployStatus => (STATUSES as readonly string[]).includes(String(s)) ? (s as DeployStatus) : 'review_queue';
 const date = (v: unknown) => (v ? new Date(v as string) : undefined);
 
-const store = new PainelStore(config.mongo);
+const store = new DeckStore(config.mongo);
 await store.connect();
 const repo = new PrsRepo(store);
 const source = await store.readLegacyCollection(legacy.db, legacy.collection);
@@ -42,8 +42,8 @@ const docs: TrackedIssue[] = source.filter(d => !already.has(String(d._id))).map
   };
 });
 
-console.log(`origem: ${source.length} documentos · já migrados: ${already.size} · a migrar: ${docs.length}`);
-console.log(`por status: ${JSON.stringify(docs.reduce<Record<string, number>>((a, d) => ({ ...a, [d.status]: (a[d.status] ?? 0) + 1 }), {}))}`);
-if (!apply) console.log('Simulação: nada foi gravado. Rode com --apply para gravar em painel_prs.');
-else console.log(`gravados em painel_prs: ${await repo.insertMany(docs)}`);
+console.log(`source: ${source.length} documents · already migrated: ${already.size} · to migrate: ${docs.length}`);
+console.log(`by status: ${JSON.stringify(docs.reduce<Record<string, number>>((a, d) => ({ ...a, [d.status]: (a[d.status] ?? 0) + 1 }), {}))}`);
+if (!apply) console.log('Dry run: nothing was written. Run with --apply to write to deck_prs.');
+else console.log(`written to deck_prs: ${await repo.insertMany(docs)}`);
 await store.close();

@@ -1,5 +1,5 @@
-// Incidentes e postmortems: avisos (ações atrasadas, postmortem pendente) e o rascunho em Markdown.
-// Postmortem sem culpados: o texto fala de sistemas e decisões, não de pessoas.
+// Incidents and postmortems: warnings (late actions, pending postmortem) and the Markdown draft.
+// Blameless postmortem: the text talks about systems and decisions, not people.
 
 type When = Date | string;
 
@@ -26,7 +26,7 @@ export interface Incident {
   createdAt?: When; updatedAt?: When;
 }
 
-/** Postmortem obrigatório para sev1/sev2 resolvidos. */
+/** Postmortem required for resolved sev1/sev2. */
 export const needsPostmortem = (i: Pick<Incident, 'severity' | 'status' | 'postmortem'>) =>
   (i.severity === 'sev1' || i.severity === 'sev2') && i.status === 'resolved' && (i.postmortem.status === 'pending' || i.postmortem.status === 'draft');
 
@@ -73,7 +73,7 @@ function fmtDur(ms: number): string {
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60 ? `${m % 60} min` : ''}`.trim();
 }
 
-/** Rascunho do postmortem em Markdown, pronto para colar num doc ou no repositório. */
+/** Postmortem draft in Markdown, ready to paste into a doc or the repository. */
 export function postmortemMarkdown(i: Incident, lang: 'pt-BR' | 'en' = 'pt-BR', tzOffsetMin = 0): string {
   const t = L[lang];
   const at = (d: When | null | undefined) => d ? new Date(new Date(d).getTime() + tzOffsetMin * 60_000).toISOString().slice(0, 16).replace('T', ' ') : '—';

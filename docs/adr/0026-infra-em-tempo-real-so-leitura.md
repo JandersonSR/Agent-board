@@ -10,7 +10,7 @@ O Tech Lead precisa saber na hora quando um servidor ou app de produção cai ou
 - **Ler, por polling, as APIs dos provedores** (DigitalOcean, Heroku, Azure Resource Health e Azure Monitor, Grafana Alerting) a cada `INFRA_POLL_SEC` segundos, com tokens **só de leitura**. Nada é exposto para a internet e nada na infraestrutura é alterado.
 - Os provedores ficam atrás de uma interface (`InfraProvider.poll`) que devolve recursos, alertas e deploys; um `tracker` puro transforma leituras sucessivas em eventos (alerta disparado ou resolvido, mudança de estado, deploy) e calcula alertas por limite sustentado (CPU e memória), já que o DigitalOcean não expõe os alertas que dispara.
 - **Uma leitura que falhou nunca resolve alertas** e mantém o último estado conhecido.
-- Eventos ficam em `painel_eventos` (chave única, gravação idempotente). Os textos que vêm dos provedores passam pelo mascaramento de dados pessoais.
+- Eventos ficam em `deck_events` (chave única, gravação idempotente). Os textos que vêm dos provedores passam pelo mascaramento de dados pessoais.
 - **Incidente automático** só para alerta crítico de recurso de produção (`INFRA_PROD_RE`), no máximo 5 por hora; a resolução do alerta marca o incidente como **mitigado** — resolver e escrever o postmortem continua com a pessoa.
 - **Possível causa:** deploy bem-sucedido do mesmo recurso até 60 minutos antes do alerta. É uma pista, não uma conclusão.
 - O DORA passa a usar os deploys reais de produção quando existem, e o tempo de recuperação conta até a mitigação.

@@ -1,4 +1,4 @@
-// Ponta a ponta: roda o hook.js de verdade numa pasta temporária.
+// End to end: runs the real hook.js in a temporary folder.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');
@@ -26,20 +26,20 @@ async function until(fn, ms = 5000) {
   throw new Error('timeout');
 }
 
-test('grava estado e log de eventos', () => {
+test('writes state and the event log', () => {
   send({ session_id: 'e1', cwd: root, hook_event_name: 'UserPromptSubmit', prompt: 'olá' });
   assert.equal(read('e1').state, 'working');
   const log = fs.readFileSync(path.join(root, 'events.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
   assert.deepEqual(log.map(e => [e.id, e.from, e.to]), [['e1', null, 'working']]);
 });
 
-test('Cursor: responde continue no beforeSubmitPrompt', () => {
+test('Cursor: answers continue on beforeSubmitPrompt', () => {
   const out = send({ conversation_id: 'c1', workspace_roots: [root], hook_event_name: 'beforeSubmitPrompt', prompt: 'x' });
   assert.equal(out, '{"continue":true}');
   assert.equal(read('c1').tool, 'cursor');
 });
 
-test('permissão sem painel aberto: não espera, terminal decide', async () => {
+test('permission without the deck open: does not wait, the terminal decides', async () => {
   fs.rmSync(path.join(root, 'server.json'), { force: true });
   const t0 = Date.now();
   const out = await sendAsync({ session_id: 'p0', cwd: root, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'ls' } });
@@ -49,7 +49,7 @@ test('permissão sem painel aberto: não espera, terminal decide', async () => {
 });
 
 for (const behavior of ['allow', 'deny']) {
-  test(`permissão respondida no painel: ${behavior}`, async () => {
+  test(`permission answered on the deck: ${behavior}`, async () => {
     heartbeat(1);
     const id = `p-${behavior}`;
     const done = sendAsync({ session_id: id, cwd: root, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'npm i' } });
@@ -66,7 +66,7 @@ for (const behavior of ['allow', 'deny']) {
   });
 }
 
-test('permissão resolvida no terminal: o hook para de esperar', async () => {
+test('permission resolved in the terminal: the hook stops waiting', async () => {
   heartbeat(1);
   const done = sendAsync({ session_id: 'p-term', cwd: root, hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'ls' } });
   await until(() => { try { return read('p-term').approvals.length; } catch { return 0; } });

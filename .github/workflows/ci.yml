@@ -39,7 +39,7 @@ jobs:
       - run: npm run build
 
   mongo:
-    name: Integração com MongoDB real
+    name: Integration with a real MongoDB
     runs-on: ubuntu-latest
     timeout-minutes: 15
     services:
@@ -58,7 +58,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      # integração (rotas → repositórios → banco) e paridade SQLite × MongoDB
+      # integration (routes → repositories → database) and SQLite × MongoDB parity
       - run: npx -w apps/server vitest run src/integration.test.ts src/store
 
   e2e:
@@ -83,7 +83,7 @@ jobs:
           retention-days: 7
 
   audit:
-    name: npm audit (produção)
+    name: npm audit (production)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

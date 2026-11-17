@@ -31,7 +31,7 @@
 | --- | --- | --- |
 | `model` | `sonnet` | Modelo do Claude Code |
 | `max-lines` | `2000` | Limite de linhas alteradas |
-| `language` | `pt-BR` | `pt-BR` ou `en` |
+| `language` | `en` | `en` ou `pt-BR` |
 | `skip-label` | `no-ai-review` | Label que pula o PR |
 | `tldeck-ref` | `main` | Versão do script |
 

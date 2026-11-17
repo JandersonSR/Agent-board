@@ -7,7 +7,7 @@
 O painel já media o fluxo até o merge (ADR 0013), mas não o que acontece depois: com que frequência o time entrega, quanto do que entra em produção falha e quanto tempo leva para recuperar. Sem um registro de incidentes, também não existe base para propor SLOs.
 
 ## Decisão
-- **Incidentes** ficam na coleção própria `painel_incidentes`: severidade (SEV1 a SEV4), status, horários (início, detecção, mitigação, resolução), impacto, serviços, mudanças que causaram, correções, linha do tempo, ações com dono e prazo, e postmortem.
+- **Incidentes** ficam na coleção própria `deck_incidents`: severidade (SEV1 a SEV4), status, horários (início, detecção, mitigação, resolução), impacto, serviços, mudanças que causaram, correções, linha do tempo, ações com dono e prazo, e postmortem.
 - O **postmortem é sem culpados** e sai em Markdown (`GET /api/incidents/:id/postmortem.md`), para colar num doc ou no repositório. SEV1/SEV2 resolvidos sem postmortem pronto aparecem como pendentes.
 - **DORA** a partir do que o painel já guarda:
   - *Entrega* = issue mergeada com data de deploy no período. A frequência conta dias distintos de deploy por semana e o total de entregas.

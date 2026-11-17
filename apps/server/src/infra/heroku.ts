@@ -1,6 +1,6 @@
-// Heroku Platform API v3 (token com escopo "read"): estado dos dynos e releases (deploys) de cada app.
-// A API de plataforma não traz CPU/memória; dyno travado já é o sinal mais útil. Métricas finas ficam para
-// um log drain no futuro.
+// Heroku Platform API v3 (token with "read" scope): dyno state and releases (deploys) of each app.
+// The platform API has no CPU/memory; a crashed dyno is already the most useful signal. Fine-grained metrics are left for
+// a log drain in the future.
 import { z } from 'zod';
 import { getJson, type Fetcher } from './http.js';
 import type { InfraDeploy, InfraProvider, InfraResource, ResourceStatus } from './types.js';
@@ -10,7 +10,7 @@ const Apps = z.array(z.object({ id: z.string(), name: z.string(), web_url: z.str
 const Dynos = z.array(z.object({ name: z.string(), type: z.string(), state: z.string(), updated_at: z.string().optional() }));
 const Releases = z.array(z.object({ version: z.number(), status: z.string(), created_at: z.string(), description: z.string().nullable().optional(), current: z.boolean().optional() }));
 
-/** Estado do app a partir dos dynos: travado = fora; reiniciando = atenção. */
+/** App state from its dynos: crashed = down; restarting = warning. */
 export function appStatus(dynos: z.infer<typeof Dynos>): { status: ResourceStatus; text: string } {
   if (!dynos.length) return { status: 'unknown', text: 'sem dynos' };
   const crashed = dynos.filter(d => d.state === 'crashed').length;

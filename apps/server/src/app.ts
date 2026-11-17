@@ -21,17 +21,17 @@ import { InfraService } from './infra/service.js';
 import { ClaudeAgents, DemoClaudeAgents } from './sources/claude-agents.js';
 import { peopleRoutes } from './routes/people.js';
 import { GitHubClient } from './sources/github.js';
-import { PainelStore } from './store/mongo.js';
+import { DeckStore } from './store/store.js';
 
-export interface AppDeps { config: Config; store?: PainelStore; serveWeb?: boolean; startSync?: boolean }
+export interface AppDeps { config: Config; store?: DeckStore; serveWeb?: boolean; startSync?: boolean }
 
-export async function buildApp({ config, store = new PainelStore(config.mongo), serveWeb = true, startSync = false }: AppDeps): Promise<FastifyInstance> {
+export async function buildApp({ config, store = new DeckStore(config.mongo), serveWeb = true, startSync = false }: AppDeps): Promise<FastifyInstance> {
   const mask = createMasker(config.maskExtraPatterns);
   const app = Fastify({
     bodyLimit: 256 * 1024,
     logger: {
       level: process.env.LOG_LEVEL ?? 'info',
-      // Nada de corpo de requisição, cabeçalhos ou query nos logs (podem ter dados pessoais).
+      // No request body, headers or query in the logs (they may hold personal data).
       serializers: {
         req: (req: { method: string; routeOptions?: { url?: string } }) => ({ method: req.method, route: req.routeOptions?.url }),
         res: (res: { statusCode: number }) => ({ statusCode: res.statusCode }),
@@ -47,18 +47,18 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
       origin: req.headers.origin,
       marker: req.headers['x-agent-board'] as string | undefined,
     });
-    if (!ok) return reply.code(403).send({ error: 'origem não permitida' });
+    if (!ok) return reply.code(403).send({ error: 'origin not allowed' });
   });
 
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ZodError) {
-      return reply.code(400).send({ error: 'entrada inválida', issues: err.issues.map(i => ({ path: i.path.join('.'), message: i.message })) });
+      return reply.code(400).send({ error: 'invalid input', issues: err.issues.map(i => ({ path: i.path.join('.'), message: i.message })) });
     }
     const e = err as Error & { statusCode?: number; stderr?: string };
     const status = e.statusCode && e.statusCode >= 400 ? e.statusCode : 500;
-    // Mensagens de erro de git/gh podem conter trechos de texto: mascaradas antes de sair.
+    // git/gh error messages may contain text: masked before they leave.
     const message = mask((e.stderr || e.message || 'erro').split('\n')[0]).text;
-    if (status >= 500) app.log.error({ err: { name: e.name, message } }, 'erro na rota');
+    if (status >= 500) app.log.error({ err: { name: e.name, message } }, 'route error');
     return reply.code(status).send({ error: message });
   });
 
@@ -86,7 +86,7 @@ export async function buildApp({ config, store = new PainelStore(config.mongo), 
 
   const webDist = path.join(REPO_ROOT, 'apps', 'web', 'dist');
   if (serveWeb && fs.existsSync(webDist)) {
-    // wildcard dinâmico: um build novo da web aparece sem reiniciar o servidor.
+    // dynamic wildcard: a new web build shows up without restarting the server.
     await app.register(fastifyStatic, { root: webDist });
     app.setNotFoundHandler((req, reply) => {
       if (req.method === 'GET' && !req.url.startsWith('/api/') && req.url !== '/events') return reply.sendFile('index.html');

@@ -1,4 +1,4 @@
-// Adaptadores com respostas simuladas das APIs (nenhuma chamada real).
+// Adapters with simulated API responses (no real calls).
 import { describe, expect, it } from 'vitest';
 import { azureProvider, azureSeverity, healthStatus, resourceFromHealthId } from './azure.js';
 import { cpuUsage, deployPhase, digitalOceanProvider, memoryUsage } from './digitalocean.js';
@@ -7,7 +7,7 @@ import { appStatus, herokuProvider } from './heroku.js';
 import type { Fetcher } from './http.js';
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
-/** Fetcher que responde por trecho da URL e registra as chamadas (para conferir cabeçalhos). */
+/** Fetcher that answers by URL fragment and records the calls (to check headers). */
 function fake(routes: Array<[RegExp, unknown]>) {
   const calls: Array<{ url: string; init?: RequestInit | undefined }> = [];
   const f: Fetcher = async (url, init) => {
@@ -20,7 +20,7 @@ function fake(routes: Array<[RegExp, unknown]>) {
 const series = (rows: Array<[Record<string, string>, Array<[number, string]>]>) => ({ status: 'success', data: { resultType: 'matrix', result: rows.map(([metric, values]) => ({ metric, values })) } });
 
 describe('DigitalOcean', () => {
-  it('CPU pelo delta dos contadores e memória pela razão disponível/total', () => {
+  it('CPU from the counter delta and memory from the available/total ratio', () => {
     const cpu = series([[{ mode: 'idle' }, [[0, '1000'], [60, '1030']]], [{ mode: 'user' }, [[0, '500'], [60, '520']]], [{ mode: 'system' }, [[0, '100'], [60, '110']]]]);
     expect(cpuUsage(cpu as never)).toBe(50); // 30 de 60 s ociosos
     expect(memoryUsage(series([[{}, [[0, '1000']]]]) as never, series([[{}, [[0, '4000']]]]) as never)).toBe(75);
@@ -30,7 +30,7 @@ describe('DigitalOcean', () => {
     expect(deployPhase('BUILDING')).toBe('in_progress');
   });
 
-  it('lê droplets, métricas e deploys do App Platform', async () => {
+  it('reads droplets, metrics and App Platform deploys', async () => {
     const { f, calls } = fake([
       [/\/v2\/droplets/, { droplets: [{ id: 1, name: 'api-prod', status: 'active', region: { slug: 'nyc1' } }, { id: 2, name: 'old', status: 'off' }] }],
       [/metrics\/droplet\/cpu/, series([[{ mode: 'idle' }, [[0, '0'], [60, '6']]], [{ mode: 'user' }, [[0, '0'], [60, '54']]]])],
@@ -46,10 +46,10 @@ describe('DigitalOcean', () => {
     expect(snap.resources.find(r => r.name === 'web-prod')).toMatchObject({ kind: 'app', status: 'ok', url: 'https://web' });
     expect(snap.deploys[0]).toMatchObject({ status: 'succeeded', resourceName: 'web-prod', version: 'd1abcdef' });
     expect(calls.every(c => (c.init?.headers as Record<string, string>).Authorization === 'Bearer t0k')).toBe(true);
-    expect(calls.some(c => c.url.includes('host_id=2'))).toBe(false); // desligado: sem métricas
+    expect(calls.some(c => c.url.includes('host_id=2'))).toBe(false); // off: no metrics
   });
 
-  it('token só com app:read: droplets sem escopo viram aviso e os apps são lidos', async () => {
+  it('token with only app:read: droplets without scope become a warning and the apps are read', async () => {
     const f: Fetcher = async (url) => {
       if (/\/v2\/droplets/.test(url)) return json({ id: 'forbidden', message: 'You are not authorized to perform this operation' }, 403);
       if (/\/v2\/apps\/a1\/deployments/.test(url)) return json({ deployments: [] });
@@ -61,22 +61,22 @@ describe('DigitalOcean', () => {
     expect(snap.warnings).toEqual(['droplets: token sem escopo droplet:read']);
   });
 
-  it('nenhuma parte acessível (token inválido) ou erro que não é de escopo: falha', async () => {
+  it('no part accessible (invalid token) or a non-scope error: fails', async () => {
     const forbidden: Fetcher = async () => json({ id: 'unauthorized' }, 401);
-    await expect(digitalOceanProvider({ token: 'x', fetcher: forbidden }).poll(0)).rejects.toThrow(/sem permissão/);
+    await expect(digitalOceanProvider({ token: 'x', fetcher: forbidden }).poll(0)).rejects.toThrow(/without permission/);
     const limited: Fetcher = async (url) => (/\/v2\/droplets/.test(url) ? json({}, 429) : json({ apps: [] }));
-    await expect(digitalOceanProvider({ token: 'x', fetcher: limited }).poll(0)).rejects.toThrow(/limite/);
+    await expect(digitalOceanProvider({ token: 'x', fetcher: limited }).poll(0)).rejects.toThrow(/rate limit/);
   });
 });
 
 describe('Heroku', () => {
-  it('estado pelos dynos', () => {
+  it('state from the dynos', () => {
     expect(appStatus([{ name: 'web.1', type: 'web', state: 'up' }, { name: 'web.2', type: 'web', state: 'crashed' }])).toMatchObject({ status: 'warn' });
     expect(appStatus([{ name: 'web.1', type: 'web', state: 'crashed' }])).toMatchObject({ status: 'down' });
     expect(appStatus([])).toMatchObject({ status: 'unknown' });
   });
 
-  it('cabeçalho da v3, filtro de apps e releases mais recentes', async () => {
+  it('v3 header, app filter and latest releases', async () => {
     const { f, calls } = fake([
       [/\/apps\/payments-prod\/dynos/, [{ name: 'web.1', type: 'web', state: 'up' }]],
       [/\/apps\/payments-prod\/releases/, [{ version: 42, status: 'succeeded', created_at: '2026-11-16T09:00:00Z', description: 'Deploy 9f8e7d' }, { version: 41, status: 'failed', created_at: '2026-11-15T09:00:00Z' }]],
@@ -92,14 +92,14 @@ describe('Heroku', () => {
 });
 
 describe('Azure', () => {
-  it('saúde, severidade e nome do recurso', () => {
+  it('health, severity and resource name', () => {
     expect(resourceFromHealthId('/subscriptions/s/resourceGroups/rg/providers/Microsoft.Sql/servers/srv/databases/loans/providers/Microsoft.ResourceHealth/availabilityStatuses/current'))
       .toEqual({ resourceId: '/subscriptions/s/resourcegroups/rg/providers/microsoft.sql/servers/srv/databases/loans', name: 'loans', kind: 'databases' });
     expect([healthStatus('Available'), healthStatus('Degraded'), healthStatus('Unavailable'), healthStatus(null)]).toEqual(['ok', 'warn', 'down', 'unknown']);
     expect([azureSeverity('Sev0'), azureSeverity('Sev2'), azureSeverity('Sev4')]).toEqual(['critical', 'warning', 'info']);
   });
 
-  it('token por client credentials (reaproveitado) e alertas só disparados', async () => {
+  it('token by client credentials (reused) and only firing alerts', async () => {
     const { f, calls } = fake([
       [/oauth2\/v2\.0\/token/, { access_token: 'az', expires_in: 3600 }],
       [/availabilityStatuses/, { value: [{ id: '/subscriptions/s/resourceGroups/rg/providers/Microsoft.Web/sites/api/providers/Microsoft.ResourceHealth/availabilityStatuses/current', location: 'brazilsouth', properties: { availabilityState: 'Degraded', summary: 'Degradado' } }] }],
@@ -118,7 +118,7 @@ describe('Azure', () => {
 });
 
 describe('Grafana', () => {
-  it('só alertas ativos, com severidade pelos labels', async () => {
+  it('only active alerts, with severity from the labels', async () => {
     const { f } = fake([[/alertmanager\/grafana\/api\/v2\/alerts/, [
       { fingerprint: 'f1', labels: { alertname: 'HighLatency', severity: 'critical', service: 'loans-api' }, annotations: { summary: 'Latência p95 alta' }, startsAt: '2026-11-16T11:00:00Z', status: { state: 'active' }, generatorURL: 'https://g/alerting/1' },
       { fingerprint: 'f2', labels: { alertname: 'Silenciado' }, annotations: {}, startsAt: '2026-11-16T11:00:00Z', status: { state: 'suppressed' } },
@@ -128,9 +128,9 @@ describe('Grafana', () => {
     expect(grafanaSeverity({ severity: 'warning' })).toBe('warning');
   });
 
-  it('erro de permissão não vaza o token', async () => {
+  it('a permission error does not leak the token', async () => {
     const f: Fetcher = async () => json({ message: 'unauthorized' }, 401);
-    await expect(grafanaProvider({ url: 'https://g.dev', token: 'segredo123', fetcher: f }).poll(0)).rejects.toThrow(/g\.dev: token sem permissão/);
+    await expect(grafanaProvider({ url: 'https://g.dev', token: 'segredo123', fetcher: f }).poll(0)).rejects.toThrow(/g\.dev: token without permission/);
     await expect(grafanaProvider({ url: 'https://g.dev', token: 'segredo123', fetcher: f }).poll(0)).rejects.not.toThrow(/segredo123/);
   });
 });

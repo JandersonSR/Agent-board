@@ -1,5 +1,5 @@
-// Incidentes e postmortems: registro com impacto, linha do tempo, causa, ações com dono e prazo.
-// O postmortem sai em Markdown (sem culpados) para colar num doc ou no repositório.
+// Incidents and postmortems: a log with impact, timeline, cause, and actions with owner and deadline.
+// The postmortem comes out as Markdown (blameless) to paste into a doc or the repository.
 import { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, ClipboardCopy, Download, Loader2, Plus, Save, Siren, Trash2, X } from 'lucide-react';
 import { toast } from 'sonner';
@@ -27,11 +27,11 @@ import { cn } from '@/lib/utils';
 
 const SEV_TONE: Record<Severity, Tone> = { sev1: 'danger', sev2: 'danger', sev3: 'warning', sev4: 'neutral' };
 const STATUS: Record<IncidentStatus, { label: string; tone: Tone }> = {
-  open: { label: k('aberto'), tone: 'danger' }, mitigated: { label: k('mitigado'), tone: 'warning' }, resolved: { label: k('resolvido'), tone: 'success' },
+  open: { label: k('open'), tone: 'danger' }, mitigated: { label: k('mitigated'), tone: 'warning' }, resolved: { label: k('resolved'), tone: 'success' },
 };
-const PM: Record<PostmortemStatus, string> = { pending: k('pendente'), draft: k('rascunho'), done: k('pronto'), not_needed: k('não precisa') };
+const PM: Record<PostmortemStatus, string> = { pending: k('pending'), draft: k('draft'), done: k('done|postmortem'), not_needed: k('not needed') };
 
-/** ISO → valor do <input type="datetime-local"> no fuso do navegador. */
+/** ISO → <input type="datetime-local"> value in the browser's time zone. */
 const toLocal = (iso?: string | null) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -49,7 +49,7 @@ const draftOf = (i: Incident): Draft => ({
   postmortem: i.postmortem ?? { status: 'pending' },
 });
 
-/** Remove campos vazios que o servidor recusaria (URL vazia, texto vazio opcional). */
+/** Removes empty fields the server would refuse (empty URL, optional empty text). */
 function cleanDraft(d: Draft): Draft {
   const pm = { ...d.postmortem };
   for (const key of ['url', 'whatHappened', 'rootCause', 'wentWell', 'wentWrong', 'lessons'] as const) if (!pm[key]?.trim()) delete pm[key];
@@ -74,27 +74,27 @@ function NewIncidentDialog({ open, onOpenChange, onCreated }: { open: boolean; o
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{t('Novo incidente')}</DialogTitle>
-          <DialogDescription>{t('Registre agora e complete depois: linha do tempo, causa, ações e postmortem.')}</DialogDescription>
+          <DialogTitle>{t('New incident')}</DialogTitle>
+          <DialogDescription>{t('Log it now and fill in the rest later: timeline, cause, actions and postmortem.')}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
-          <Field label={k('Título')}><Input value={title} onChange={e => setTitle(e.target.value)} maxLength={200} autoFocus /></Field>
+          <Field label={k('Title')}><Input value={title} onChange={e => setTitle(e.target.value)} maxLength={200} autoFocus /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label={k('Severidade')}>
+            <Field label={k('Severity')}>
               <Select value={sev} onValueChange={v => setSev(v as Severity)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>{SEVERITIES.map(s => <SelectItem key={s} value={s}>{s.toUpperCase()}</SelectItem>)}</SelectContent>
               </Select>
             </Field>
-            <Field label={k('Início')}><Input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></Field>
+            <Field label={k('Started')}><Input type="datetime-local" value={start} onChange={e => setStart(e.target.value)} /></Field>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancelar')}</Button>
+          <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancel')}</Button>
           <Button disabled={!title.trim() || !start || save.isPending} onClick={() => save.mutate(
             { body: { title: title.trim(), severity: sev, startedAt: fromLocal(start)! } },
             { onSuccess: r => { onOpenChange(false); onCreated((r as { id: string }).id); } },
-          )}>{save.isPending ? <Loader2 className="animate-spin" /> : <Plus />} {t('Registrar')}</Button>
+          )}>{save.isPending ? <Loader2 className="animate-spin" /> : <Plus />} {t('Log it')}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -108,15 +108,15 @@ function ActionsEditor({ value, onChange }: { value: IncidentAction[]; onChange:
     <div className="space-y-1.5">
       {value.map((a, i) => (
         <div key={a.id} className="flex items-center gap-2">
-          <Checkbox checked={a.done} onCheckedChange={c => set(i, { done: c === true })} aria-label={t('Concluída')} />
-          <Input value={a.text} onChange={e => set(i, { text: e.target.value })} placeholder={t('Ação')} className={cn('h-8 flex-1 text-xs', a.done && 'text-muted-foreground line-through')} maxLength={500} />
-          <Input value={a.owner ?? ''} onChange={e => set(i, { owner: e.target.value })} placeholder={t('Responsável')} className="h-8 w-32 text-xs" maxLength={80} />
-          <Input type="date" value={a.due ?? ''} onChange={e => set(i, { due: e.target.value || undefined })} aria-label={t('Prazo')}
+          <Checkbox checked={a.done} onCheckedChange={c => set(i, { done: c === true })} aria-label={t('Done')} />
+          <Input value={a.text} onChange={e => set(i, { text: e.target.value })} placeholder={t('Action')} className={cn('h-8 flex-1 text-xs', a.done && 'text-muted-foreground line-through')} maxLength={500} />
+          <Input value={a.owner ?? ''} onChange={e => set(i, { owner: e.target.value })} placeholder={t('Owner')} className="h-8 w-32 text-xs" maxLength={80} />
+          <Input type="date" value={a.due ?? ''} onChange={e => set(i, { due: e.target.value || undefined })} aria-label={t('Deadline')}
             className={cn('h-8 w-36 text-xs', !a.done && a.due && a.due < today && 'border-danger text-danger')} />
-          <Button size="icon-xs" variant="ghost" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={t('Remover')}><X /></Button>
+          <Button size="icon-xs" variant="ghost" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={t('Remove')}><X /></Button>
         </div>
       ))}
-      <Button size="xs" variant="outline" onClick={() => onChange([...value, { id: newId(), text: '', done: false }])}><Plus /> {t('Ação')}</Button>
+      <Button size="xs" variant="outline" onClick={() => onChange([...value, { id: newId(), text: '', done: false }])}><Plus /> {t('Action')}</Button>
     </div>
   );
 }
@@ -129,11 +129,11 @@ function TimelineEditor({ value, onChange }: { value: Draft['timeline']; onChang
       {sorted.map(({ e, i }) => (
         <div key={i} className="flex items-center gap-2">
           <Input type="datetime-local" value={toLocal(e.at)} onChange={ev => set(i, { at: fromLocal(ev.target.value) ?? e.at })} className="h-8 w-48 text-xs" />
-          <Input value={e.text} onChange={ev => set(i, { text: ev.target.value })} className="h-8 flex-1 text-xs" maxLength={1000} placeholder={t('O que aconteceu neste momento')} />
-          <Button size="icon-xs" variant="ghost" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={t('Remover')}><X /></Button>
+          <Input value={e.text} onChange={ev => set(i, { text: ev.target.value })} className="h-8 flex-1 text-xs" maxLength={1000} placeholder={t('What happened at this point')} />
+          <Button size="icon-xs" variant="ghost" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={t('Remove')}><X /></Button>
         </div>
       ))}
-      <Button size="xs" variant="outline" onClick={() => onChange([...value, { at: new Date().toISOString(), text: '' }])}><Plus /> {t('Evento')}</Button>
+      <Button size="xs" variant="outline" onClick={() => onChange([...value, { at: new Date().toISOString(), text: '' }])}><Plus /> {t('Event')}</Button>
     </div>
   );
 }
@@ -150,7 +150,7 @@ function IncidentDetail({ incident, onDeleted }: { incident: Incident; onDeleted
   const end = d.resolvedAt ?? d.mitigatedAt;
 
   const markdown = () => api.get<string>(`/api/incidents/${incident._id}/postmortem.md?lang=${getLang()}`);
-  const copy = async () => { await navigator.clipboard.writeText(await markdown()); toast.success(t('Postmortem copiado')); };
+  const copy = async () => { await navigator.clipboard.writeText(await markdown()); toast.success(t('Postmortem copied')); };
   const download = async () => {
     const blob = new Blob([await markdown()], { type: 'text/markdown' });
     const a = document.createElement('a');
@@ -163,7 +163,7 @@ function IncidentDetail({ incident, onDeleted }: { incident: Incident; onDeleted
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex flex-wrap items-center gap-2 border-b p-4">
-        <Input value={d.title} onChange={e => up({ title: e.target.value })} className="h-9 min-w-64 flex-1 text-sm font-semibold" maxLength={200} aria-label={t('Título')} />
+        <Input value={d.title} onChange={e => up({ title: e.target.value })} className="h-9 min-w-64 flex-1 text-sm font-semibold" maxLength={200} aria-label={t('Title')} />
         <Select value={d.severity} onValueChange={v => up({ severity: v as Severity })}>
           <SelectTrigger className="h-9 w-24"><SelectValue /></SelectTrigger>
           <SelectContent>{SEVERITIES.map(s => <SelectItem key={s} value={s}>{s.toUpperCase()}</SelectItem>)}</SelectContent>
@@ -173,40 +173,40 @@ function IncidentDetail({ incident, onDeleted }: { incident: Incident; onDeleted
           <SelectContent>{(Object.keys(STATUS) as IncidentStatus[]).map(s => <SelectItem key={s} value={s}>{t(STATUS[s].label)}</SelectItem>)}</SelectContent>
         </Select>
         <Button size="sm" disabled={!dirty || save.isPending || !d.title.trim()} onClick={() => save.mutate({ id: incident._id, body: cleanDraft(d) })}>
-          {save.isPending ? <Loader2 className="animate-spin" /> : <Save />} {t('Salvar')}
+          {save.isPending ? <Loader2 className="animate-spin" /> : <Save />} {t('Save')}
         </Button>
       </header>
 
       <div className="min-h-0 flex-1 space-y-5 overflow-auto p-4">
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <Field label={k('Início')}><Input type="datetime-local" value={toLocal(d.startedAt)} onChange={e => up({ startedAt: fromLocal(e.target.value) ?? d.startedAt })} /></Field>
-          <Field label={k('Detecção')}><Input type="datetime-local" value={toLocal(d.detectedAt)} onChange={e => up({ detectedAt: fromLocal(e.target.value) })} /></Field>
-          <Field label={k('Mitigação')}><Input type="datetime-local" value={toLocal(d.mitigatedAt)} onChange={e => up({ mitigatedAt: fromLocal(e.target.value) })} /></Field>
-          <Field label={k('Resolução')}><Input type="datetime-local" value={toLocal(d.resolvedAt)} onChange={e => up({ resolvedAt: fromLocal(e.target.value) })} /></Field>
+          <Field label={k('Started')}><Input type="datetime-local" value={toLocal(d.startedAt)} onChange={e => up({ startedAt: fromLocal(e.target.value) ?? d.startedAt })} /></Field>
+          <Field label={k('Detected')}><Input type="datetime-local" value={toLocal(d.detectedAt)} onChange={e => up({ detectedAt: fromLocal(e.target.value) })} /></Field>
+          <Field label={k('Mitigated')}><Input type="datetime-local" value={toLocal(d.mitigatedAt)} onChange={e => up({ mitigatedAt: fromLocal(e.target.value) })} /></Field>
+          <Field label={k('Resolved at')}><Input type="datetime-local" value={toLocal(d.resolvedAt)} onChange={e => up({ resolvedAt: fromLocal(e.target.value) })} /></Field>
         </section>
-        {end && <p className="-mt-3 text-[11px] text-muted-foreground">{t('Duração: {d}', { d: dur(Date.parse(end) - Date.parse(d.startedAt)) })}{d.detectedAt ? ` · ${t('detectado em {d}', { d: dur(Date.parse(d.detectedAt) - Date.parse(d.startedAt)) })}` : ''}</p>}
+        {end && <p className="-mt-3 text-[11px] text-muted-foreground">{t('Duration: {d}', { d: dur(Date.parse(end) - Date.parse(d.startedAt)) })}{d.detectedAt ? ` · ${t('detected in {d}', { d: dur(Date.parse(d.detectedAt) - Date.parse(d.startedAt)) })}` : ''}</p>}
 
         <section className="grid gap-3 lg:grid-cols-2">
-          <Field label={k('Impacto (quem foi afetado, quanto, por quanto tempo)')}><Textarea value={d.impact ?? ''} onChange={e => up({ impact: e.target.value })} rows={3} maxLength={4000} /></Field>
+          <Field label={k('Impact (who was affected, how much, for how long)')}><Textarea value={d.impact ?? ''} onChange={e => up({ impact: e.target.value })} rows={3} maxLength={4000} /></Field>
           <div className="space-y-3">
-            <Field label={k('Serviços afetados (separados por vírgula)')}>
+            <Field label={k('Affected services (comma separated)')}>
               <Input value={d.services.join(', ')} onChange={e => up({ services: e.target.value.split(',').map(x => x.trim()).filter(Boolean) })} />
             </Field>
             <div className="grid grid-cols-2 gap-3">
-              <Field label={k('PRs/issues que causaram (um por linha)')}><Textarea value={d.causeChanges.join('\n')} onChange={e => up({ causeChanges: lines(e.target.value) })} rows={2} className="font-mono text-[11px]" /></Field>
-              <Field label={k('Correções (um por linha)')}><Textarea value={d.fixChanges.join('\n')} onChange={e => up({ fixChanges: lines(e.target.value) })} rows={2} className="font-mono text-[11px]" /></Field>
+              <Field label={k('PRs/issues that caused it (one per line)')}><Textarea value={d.causeChanges.join('\n')} onChange={e => up({ causeChanges: lines(e.target.value) })} rows={2} className="font-mono text-[11px]" /></Field>
+              <Field label={k('Fixes (one per line)')}><Textarea value={d.fixChanges.join('\n')} onChange={e => up({ fixChanges: lines(e.target.value) })} rows={2} className="font-mono text-[11px]" /></Field>
             </div>
           </div>
         </section>
-        <p className="-mt-3 text-[11px] text-muted-foreground">{t('As URLs em "causaram" entram na taxa de falha de mudança (Métricas → DORA).')}</p>
+        <p className="-mt-3 text-[11px] text-muted-foreground">{t('URLs under "caused it" count toward the change failure rate (Metrics → DORA).')}</p>
 
         <section className="space-y-2">
-          <h3 className="text-xs font-semibold">{t('Linha do tempo')}</h3>
+          <h3 className="text-xs font-semibold">{t('Timeline')}</h3>
           <TimelineEditor value={d.timeline} onChange={timeline => up({ timeline })} />
         </section>
 
         <section className="space-y-2">
-          <h3 className="text-xs font-semibold">{t('Ações')}</h3>
+          <h3 className="text-xs font-semibold">{t('Actions')}</h3>
           <ActionsEditor value={d.actions} onChange={actions => up({ actions })} />
         </section>
 
@@ -217,33 +217,33 @@ function IncidentDetail({ incident, onDeleted }: { incident: Incident; onDeleted
               <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
               <SelectContent>{(Object.keys(PM) as PostmortemStatus[]).map(s => <SelectItem key={s} value={s}>{t(PM[s])}</SelectItem>)}</SelectContent>
             </Select>
-            <Input value={d.postmortem.url ?? ''} onChange={e => pm({ url: e.target.value })} placeholder={t('Link do doc (opcional)')} className="h-8 min-w-48 flex-1 text-xs" />
-            <Button size="xs" variant="outline" onClick={() => void copy()} disabled={dirty}><ClipboardCopy /> {t('Copiar Markdown')}</Button>
+            <Input value={d.postmortem.url ?? ''} onChange={e => pm({ url: e.target.value })} placeholder={t('Doc link (optional)')} className="h-8 min-w-48 flex-1 text-xs" />
+            <Button size="xs" variant="outline" onClick={() => void copy()} disabled={dirty}><ClipboardCopy /> {t('Copy Markdown')}</Button>
             <Button size="xs" variant="outline" onClick={() => void download()} disabled={dirty}><Download /> .md</Button>
           </div>
-          {dirty && <p className="text-[11px] text-muted-foreground">{t('Salve para exportar a versão atual.')}</p>}
+          {dirty && <p className="text-[11px] text-muted-foreground">{t('Save to export the current version.')}</p>}
           <div className="grid gap-3 lg:grid-cols-2">
-            <Field label={k('O que aconteceu')}><Textarea value={d.postmortem.whatHappened ?? ''} onChange={e => pm({ whatHappened: e.target.value })} rows={3} /></Field>
-            <Field label={k('Causa raiz')}><Textarea value={d.postmortem.rootCause ?? ''} onChange={e => pm({ rootCause: e.target.value })} rows={3} /></Field>
-            <Field label={k('O que funcionou')}><Textarea value={d.postmortem.wentWell ?? ''} onChange={e => pm({ wentWell: e.target.value })} rows={2} /></Field>
-            <Field label={k('O que não funcionou')}><Textarea value={d.postmortem.wentWrong ?? ''} onChange={e => pm({ wentWrong: e.target.value })} rows={2} /></Field>
-            <Field label={k('Aprendizados')} className="lg:col-span-2"><Textarea value={d.postmortem.lessons ?? ''} onChange={e => pm({ lessons: e.target.value })} rows={2} /></Field>
+            <Field label={k('What happened')}><Textarea value={d.postmortem.whatHappened ?? ''} onChange={e => pm({ whatHappened: e.target.value })} rows={3} /></Field>
+            <Field label={k('Root cause')}><Textarea value={d.postmortem.rootCause ?? ''} onChange={e => pm({ rootCause: e.target.value })} rows={3} /></Field>
+            <Field label={k('What went well')}><Textarea value={d.postmortem.wentWell ?? ''} onChange={e => pm({ wentWell: e.target.value })} rows={2} /></Field>
+            <Field label={k('What went wrong')}><Textarea value={d.postmortem.wentWrong ?? ''} onChange={e => pm({ wentWrong: e.target.value })} rows={2} /></Field>
+            <Field label={k('Lessons')} className="lg:col-span-2"><Textarea value={d.postmortem.lessons ?? ''} onChange={e => pm({ lessons: e.target.value })} rows={2} /></Field>
           </div>
-          <p className="text-[11px] text-muted-foreground">{t('Sem culpados: descreva sistemas e decisões, não pessoas.')}</p>
+          <p className="text-[11px] text-muted-foreground">{t('Blameless: describe systems and decisions, not people.')}</p>
         </section>
 
-        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setConfirmDel(true)}><Trash2 /> {t('Apagar incidente')}</Button>
+        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setConfirmDel(true)}><Trash2 /> {t('Delete incident')}</Button>
       </div>
 
       <AlertDialog open={confirmDel} onOpenChange={setConfirmDel}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t('Apagar o incidente?')}</AlertDialogTitle>
-            <AlertDialogDescription>{t('O registro, a linha do tempo, as ações e o postmortem somem do painel. Não dá para desfazer.')}</AlertDialogDescription>
+            <AlertDialogTitle>{t('Delete the incident?')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('The record, timeline, actions and postmortem are removed from the board. This cannot be undone.')}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
-            <AlertDialogAction onClick={() => del.mutate(incident._id, { onSuccess: onDeleted })}>{t('Apagar')}</AlertDialogAction>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => del.mutate(incident._id, { onSuccess: onDeleted })}>{t('Delete')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -260,7 +260,7 @@ export function IncidentsView() {
   const current = items.find(i => i._id === selected) ?? items[0];
 
   if (q.data && !q.data.configured) {
-    return <div className="rounded-xl border border-dashed"><EmptyState icon={Siren} title={t('MongoDB não configurado')} description={t('Os incidentes ficam numa coleção própria do painel no MongoDB.')} /></div>;
+    return <div className="rounded-xl border border-dashed"><EmptyState icon={Siren} title={t('MongoDB not configured')} description={t('Incidents are stored in the board\'s own MongoDB collection.')} /></div>;
   }
 
   return (
@@ -268,22 +268,22 @@ export function IncidentsView() {
       {a && (a.open > 0 || a.overdueActions.length > 0 || a.postmortemPending.length > 0) && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-warning/40 bg-warning-soft/40 px-3 py-2 text-xs">
           <AlertTriangle className="size-4 text-warning" />
-          {a.open > 0 && <Pill tone="danger">{t('{n} aberto(s)', { n: a.open })}</Pill>}
-          {a.overdueActions.length > 0 && <Pill tone="warning">{t('{n} ação(ões) atrasada(s)', { n: a.overdueActions.length })}</Pill>}
-          {a.postmortemPending.length > 0 && <Pill tone="warning">{t('{n} postmortem(s) pendente(s)', { n: a.postmortemPending.length })}</Pill>}
-          {a.actionsDoneRate !== null && <span className="text-muted-foreground">{t('{pct} das ações concluídas', { pct: `${Math.round(a.actionsDoneRate * 100)}%` })}</span>}
+          {a.open > 0 && <Pill tone="danger">{t('{n} open', { n: a.open })}</Pill>}
+          {a.overdueActions.length > 0 && <Pill tone="warning">{t('{n} late action(s)', { n: a.overdueActions.length })}</Pill>}
+          {a.postmortemPending.length > 0 && <Pill tone="warning">{t('{n} pending postmortem(s)', { n: a.postmortemPending.length })}</Pill>}
+          {a.actionsDoneRate !== null && <span className="text-muted-foreground">{t('{pct} of actions done', { pct: `${Math.round(a.actionsDoneRate * 100)}%` })}</span>}
         </div>
       )}
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[22rem_1fr]">
         <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border bg-card shadow-xs">
           <header className="flex h-11 items-center gap-2 border-b px-3.5">
             <Siren className="size-4 text-muted-foreground" />
-            <h2 className="text-[13px] font-semibold">{t('Incidentes')}</h2>
-            <Button size="xs" className="ml-auto" onClick={() => setCreating(true)}><Plus /> {t('Novo')}</Button>
+            <h2 className="text-[13px] font-semibold">{t('Incidents')}</h2>
+            <Button size="xs" className="ml-auto" onClick={() => setCreating(true)}><Plus /> {t('New')}</Button>
           </header>
           <div className="min-h-0 flex-1 overflow-auto">
             {q.isLoading && <div className="space-y-2 p-3">{Array.from({ length: 4 }, (_, i) => <Skeleton key={i} className="h-12" />)}</div>}
-            {q.data && !items.length && <EmptyState icon={Siren} title={t('Nenhum incidente registrado')} description={t('Registre cada incidente, mesmo pequeno. É a base do tempo de recuperação e da taxa de falha (DORA) e de SLOs no futuro.')} />}
+            {q.data && !items.length && <EmptyState icon={Siren} title={t('No incidents logged')} description={t('Log every incident, even small ones. They are the basis for recovery time, change failure rate (DORA) and future SLOs.')} />}
             <ul className="divide-y">
               {items.map(i => (
                 <li key={i._id}>
@@ -295,7 +295,7 @@ export function IncidentsView() {
                     </span>
                     <span className="flex gap-2 text-[11px] text-muted-foreground">
                       <span>{fmtDay(i.startedAt.slice(0, 10))} · {ago(Date.parse(i.startedAt))}</span>
-                      {i.actions.length > 0 && <span>· {t('{done}/{n} ações', { done: i.actions.filter(x => x.done).length, n: i.actions.length })}</span>}
+                      {i.actions.length > 0 && <span>· {t('{done}/{n} actions', { done: i.actions.filter(x => x.done).length, n: i.actions.length })}</span>}
                       <span>· {t('postmortem {s}', { s: t(PM[i.postmortem.status]) })}</span>
                     </span>
                   </button>
@@ -306,7 +306,7 @@ export function IncidentsView() {
         </section>
         <section className="min-h-0 overflow-hidden rounded-xl border bg-card shadow-xs">
           {current ? <IncidentDetail key={current._id} incident={current} onDeleted={() => setSelected(null)} />
-            : !q.isLoading && <EmptyState icon={Siren} title={t('Selecione ou registre um incidente')} />}
+            : !q.isLoading && <EmptyState icon={Siren} title={t('Select or log an incident')} />}
         </section>
       </div>
       <NewIncidentDialog open={creating} onOpenChange={setCreating} onCreated={setSelected} />

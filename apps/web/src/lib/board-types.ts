@@ -1,6 +1,6 @@
 import { k } from './i18n';
 
-// Formatos dos blocos do Tech Lead (espelham apps/server/src/sync/service.ts e domain/*).
+// Tech Lead block shapes (mirror apps/server/src/sync/service.ts and domain/*).
 export interface SourceState { configured: boolean; lastSync?: string; error?: string; running: boolean }
 export type Sources = Record<'github' | 'discord' | 'prs', SourceState>;
 
@@ -37,7 +37,7 @@ export interface OpenBlocker {
 
 export type DeployStatus = 'review_queue' | 'reviewing' | 'rcs' | 're_review' | 'waiting_approves' | 'merged' | 'production';
 export const DEPLOY_STATUSES: DeployStatus[] = ['review_queue', 'reviewing', 'rcs', 're_review', 'waiting_approves', 'merged', 'production'];
-/** Entregue (merged) ou em produção: sai dos "abertos". */
+/** Delivered (merged) or in production: leaves the "open" list. */
 export const isDone = (s: DeployStatus) => s === 'merged' || s === 'production';
 export interface TrackedPr {
   url: string; title: string; owner: string; author?: string; status: DeployStatus; state: 'open' | 'closed' | 'merged';
@@ -54,13 +54,13 @@ export interface TrackedIssue {
   statusHistory?: Array<{ status: DeployStatus; enteredAt: string; leftAt: string | null }>;
 }
 
-// label é chave de tradução: a tela mostra t(label).
+// label is a translation key: the screen shows t(label).
 export const STATUS_META: Record<DeployStatus, { label: string; tone: 'neutral' | 'info' | 'danger' | 'warning' | 'success' }> = {
-  review_queue: { label: k('Fila de review'), tone: 'neutral' },
-  reviewing: { label: k('Em review'), tone: 'info' },
-  rcs: { label: k('RCs'), tone: 'danger' },
+  review_queue: { label: k('Review queue'), tone: 'neutral' },
+  reviewing: { label: k('In review'), tone: 'info' },
+  rcs: { label: k('Changes requested|short'), tone: 'danger' },
   re_review: { label: k('Re-review'), tone: 'warning' },
-  waiting_approves: { label: k('Aguardando aprovações'), tone: 'info' },
+  waiting_approves: { label: k('Waiting for approvals'), tone: 'info' },
   merged: { label: k('Merged'), tone: 'success' },
-  production: { label: k('Em produção'), tone: 'success' },
+  production: { label: k('In production'), tone: 'success' },
 };

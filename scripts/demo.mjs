@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Modo demonstração: sobe o painel com dados fictícios, sem configurar nada.
+// Demo mode: starts the deck with fictitious data, without configuring anything.
 //   npm run demo           (idioma do sistema)
-//   npm run demo -- --en   (forçar inglês)   npm run demo -- --pt
-// Nenhuma integração real é usada, mesmo que exista um .env. Os dados ficam numa pasta temporária.
+//   npm run demo -- --en   (force English)   npm run demo -- --pt
+// No real integration is used, even if there is a .env. The data lives in a temporary folder.
 import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -17,11 +17,11 @@ const lang = args.includes('--en') ? 'en' : args.includes('--pt') ? 'pt-BR' : sy
 
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 22 || (major === 22 && minor < 13)) {
-  console.error(`Node ${process.versions.node}: o painel precisa do Node 22.13 ou mais novo (SQLite embutido).`);
+  console.error(`Node ${process.versions.node}: the deck needs Node 22.13 or newer (built-in SQLite).`);
   process.exit(1);
 }
 
-// Banco novo a cada demo, para as datas ficarem relativas a hoje.
+// A new database for each demo, so the dates are relative to today.
 fs.rmSync(dir, { recursive: true, force: true });
 fs.mkdirSync(path.join(dir, 'sessions'), { recursive: true });
 
@@ -35,15 +35,15 @@ const env = {
 
 const built = fs.existsSync(path.join(root, 'apps/server/dist/index.js')) && fs.existsSync(path.join(root, 'apps/web/dist/index.html'));
 if (!built) {
-  console.log('Primeira vez: compilando (≈ 30 s)…');
+  console.log('First run: building (≈ 30 s)…');
   execFileSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'build'], { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' });
 }
 
-// Sessões de agentes de exemplo (passam pelo hook de verdade).
+// Sample agent sessions (they go through the real hook).
 execFileSync(process.execPath, [path.join(root, 'demo.js')], { cwd: root, env, stdio: 'ignore' });
 
 const port = process.env.AGENT_BOARD_PORT || '9999';
-console.log(`\nTLDeck em modo demonstração: http://127.0.0.1:${port}\nDados fictícios em ${dir}. Ctrl+C para sair.\n`);
+console.log(`\nTLDeck in demo mode: http://127.0.0.1:${port}\nFictitious data in ${dir}. Ctrl+C to quit.\n`);
 const server = spawn(process.execPath, [path.join(root, 'apps/server/dist/index.js')], { cwd: root, env, stdio: ['ignore', 'ignore', 'inherit'] });
 const stop = () => server.kill('SIGTERM');
 process.on('SIGINT', stop);

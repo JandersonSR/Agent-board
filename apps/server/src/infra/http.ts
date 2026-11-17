@@ -1,4 +1,4 @@
-// GET de JSON com tempo limite e validação. Os erros nunca carregam o token nem o corpo inteiro da resposta.
+// JSON GET with a timeout and validation. Errors never carry the token or the whole response body.
 import type { z } from 'zod';
 
 export type Fetcher = (url: string, init?: RequestInit) => Promise<Response>;
@@ -7,7 +7,7 @@ export class InfraHttpError extends Error {
   constructor(message: string, readonly status: number | undefined) { super(message); }
 }
 
-/** 401/403: o token não tem escopo para esse recurso (ou expirou). */
+/** 401/403: the token has no scope for this resource (or expired). */
 export const isScopeError = (e: unknown): e is InfraHttpError => e instanceof InfraHttpError && (e.status === 401 || e.status === 403);
 
 export async function getJson<T>(fetcher: Fetcher, url: string, headers: Record<string, string>, schema: z.ZodType<T>, timeoutMs = 15_000): Promise<T> {
@@ -16,7 +16,7 @@ export async function getJson<T>(fetcher: Fetcher, url: string, headers: Record<
   try {
     const res = await fetcher(url, { headers: { 'User-Agent': 'tldeck-local (read-only)', Accept: 'application/json', ...headers }, signal: ctrl.signal });
     if (!res.ok) {
-      const hint = res.status === 401 || res.status === 403 ? 'token sem permissão ou expirado' : res.status === 429 ? 'limite de requisições' : `HTTP ${res.status}`;
+      const hint = res.status === 401 || res.status === 403 ? 'token without permission or expired' : res.status === 429 ? 'rate limit' : `HTTP ${res.status}`;
       throw new InfraHttpError(`${new URL(url).host}: ${hint}`, res.status);
     }
     const parsed = schema.safeParse(await res.json());
@@ -24,7 +24,7 @@ export async function getJson<T>(fetcher: Fetcher, url: string, headers: Record<
     return parsed.data;
   } catch (e) {
     if (e instanceof InfraHttpError) throw e;
-    throw new InfraHttpError(`${new URL(url).host}: ${(e as Error).name === 'AbortError' ? 'tempo esgotado' : 'falha de rede'}`, undefined);
+    throw new InfraHttpError(`${new URL(url).host}: ${(e as Error).name === 'AbortError' ? 'timed out' : 'network error'}`, undefined);
   } finally {
     clearTimeout(timer);
   }
@@ -32,7 +32,7 @@ export async function getJson<T>(fetcher: Fetcher, url: string, headers: Record<
 
 export async function postForm<T>(fetcher: Fetcher, url: string, form: Record<string, string>, schema: z.ZodType<T>): Promise<T> {
   const res = await fetcher(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(form).toString() });
-  if (!res.ok) throw new InfraHttpError(`${new URL(url).host}: autenticação recusada (HTTP ${res.status})`, res.status);
+  if (!res.ok) throw new InfraHttpError(`${new URL(url).host}: authentication refused (HTTP ${res.status})`, res.status);
   const parsed = schema.safeParse(await res.json());
   if (!parsed.success) throw new InfraHttpError(`${new URL(url).host}: resposta de token inesperada`, res.status);
   return parsed.data;

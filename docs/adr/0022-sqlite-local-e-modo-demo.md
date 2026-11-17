@@ -11,7 +11,7 @@ Quase tudo que vai além das sessões de agentes (PRs e deploy, execuções, mé
 - `store/sqlite-store.ts` implementa **o mesmo subconjunto da API de coleção do MongoDB** que os repositórios usam: consultas com `$eq/$ne/$gt(e)/$lt(e)/$in/$nin/$exists/$regex/$or/$and`, caminhos com pontos e arrays, ordenação, limite, projeção simples, `$set/$unset/$setOnInsert/$push($each/$slice)/$inc`, upsert e `findOneAndUpdate`. Operador desconhecido **gera erro**, em vez de ser ignorado.
 - Cada coleção vira uma tabela `(id, doc JSON)`, com datas e ObjectId preservados (EJSON). O servidor mantém os documentos em memória depois da primeira leitura e grava cada mudança na hora (modo WAL).
 - **MongoDB continua suportado**: com `MONGO_URI` (ou `STORAGE=mongo`) o painel usa o MongoDB como antes. `STORAGE=none` desliga o armazenamento.
-- A allowlist de coleções próprias (`painel_*`) vale para os dois.
+- A allowlist de coleções próprias (`deck_*`) vale para os dois.
 - **Modo demonstração** (`npm run demo`): banco SQLite temporário semeado com dados fictícios (entregas, incidentes, decisões, produto, execuções, conjunto de avaliação), fontes de GitHub e Discord fictícias e sessões de agentes de exemplo. Nenhuma integração real é usada, mesmo com `.env` preenchido.
 - **Node 22.13 ou mais novo** passa a ser o mínimo (o Node 20 chegou ao fim do suporte em abril de 2026).
 

@@ -1,5 +1,5 @@
-// Tarefa de ponta a ponta: plano → aprovação → implementação → verificação → PR em rascunho.
-// Cada passo que sai da máquina (PR) pede confirmação; descartar remove a worktree e a branch local.
+// End-to-end task: plan → approval → implementation → verification → draft PR.
+// Every step that leaves the machine (PR) asks for confirmation; discarding removes the worktree and the local branch.
 import { useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle, CheckCircle2, CircleDot, ExternalLink, FileCode2, GitBranch, GitPullRequestDraft, HelpCircle, Loader2, Play, ShieldCheck, Square, Trash2, XCircle,
@@ -22,16 +22,16 @@ import { k, locale, t } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { PatchView } from '../agents/review-panel';
 
-// label é chave de tradução (texto em português).
+// label is a translation key (English text).
 const PHASE: Record<TaskPhase, { label: string; tone: Tone; busy?: boolean }> = {
-  planning: { label: k('planejando'), tone: 'info', busy: true },
-  awaiting_approval: { label: k('plano para aprovar'), tone: 'warning' },
-  implementing: { label: k('implementando'), tone: 'info', busy: true },
-  verifying: { label: k('verificando'), tone: 'info', busy: true },
-  ready: { label: k('pronta para PR'), tone: 'success' },
-  pr_opened: { label: k('PR aberto'), tone: 'success' },
-  discarded: { label: k('descartada'), tone: 'neutral' },
-  failed: { label: k('falhou'), tone: 'danger' },
+  planning: { label: k('planning'), tone: 'info', busy: true },
+  awaiting_approval: { label: k('plan to approve'), tone: 'warning' },
+  implementing: { label: k('implementing'), tone: 'info', busy: true },
+  verifying: { label: k('verifying'), tone: 'info', busy: true },
+  ready: { label: k('ready for PR'), tone: 'success' },
+  pr_opened: { label: k('PR opened'), tone: 'success' },
+  discarded: { label: k('discarded'), tone: 'neutral' },
+  failed: { label: k('failed'), tone: 'danger' },
 };
 
 export function TaskPhasePill({ phase }: { phase: TaskPhase | undefined }) {
@@ -62,7 +62,7 @@ function TaskDiff({ run }: { run: Run }) {
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Mono className="text-success">+{d.add}</Mono><Mono className="text-danger">−{d.del}</Mono>
         <span>vs <Mono>{d.base}</Mono> · {t('{n} commit(s)', { n: d.commits })}</span>
-        {d.files.length > 0 && <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setFile(null)}><FileCode2 /> {t('Diff completo')}</Button>}
+        {d.files.length > 0 && <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setFile(null)}><FileCode2 /> {t('Full diff')}</Button>}
       </div>
       <ul className="max-h-48 space-y-px overflow-auto">
         {d.files.map(f => (
@@ -76,8 +76,8 @@ function TaskDiff({ run }: { run: Run }) {
       <Dialog open={file !== undefined} onOpenChange={o => { if (!o) setFile(undefined); }}>
         <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-5xl">
           <DialogHeader>
-            <DialogTitle className="font-mono text-sm">{run.task?.branch} · {file ?? t('diff completo')}</DialogTitle>
-            <DialogDescription>{t('Mudanças da tarefa em relação à branch base.')}</DialogDescription>
+            <DialogTitle className="font-mono text-sm">{run.task?.branch} · {file ?? t('full diff')}</DialogTitle>
+            <DialogDescription>{t('Task changes against the base branch.')}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-auto rounded-lg border bg-muted/40">
             {patch.isLoading ? <div className="p-4"><Skeleton className="h-40 w-full" /></div> : <PatchView text={patch.data ?? ''} />}
@@ -112,7 +112,7 @@ export function TaskDetail({ run: r }: { run: Run }) {
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{r.title}</p>
             <p className="text-xs text-muted-foreground">
-              {t('Tarefa')} · {r.promptVersion ?? r.model} · {t('iniciada há {time}', { time: ago(Date.parse(r.startedAt)) })}
+              {t('Task')} · {r.promptVersion ?? r.model} · {t('started {time} ago', { time: ago(Date.parse(r.startedAt)) })}
               {r.usage && <> · {fmtTok(r.usage.inputTokens + r.usage.cacheReadTokens + r.usage.cacheWriteTokens)} in / {fmtTok(r.usage.outputTokens)} out · {fmtCost(r.usage.costUsd)}</>}
             </p>
             <p className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground"><GitBranch className="size-3" /><Mono className="text-[11px]">{task.branch}</Mono> ← <Mono className="text-[11px]">{task.base}</Mono></p>
@@ -120,16 +120,16 @@ export function TaskDetail({ run: r }: { run: Run }) {
           <TaskPhasePill phase={task.phase} />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button size="xs" variant="outline" onClick={() => window.open(task.issueUrl, '_blank', 'noopener')}><ExternalLink /> {t('Abrir issue')}</Button>
-          {task.prUrl && <Button size="xs" onClick={() => window.open(task.prUrl, '_blank', 'noopener')}><ExternalLink /> {t('Abrir PR')}</Button>}
-          {busy && <Button size="xs" variant="outline" onClick={() => cancel.mutate(r._id)} disabled={cancel.isPending}><Square /> {t('Parar agente')}</Button>}
-          {canDiscard && <Button size="xs" variant="ghost" className="text-danger" onClick={() => setConfirm('discard')} disabled={discard.isPending}><Trash2 /> {t('Descartar')}</Button>}
+          <Button size="xs" variant="outline" onClick={() => window.open(task.issueUrl, '_blank', 'noopener')}><ExternalLink /> {t('Open issue')}</Button>
+          {task.prUrl && <Button size="xs" onClick={() => window.open(task.prUrl, '_blank', 'noopener')}><ExternalLink /> {t('Open PR')}</Button>}
+          {busy && <Button size="xs" variant="outline" onClick={() => cancel.mutate(r._id)} disabled={cancel.isPending}><Square /> {t('Stop agent')}</Button>}
+          {canDiscard && <Button size="xs" variant="ghost" className="text-danger" onClick={() => setConfirm('discard')} disabled={discard.isPending}><Trash2 /> {t('Discard')}</Button>}
         </div>
       </header>
 
       <Tabs defaultValue="stage" key={`${r._id}-${task.phase}`} className="flex min-h-0 flex-1 flex-col">
         <TabsList className="mx-4 mt-3 w-fit">
-          <TabsTrigger value="stage">{t('Etapa')}</TabsTrigger>
+          <TabsTrigger value="stage">{t('Stage')}</TabsTrigger>
           <TabsTrigger value="log">{t('Log ({n})', { n: r.log.length })}</TabsTrigger>
           <TabsTrigger value="prompt">Prompt</TabsTrigger>
         </TabsList>
@@ -138,55 +138,55 @@ export function TaskDetail({ run: r }: { run: Run }) {
           {(task.error || r.result?.error) && (
             <p className="flex items-start gap-2 rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger"><AlertTriangle className="mt-0.5 size-3.5" />{task.error ?? r.result?.error}</p>
           )}
-          {task.phase === 'planning' && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t('O agente está lendo o código e montando o plano (só leitura).')}</p>}
+          {task.phase === 'planning' && <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t('The agent is reading the code and building the plan (read-only).')}</p>}
 
           {plan && (
             <section className="space-y-3 rounded-lg border p-3">
-              <h3 className="text-xs font-semibold">{t('Plano')}{task.approvedAt && <span className="ml-2 font-normal text-muted-foreground">{t('aprovado em {date}', { date: new Date(task.approvedAt).toLocaleString(locale()) })}</span>}</h3>
+              <h3 className="text-xs font-semibold">{t('Plan')}{task.approvedAt && <span className="ml-2 font-normal text-muted-foreground">{t('approved on {date}', { date: new Date(task.approvedAt).toLocaleString(locale()) })}</span>}</h3>
               <p className="text-sm leading-relaxed">{plan.summary}</p>
               <ol className="list-decimal space-y-0.5 pl-5 text-xs">{plan.steps.map((s, i) => <li key={i}>{s}</li>)}</ol>
               {plan.files.length > 0 && <p className="flex flex-wrap gap-1 text-[11px]">{plan.files.map(f => <Mono key={f} className="rounded bg-muted px-1 text-[11px]">{f}</Mono>)}</p>}
-              <List title={k('Testes previstos')} items={plan.tests} />
-              <List title={k('Riscos')} items={plan.risks} tone="warning" />
+              <List title={k('Planned tests')} items={plan.tests} />
+              <List title={k('Risks')} items={plan.risks} tone="warning" />
               {plan.questions.length > 0 && (
                 <section className="rounded-md bg-warning-soft p-2">
-                  <h4 className="mb-1 flex items-center gap-1 text-xs font-semibold text-warning"><HelpCircle className="size-3.5" /> {t('Dúvidas do agente: responda nas observações')}</h4>
+                  <h4 className="mb-1 flex items-center gap-1 text-xs font-semibold text-warning"><HelpCircle className="size-3.5" /> {t('Agent questions: answer them in the notes')}</h4>
                   <ul className="list-disc space-y-0.5 pl-5 text-xs">{plan.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>
                 </section>
               )}
-              {task.notes && <p className="rounded-md bg-muted px-2 py-1.5 text-xs"><b>{t('Suas observações:')}</b> {task.notes}</p>}
+              {task.notes && <p className="rounded-md bg-muted px-2 py-1.5 text-xs"><b>{t('Your notes:')}</b> {task.notes}</p>}
             </section>
           )}
 
           {task.phase === 'awaiting_approval' && (
             <section className="space-y-2">
               <Textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} maxLength={4000}
-                placeholder={t('Observações para a implementação (respostas às dúvidas, ajustes no plano)…')} aria-label={t('Observações')} />
+                placeholder={t('Notes for the implementation (answers to questions, plan changes)…')} aria-label={t('Notes')} />
               <div className="flex flex-wrap items-center gap-2">
                 <Button size="sm" disabled={approve.isPending} onClick={() => approve.mutate({ id: r._id, body: notes.trim() ? { notes } : {} })}>
-                  {approve.isPending ? <Loader2 className="animate-spin" /> : <Play />} {t('Aprovar plano e implementar')}
+                  {approve.isPending ? <Loader2 className="animate-spin" /> : <Play />} {t('Approve plan and implement')}
                 </Button>
-                <span className="text-[11px] text-muted-foreground">{t('O agente trabalha só na worktree da tarefa e não faz push.')}</span>
+                <span className="text-[11px] text-muted-foreground">{t('The agent only works in the task worktree and never pushes.')}</span>
               </div>
             </section>
           )}
 
           {(task.phase === 'implementing' || task.phase === 'verifying') && (
             <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />
-              {t(task.phase === 'implementing' ? 'O agente está implementando e rodando os testes na worktree.' : 'Rodando a verificação independente do painel.')}</p>
+              {t(task.phase === 'implementing' ? 'The agent is implementing and running tests in the worktree.' : 'Running the board\'s independent verification.')}</p>
           )}
 
           {impl && (
             <section className="space-y-3 rounded-lg border p-3">
-              <h3 className="text-xs font-semibold">{t('Implementação')}</h3>
+              <h3 className="text-xs font-semibold">{t('Implementation')}</h3>
               <p className="text-sm leading-relaxed">{impl.summary}</p>
-              <List title={k('Mudanças')} items={impl.changes} />
+              <List title={k('Changes')} items={impl.changes} />
               <p className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="text-muted-foreground">{t('Testes do agente:')}</span>
-                {impl.testsPassed === null ? <Pill>{t('não informado')}</Pill> : impl.testsPassed ? <Pill tone="success"><CheckCircle2 className="size-3" />{t('passaram')}</Pill> : <Pill tone="danger"><XCircle className="size-3" />{t('falharam')}</Pill>}
+                <span className="text-muted-foreground">{t('Agent tests:')}</span>
+                {impl.testsPassed === null ? <Pill>{t('not reported')}</Pill> : impl.testsPassed ? <Pill tone="success"><CheckCircle2 className="size-3" />{t('passed|plural')}</Pill> : <Pill tone="danger"><XCircle className="size-3" />{t('failed|plural')}</Pill>}
                 {impl.testsRun.map(c => <Mono key={c} className="text-[11px]">{c}</Mono>)}
               </p>
-              <List title={k('Pontos de atenção')} items={impl.followUps} tone="warning" />
+              <List title={k('Points of attention')} items={impl.followUps} tone="warning" />
             </section>
           )}
 
@@ -194,23 +194,23 @@ export function TaskDetail({ run: r }: { run: Run }) {
             <section className={cn('space-y-1.5 rounded-lg border p-3', task.verify.ok ? 'border-success/40' : 'border-danger/40')}>
               <h3 className="flex items-center gap-1.5 text-xs font-semibold">
                 <ShieldCheck className={cn('size-3.5', task.verify.ok ? 'text-success' : 'text-danger')} />
-                {t('Verificação independente')} <Mono className="text-[11px]">{task.verify.command}</Mono>
-                <Pill tone={task.verify.ok ? 'success' : 'danger'}>{t(task.verify.ok ? 'passou' : 'falhou')}</Pill>
+                {t('Independent verification')} <Mono className="text-[11px]">{task.verify.command}</Mono>
+                <Pill tone={task.verify.ok ? 'success' : 'danger'}>{t(task.verify.ok ? 'passed' : 'failed')}</Pill>
                 <span className="font-normal text-muted-foreground">{dur(task.verify.durationMs)}</span>
               </h3>
               {task.verify.output && <pre className="max-h-48 overflow-auto rounded bg-muted p-2 font-mono text-[11px]">{task.verify.output}</pre>}
             </section>
           )}
-          {task.phase === 'ready' && !task.verify && <p className="text-[11px] text-muted-foreground">{t('Sem verificação independente para este repositório (TASK_VERIFY no .env).')}</p>}
+          {task.phase === 'ready' && !task.verify && <p className="text-[11px] text-muted-foreground">{t('No independent verification for this repository (TASK_VERIFY in .env).')}</p>}
 
           {showDiff && <TaskDiff run={r} />}
 
           {task.phase === 'ready' && (
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" onClick={() => setConfirm('pr')} disabled={openPr.isPending}>
-                {openPr.isPending ? <Loader2 className="animate-spin" /> : <GitPullRequestDraft />} {t('Criar PR rascunho')}
+                {openPr.isPending ? <Loader2 className="animate-spin" /> : <GitPullRequestDraft />} {t('Create draft PR')}
               </Button>
-              {task.verify && !task.verify.ok && <span className="text-[11px] text-danger">{t('A verificação falhou: revise antes de abrir o PR.')}</span>}
+              {task.verify && !task.verify.ok && <span className="text-[11px] text-danger">{t('Verification failed: review it before opening the PR.')}</span>}
             </div>
           )}
         </TabsContent>
@@ -224,13 +224,13 @@ export function TaskDetail({ run: r }: { run: Run }) {
                 <span className="min-w-0 whitespace-pre-wrap break-words">{l.text}</span>
               </li>
             ))}
-            {busy && <li className="flex items-center gap-2 text-muted-foreground"><CircleDot className="size-3 animate-pulse" /> {t('trabalhando…')}</li>}
+            {busy && <li className="flex items-center gap-2 text-muted-foreground"><CircleDot className="size-3 animate-pulse" /> {t('working…')}</li>}
           </ol>
           <div ref={logEnd} />
         </TabsContent>
 
         <TabsContent value="prompt" className="min-h-0 flex-1 overflow-auto px-4 pb-4">
-          <p className="mb-2 text-[11px] text-muted-foreground">{r.maskedCount ? t('{n} dado(s) mascarado(s) antes do envio.', { n: r.maskedCount }) : t('Nenhum dado pessoal detectado.')}</p>
+          <p className="mb-2 text-[11px] text-muted-foreground">{r.maskedCount ? t('{n} item(s) masked before sending.', { n: r.maskedCount }) : t('No personal data detected.')}</p>
           <pre className="whitespace-pre-wrap rounded-lg bg-muted/50 p-3 font-mono text-[11px] leading-relaxed">{r.promptMasked}</pre>
         </TabsContent>
       </Tabs>
@@ -238,20 +238,20 @@ export function TaskDetail({ run: r }: { run: Run }) {
       <AlertDialog open={confirm !== null} onOpenChange={o => { if (!o) setConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t(confirm === 'pr' ? 'Publicar a branch e abrir o PR em rascunho?' : 'Descartar a tarefa?')}</AlertDialogTitle>
+            <AlertDialogTitle>{t(confirm === 'pr' ? 'Push the branch and open the draft PR?' : 'Discard the task?')}</AlertDialogTitle>
             <AlertDialogDescription>
               {confirm === 'pr'
-                ? t('Isto faz push da branch {branch} e abre um PR em rascunho que fecha a issue. É uma ação visível para o time.', { branch: task.branch })
-                : t('O agente para, e a worktree e a branch local da tarefa são apagadas. O histórico fica em Execuções.')}
+                ? t('This pushes the branch {branch} and opens a draft PR that closes the issue. The team will see it.', { branch: task.branch })
+                : t('The agent stops, and the task worktree and local branch are deleted. The history stays in Runs.')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>{t('Cancelar')}</AlertDialogCancel>
+            <AlertDialogCancel>{t('Cancel')}</AlertDialogCancel>
             <AlertDialogAction onClick={() => {
               if (confirm === 'pr') openPr.mutate({ id: r._id });
               else discard.mutate({ id: r._id });
               setConfirm(null);
-            }}>{t(confirm === 'pr' ? 'Fazer push e abrir PR' : 'Descartar')}</AlertDialogAction>
+            }}>{t(confirm === 'pr' ? 'Push and open PR' : 'Discard')}</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

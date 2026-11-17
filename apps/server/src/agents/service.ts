@@ -1,12 +1,12 @@
-// Fachada das execuções de agentes usada pelas rotas. Nada sai da máquina sem clique:
-// o agente só lê (review), a review PENDING e o PR em rascunho são passos separados.
-// A lógica fica em context.ts (comum), review-service.ts, task-service.ts e eval-service.ts.
+// Facade for agent runs used by the routes. Nothing leaves the machine without a click:
+// the agent only reads (review); the PENDING review and the draft PR are separate steps.
+// The logic lives in context.ts (shared), review-service.ts, task-service.ts and eval-service.ts.
 import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config.js';
 import type { FeatMapRegistry } from '../featmap/registry.js';
 import type { MaskResult } from '../privacy/mask.js';
 import type { GitHubClient } from '../sources/github.js';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import { AgentContext, type Mask } from './context.js';
 import { EvalService } from './eval-service.js';
 import { ReviewService } from './review-service.js';
@@ -20,7 +20,7 @@ export class AgentService {
   readonly tasks: TaskService;
   readonly evals: EvalService;
 
-  constructor(cfg: Config, store: PainelStore, gh: GitHubClient | undefined, featMaps: FeatMapRegistry, mask: Mask, log: FastifyBaseLogger) {
+  constructor(cfg: Config, store: DeckStore, gh: GitHubClient | undefined, featMaps: FeatMapRegistry, mask: Mask, log: FastifyBaseLogger) {
     this.ctx = new AgentContext(cfg, store, gh, featMaps, mask, log);
     this.reviews = new ReviewService(this.ctx);
     this.tasks = new TaskService(this.ctx);
@@ -59,7 +59,7 @@ export class AgentService {
   taskDiff(id: string) { return this.tasks.taskDiff(id); }
   taskPatch(id: string, file?: string) { return this.tasks.taskPatch(id, file); }
 
-  // Avaliação
+  // Evaluation
   get evalState() { return this.evals.evalState; }
   listEvalCases() { return this.evals.listEvalCases(); }
   saveEvalCase(...a: Parameters<EvalService['saveEvalCase']>) { return this.evals.saveEvalCase(...a); }

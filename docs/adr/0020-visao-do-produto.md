@@ -7,7 +7,7 @@
 O time entrega um produto por vez, dividido em etapas, com duplas por etapa. Faltava ver num só lugar o andamento de cada etapa, o que depende do quê e onde estão os riscos.
 
 ## Decisão
-- Coleção própria `painel_iniciativas`: iniciativa com objetivo, status e data alvo, e etapas com donos, status, dependências, data alvo, observações e riscos (alto, médio, baixo, com mitigação).
+- Coleção própria `deck_initiatives`: iniciativa com objetivo, status e data alvo, e etapas com donos, status, dependências, data alvo, observações e riscos (alto, médio, baixo, com mitigação).
 - O **progresso vem das issues acompanhadas** em PRs e deploy, ligadas por URL, `repo#123` ou texto no título. Uma issue conta como em produção quando está mergeada e a data de deploy já passou.
 - Etapa em andamento com dependência não concluída aparece como "esperando dependência".
 - **Caminho crítico**: a maior cadeia de etapas não concluídas, pesada pelo trabalho que falta em cada uma.

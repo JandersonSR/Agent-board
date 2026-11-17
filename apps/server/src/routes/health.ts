@@ -1,17 +1,17 @@
-// Estado de cada integração, para a tela de Configuração e os estados vazios dos blocos.
-// Nunca devolve valores de segredos — só se estão presentes e funcionando.
+// State of each integration, for the Settings screen and the blocks' empty states.
+// Never returns secret values — only whether they are present and working.
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { SKILL_ROLES, type Config } from '../config.js';
 import type { FeatMapRegistry } from '../featmap/registry.js';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import { execCmd } from '../util/exec.js';
 
 export type CheckState = 'ok' | 'warn' | 'off' | 'error';
 export interface Check { id: string; label: string; state: CheckState; detail: string; hint?: string }
 
-/** Textos da tela de Configuração no idioma pedido pela web (?lang=en). Padrão: português. */
+/** Settings screen texts in the language the web asks for (?lang=en). Default: Portuguese. */
 type Tr = (pt: string, en: string) => string;
 export const trFor = (lang: unknown): Tr => (pt, en) => (lang === 'en' ? en : pt);
 
@@ -45,9 +45,9 @@ export function discordCheck(cfg: Config, tr: Tr): Check {
   return { ...base, state: 'ok', detail: tr(`daily + ${d.watchChannels.length} canais observados · ${d.team.length} pessoas`, `daily + ${d.watchChannels.length} watched channels · ${d.team.length} people`) };
 }
 
-function mongoCheck(store: PainelStore, tr: Tr): Check {
+function mongoCheck(store: DeckStore, tr: Tr): Check {
   const sqlite = store.kind === 'sqlite';
-  const base = { id: 'mongo', label: sqlite ? tr('Dados do painel (SQLite local)', 'Board data (local SQLite)') : tr('MongoDB (coleções painel_*)', 'MongoDB (painel_* collections)') };
+  const base = { id: 'mongo', label: sqlite ? tr('Dados do painel (SQLite local)', 'Board data (local SQLite)') : tr('MongoDB (coleções deck_*)', 'MongoDB (deck_* collections)') };
   const s = store.status;
   switch (s.state) {
     case 'not_configured': return { ...base, state: 'off', detail: tr('STORAGE=none: nada é guardado', 'STORAGE=none: nothing is stored'), hint: tr('Tire STORAGE=none para usar o arquivo local, ou preencha MONGO_URI.', 'Remove STORAGE=none to use the local file, or set MONGO_URI.') };
@@ -97,7 +97,7 @@ export function infraCheck(cfg: Config, tr: Tr): Check {
   return { ...base, state: 'ok', detail: `${on.join(', ')} · ${tr('leitura a cada', 'polling every')} ${i.pollSec} s` };
 }
 
-export async function healthRoutes(app: FastifyInstance, opts: { config: Config; store: PainelStore; featMaps: FeatMapRegistry }): Promise<void> {
+export async function healthRoutes(app: FastifyInstance, opts: { config: Config; store: DeckStore; featMaps: FeatMapRegistry }): Promise<void> {
   const cache = new Map<string, { at: number; checks: Check[] }>(); // por idioma
 
   app.get('/api/health', async (req) => {

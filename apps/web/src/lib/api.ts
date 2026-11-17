@@ -1,10 +1,12 @@
-// Cliente da API local. Escritas levam X-Agent-Board (exigido pelo servidor contra CSRF).
+// Local API client. Writes carry X-Agent-Board (required by the server against CSRF).
+import { serverText } from './i18n';
+
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) { super(message); }
 }
 
 async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
-  // Content-Type só com corpo: o Fastify recusa JSON vazio (POST sem body daria 400).
+  // Content-Type only with a body: Fastify refuses empty JSON (a POST without a body would give 400).
   const res = await fetch(url, {
     ...init,
     headers: { ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}), 'X-Agent-Board': '1', ...(init.headers ?? {}) },
@@ -13,7 +15,7 @@ async function request<T>(url: string, init: RequestInit = {}): Promise<T> {
   const body: unknown = type.includes('application/json') ? await res.json().catch(() => ({})) : await res.text();
   if (!res.ok) {
     const msg = typeof body === 'object' && body && 'error' in body ? String((body as { error: unknown }).error) : `HTTP ${res.status}`;
-    throw new ApiError(msg, res.status);
+    throw new ApiError(serverText(msg), res.status);
   }
   return body as T;
 }

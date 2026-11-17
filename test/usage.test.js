@@ -7,7 +7,7 @@ const { updateUsage } = require('../lib/transcript');
 const { costOf, contextOf, priceOf } = require('../lib/pricing');
 const { computeMetrics } = require('../lib/metrics');
 
-test('preço e contexto por modelo, inclusive IDs com data e [1m]', () => {
+test('price and context per model, including dated IDs and [1m]', () => {
   assert.equal(priceOf('claude-opus-5-5').input, 4);
   assert.equal(priceOf('claude-opus-4-1-20250805').input, 15);
   assert.equal(priceOf('claude-opus-4-20250514').input, 15);
@@ -15,13 +15,13 @@ test('preço e contexto por modelo, inclusive IDs com data e [1m]', () => {
   assert.equal(priceOf('claude-haiku-4-5-20251001').output, 5);
   assert.equal(contextOf('claude-sonnet-4-5[1m]'), 1e6);
   assert.equal(priceOf('gpt-x'), null);
-  // 1M tokens de entrada no Opus 5.5 = $4; 1M de saída = $20
+  // 1M input tokens on Opus 5.5 = $4; 1M output = $20
   assert.equal(costOf('claude-opus-5-5', { input_tokens: 1e6, output_tokens: 1e6 }), 24);
-  // Haiku 5.5 acima de 100k de prompt usa a faixa longa
+  // Haiku 5.5 above 100k of prompt uses the long tier
   assert.equal(costOf('claude-haiku-5-5', { input_tokens: 2e5 }), 0.1);
 });
 
-test('transcript: conta cada resposta uma vez e lê só o que é novo', () => {
+test('transcript: counts each answer once and reads only what is new', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'ab-')), 't.jsonl');
   const usage = { input_tokens: 10, output_tokens: 100, cache_read_input_tokens: 1000, cache_creation_input_tokens: 0 };
   const line = (id, extra = {}) => JSON.stringify({ type: 'assistant', message: { id, model: 'claude-opus-5-5', usage, content: [] }, ...extra }) + '\n';
@@ -32,14 +32,14 @@ test('transcript: conta cada resposta uma vez e lê só o que é novo', () => {
   assert.equal(u.title, 'Login JWT');
   assert.equal(u.context, 1110);
   assert.equal(u.contextMax, 1e6);
-  fs.appendFileSync(file, line('m1') + line('m2') + '{"type":"assist'); // linha pela metade no fim
+  fs.appendFileSync(file, line('m1') + line('m2') + '{"type":"assist'); // a half line at the end
   u = updateUsage(file, u);
   assert.equal(u.turns, 2);
   const offset = u.offset;
   assert.equal(updateUsage(file, u).offset, offset);
 });
 
-test('métricas: tempo por estado, espera e por tarefa', () => {
+test('metrics: time per state, wait and per task', () => {
   const H = 3600000, now = 10 * H;
   const events = [
     { ts: 1 * H, id: 'a', project: 'api', taskId: 'FEAT-1', from: null, to: 'working' },

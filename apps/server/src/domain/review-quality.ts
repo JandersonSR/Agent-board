@@ -1,7 +1,7 @@
-// Qualidade da review por IA: quanto dos achados o Tech Lead mantém ao revisar o resultado.
-// Cada achado recebe "accepted" (vale a pena levar ao autor) ou "rejected" (ruído, errado, irrelevante).
-// Precisão = aceitos ÷ julgados. Medida por versão do prompt, severidade e repositório,
-// para comparar mudanças de skill, modelo ou contexto com número, e não com impressão.
+// AI review quality: how many findings the Tech Lead keeps when reviewing the result.
+// Each finding gets "accepted" (worth taking to the author) or "rejected" (noise, wrong, irrelevant).
+// Precision = accepted ÷ judged. Measured by prompt version, severity and repository,
+// to compare skill, model or context changes with a number, not an impression.
 
 export type FindingDecision = 'accepted' | 'rejected' | null;
 export type FindingSeverity = 'blocker' | 'high' | 'medium' | 'low' | 'note';
@@ -24,12 +24,12 @@ export interface QualityBucket {
   judged: number;
   accepted: number;
   rejected: number;
-  /** aceitos ÷ julgados (null sem julgamento) */
+  /** accepted ÷ judged (null without a judgment) */
   precision: number | null;
-  /** julgados ÷ achados (null sem achados) */
+  /** judged ÷ findings (null without findings) */
   coverage: number | null;
   costUsd: number;
-  /** custo ÷ achados aceitos (null sem aceitos) */
+  /** cost ÷ accepted findings (null without accepted ones) */
   costPerAccepted: number | null;
   medianDurationMs: number | null;
 }
@@ -71,7 +71,7 @@ function bucket(key: string, a: Acc): QualityBucket {
   };
 }
 
-/** Agrega as reviews concluídas. Custo e duração entram uma vez por execução em cada grupo. */
+/** Aggregates the finished reviews. Cost and duration count once per run in each group. */
 export function computeReviewQuality(runs: QualityRun[], days: number): ReviewQuality {
   const overall = empty();
   const bySev = new Map<string, Acc>(SEVERITIES.map(s => [s, empty()]));
@@ -80,7 +80,7 @@ export function computeReviewQuality(runs: QualityRun[], days: number): ReviewQu
   const get = (m: Map<string, Acc>, k: string) => { let a = m.get(k); if (!a) { a = empty(); m.set(k, a); } return a; };
 
   runs.forEach((r, i) => {
-    const groups = [overall, get(byVersion, r.promptVersion ?? 'sem versão'), get(byRepo, r.repo ?? 'sem repo')];
+    const groups = [overall, get(byVersion, r.promptVersion ?? 'no version'), get(byRepo, r.repo ?? 'sem repo')];
     for (const g of groups) {
       g.runs.add(i);
       g.cost += r.costUsd ?? 0;
@@ -108,7 +108,7 @@ export function computeReviewQuality(runs: QualityRun[], days: number): ReviewQu
   };
 }
 
-/** Achados que vão para a review PENDING: os rejeitados ficam de fora; sem julgamento, vão todos. */
+/** Findings that go into the PENDING review: rejected ones stay out; without a judgment, all go. */
 export function keptFindingIndexes(total: number, decisions: FindingDecision[] | undefined): number[] {
   return Array.from({ length: total }, (_, i) => i).filter(i => decisions?.[i] !== 'rejected');
 }

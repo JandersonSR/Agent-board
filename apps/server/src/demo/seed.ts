@@ -1,11 +1,11 @@
-// Modo demonstração: dados fictícios para ver o painel inteiro sem configurar nada.
-// Tudo é inventado (empresa "acme"), com datas relativas a agora. Nada sai da máquina.
+// Demo mode: fictitious data to see the whole deck without configuring anything.
+// Everything is made up (company "acme"), with dates relative to now. Nothing leaves the machine.
 import { ObjectId } from 'mongodb';
 import type { DailySummary, PersonDaily, TeamMember } from '../domain/daily.js';
 import type { OpenBlocker } from '../domain/blockers.js';
 import { deriveReview } from '../domain/reviews.js';
 import type { StatusHistoryEntry } from '../domain/pr-status.js';
-import type { PainelStore } from '../store/mongo.js';
+import type { DeckStore } from '../store/store.js';
 import type { QueueItem, ReviewItem } from '../sync/service.js';
 
 export type DemoLang = 'pt-BR' | 'en';
@@ -67,7 +67,7 @@ export function demoData(lang: DemoLang, now = Date.now()) {
   return { L, ago, iso, day, gh, team, daily, blockers, queue, reviews };
 }
 
-/** Histórico de status de um PR: fila → revisão → (mudanças) → merge. */
+/** A PR's status history: queue → review → (changes) → merge. */
 function history(start: Date, steps: Array<[StatusHistoryEntry['status'], number]>, now: number): StatusHistoryEntry[] {
   const out: StatusHistoryEntry[] = [];
   let t = start.getTime();
@@ -80,14 +80,14 @@ function history(start: Date, steps: Array<[StatusHistoryEntry['status'], number
   return out;
 }
 
-/** Grava os dados de exemplo no banco do painel (só se ainda estiver vazio). */
-export async function seedDemo(store: PainelStore, lang: DemoLang, now = Date.now()): Promise<boolean> {
+/** Writes the sample data to the deck's database (only if it is still empty). */
+export async function seedDemo(store: DeckStore, lang: DemoLang, now = Date.now()): Promise<boolean> {
   await store.connect();
-  const prsCol = store.collection('painel_prs');
+  const prsCol = store.collection('deck_prs');
   if (await prsCol.countDocuments({})) return false;
   const { L, ago, day, gh } = demoData(lang, now);
 
-  // ---- Entregas (PRs e deploy) para fluxo, DORA e conhecimento ----
+  // ---- Deliveries (PRs and deploys) for flow, DORA and knowledge ----
   const people = ['Ana', 'Bruno', 'Carla', 'Diego', 'Eva'];
   const repos = ['loans-api', 'loans-api', 'loans-api', 'web', 'platform'];
   const titles = [
@@ -126,13 +126,13 @@ export async function seedDemo(store: PainelStore, lang: DemoLang, now = Date.no
       prs: [pr], statusHistory, source: 'auto', createdAt: start, updatedAt: mergedAt ?? start, syncedAt: new Date(now),
     });
   }
-  // deploys no futuro ainda não contam
+  // future deploys do not count yet
   for (const d of docs) if (d.deployDate && d.deployDate > day(0)) d.deployDate = day(0);
   await prsCol.insertMany(docs);
 
   // ---- Incidentes ----
   const causeIssue = docs[3]!.key;
-  await store.collection('painel_incidentes').insertMany([
+  await store.collection('deck_incidents').insertMany([
     {
       title: L('Simulação fora do ar após deploy', 'Simulation down after deploy'), severity: 'sev2', status: 'resolved',
       startedAt: ago(9 * 86_400_000), detectedAt: ago(9 * 86_400_000 - 10 * 60_000), mitigatedAt: ago(9 * 86_400_000 - 90 * 60_000), resolvedAt: ago(9 * 86_400_000 - 2 * 3_600_000),
@@ -157,12 +157,12 @@ export async function seedDemo(store: PainelStore, lang: DemoLang, now = Date.no
     },
   ]);
 
-  // ---- Decisões ----
+  // ---- Decisions ----
   const dec = (title: string, kind: string, status: string, owner?: string, decideBy?: string, createdDaysAgo = 10) => ({
     title, kind, status, ...(owner ? { owner } : {}), deciders: [], ...(decideBy ? { decideBy } : {}), source: 'manual',
     createdAt: ago(createdDaysAgo * 86_400_000), updatedAt: ago(2 * 86_400_000),
   });
-  await store.collection('painel_decisoes').insertMany([
+  await store.collection('deck_decisions').insertMany([
     dec(L('Outbox para eventos de proposta', 'Outbox for proposal events'), 'rfc', 'discussing', 'Carla', day(-2)),
     dec(L('Arredondamento bancário nas parcelas', "Banker's rounding for installments"), 'design_doc', 'proposed', 'Ana', day(4)),
     dec(L('Cache de taxas por produto', 'Rate cache per product'), 'design_doc', 'proposed', undefined, undefined, 30),
@@ -171,7 +171,7 @@ export async function seedDemo(store: PainelStore, lang: DemoLang, now = Date.no
 
   // ---- Produto ----
   const issuesOf = (from: number, to: number) => docs.slice(from, to).map(d => d.key);
-  await store.collection('painel_iniciativas').insertOne({
+  await store.collection('deck_initiatives').insertOne({
     name: L('Empréstimo pessoal (produto 1)', 'Personal loan (product 1)'), goal: L('Cliente simula, contrata e recebe o crédito sem falar com ninguém.', 'Customers simulate, sign and receive credit without talking to anyone.'),
     status: 'active', targetDate: day(40), createdAt: ago(60 * 86_400_000), updatedAt: ago(86_400_000),
     stages: [
@@ -185,7 +185,7 @@ export async function seedDemo(store: PainelStore, lang: DemoLang, now = Date.no
     ],
   });
 
-  // ---- Execuções de agentes (review com achados julgados e tarefa pronta) ----
+  // ---- Agent runs (a review with judged findings and a finished task) ----
   const finding = (severity: string, path: string, line: number, title: string, body: string) => ({ severity, path, line, title, body });
   const findings = [
     finding('high', 'src/simulation/installments.ts', 88, L('Arredondamento por parcela acumula centavos', 'Per-installment rounding accumulates cents'), L('Some o resíduo na última parcela.', 'Push the remainder into the last installment.')),
@@ -193,7 +193,7 @@ export async function seedDemo(store: PainelStore, lang: DemoLang, now = Date.no
     finding('low', 'src/simulation/index.ts', 12, L('Nome de variável pouco claro', 'Unclear variable name'), '…'),
   ];
   const version = 'r1 · skill demo01 · sonnet';
-  await store.collection('painel_sessoes').insertMany([
+  await store.collection('deck_runs').insertMany([
     {
       kind: 'review', engine: 'claude', itemKey: 'gh:acme/loans-api#440', title: `loans-api#440 ${L('Simulação: arredondamento por parcela', 'Simulation: per-installment rounding')}`,
       target: { prUrl: gh('loans-api', 'pull', 440), repo: 'acme/loans-api' }, status: 'done', model: 'sonnet', promptMasked: L('(prompt de exemplo)', '(sample prompt)'),
@@ -218,19 +218,19 @@ export async function seedDemo(store: PainelStore, lang: DemoLang, now = Date.no
     },
   ]);
 
-  // ---- Conjunto fixo de avaliação ----
+  // ---- Fixed evaluation set ----
   const cases = [
     { _id: new ObjectId(), name: L('Centavo na última parcela', 'Cent on the last installment'), prUrl: gh('loans-api', 'pull', 402), expected: [{ id: 'a', path: 'src/simulation/installments.ts', keywords: [L('arredond', 'round')] }], createdAt: ago(20 * 86_400_000) },
     { _id: new ObjectId(), name: L('Índice que trava a tabela', 'Locking index'), prUrl: gh('loans-api', 'pull', 438), expected: [{ id: 'a', keywords: [L('índice', 'index')] }, { id: 'b', keywords: ['lock'] }], createdAt: ago(20 * 86_400_000) },
   ];
-  await store.collection('painel_avaliacoes').insertMany(cases);
+  await store.collection('deck_evals').insertMany(cases);
   const evalRun = (caseId: ObjectId, f: Array<{ title: string; path?: string }>, daysAgo: number, v: string) => ({
     kind: 'review', engine: 'claude', itemKey: 'eval', title: '[eval]', target: {}, status: 'done', model: 'sonnet', promptMasked: '', maskedCount: 0, cwd: '',
     startedAt: ago(daysAgo * 86_400_000), endedAt: ago(daysAgo * 86_400_000), log: [], actions: [], promptVersion: v, evalCaseId: String(caseId),
     result: { review: { verdict: 'comment', readyForProd: false, confidence: 70, summary: '', risks: [], blockers: [], findings: f.map(x => ({ severity: 'high', title: x.title, body: '', path: x.path ?? null, line: null })) } },
     usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0, costUsd: 0.12, durationMs: 40_000, turns: 4 },
   });
-  await store.collection('painel_sessoes').insertMany([
+  await store.collection('deck_runs').insertMany([
     evalRun(cases[0]!._id, [{ title: L('Arredondamento errado', 'Wrong rounding'), path: 'src/simulation/installments.ts' }], 1, version),
     evalRun(cases[1]!._id, [{ title: L('Falta índice', 'Missing index') }], 1, version),
     evalRun(cases[0]!._id, [], 8, 'r1 · skill old001 · sonnet'),

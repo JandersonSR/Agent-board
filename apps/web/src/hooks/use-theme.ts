@@ -4,7 +4,7 @@ import { usePref } from '@/lib/prefs';
 export type ThemePref = 'system' | 'light' | 'dark';
 export type Density = 'comfortable' | 'compact';
 
-/** Aplica tema (classe .dark) e densidade no <html>. "system" segue o SO ao vivo. */
+/** Applies the theme (.dark class) and density on <html>. "system" follows the OS live. */
 export function useThemeAndDensity() {
   const [theme, setTheme] = usePref<ThemePref>('theme', 'system');
   const [density, setDensity] = usePref<Density>('density', 'comfortable');

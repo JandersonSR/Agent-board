@@ -1,13 +1,13 @@
-// Armazenamento local padrão: um arquivo SQLite, sem servidor nem configuração.
+// Default local storage: one SQLite file, no server and no configuration.
 //
-// Implementa o subconjunto da API de coleção do driver do MongoDB que o painel usa
-// (find/sort/limit/projeção simples, findOne, insert, update/replace com upsert,
-// findOneAndUpdate, delete, countDocuments) com os operadores $eq/$ne/$gt(e)/$lt(e)/$in/$nin/
+// Implements the subset of the MongoDB driver's collection API that the deck uses
+// (find/sort/limit/simple projection, findOne, insert, update/replace with upsert,
+// findOneAndUpdate, delete, countDocuments) with the operators $eq/$ne/$gt(e)/$lt(e)/$in/$nin/
 // $exists/$regex/$or/$and e, na escrita, $set/$unset/$setOnInsert/$push($each/$slice)/$inc.
-// Assim os repositórios funcionam iguais com SQLite ou MongoDB.
+// That way the repositories work the same with SQLite or MongoDB.
 //
-// Cada coleção é uma tabela (id, doc JSON). Os documentos ficam em memória depois da primeira
-// leitura (o servidor é o único dono do arquivo) e cada escrita grava a linha na hora.
+// Each collection is a table (id, JSON doc). Documents stay in memory after the first
+// read (the server is the file's only owner) and each write saves the row right away.
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
@@ -16,16 +16,16 @@ import { BSON, ObjectId } from 'mongodb';
 type Doc = Record<string, unknown> & { _id?: unknown };
 type Filter = Record<string, unknown>;
 
-// ---------- Serialização (datas e ObjectId sobrevivem ao JSON) ----------
+// ---------- Serialization (dates and ObjectId survive JSON) ----------
 const toJson = (d: Doc) => BSON.EJSON.stringify(d, { relaxed: true });
 const fromJson = (s: string) => BSON.EJSON.parse(s, { relaxed: true }) as Doc;
 const idKey = (id: unknown) => (id instanceof ObjectId ? id.toHexString() : String(id));
 
-// ---------- Comparação e caminhos ----------
+// ---------- Comparison and paths ----------
 const isPlain = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v) && !(v instanceof Date) && !(v instanceof ObjectId) && !(v instanceof RegExp);
 
-/** Valores de um caminho com pontos; atravessa arrays como o MongoDB (qualquer elemento). */
+/** Values of a dotted path; walks arrays like MongoDB (any element). */
 export function valuesAt(doc: unknown, pathStr: string): unknown[] {
   let cur: unknown[] = [doc];
   for (const part of pathStr.split('.')) {
@@ -65,7 +65,7 @@ const equals = (a: unknown, b: unknown) => {
   return sameType(a, b) && compare(a, b) === 0;
 };
 
-/** Candidatos para comparar: o valor e, se for array, cada elemento. */
+/** Candidates to compare: the value and, if it is an array, each element. */
 const expand = (vals: unknown[]) => vals.flatMap(v => (Array.isArray(v) ? [v, ...v] : [v]));
 
 function matchOperator(op: string, arg: unknown, vals: unknown[], opts: Record<string, unknown>): boolean {
@@ -88,7 +88,7 @@ function matchOperator(op: string, arg: unknown, vals: unknown[], opts: Record<s
     case '$not': return !matchValue(arg, vals);
     case '$size': return vals.some(v => Array.isArray(v) && v.length === arg);
     case '$elemMatch': return vals.some(v => Array.isArray(v) && v.some(el => (isPlain(arg) && Object.keys(arg).every(k => k.startsWith('$')) ? matchValue(arg, [el]) : matches(el, arg as Filter))));
-    default: throw new Error(`operador não suportado no armazenamento local: ${op}`);
+    default: throw new Error(`operator not supported by local storage: ${op}`);
   }
 }
 
@@ -105,7 +105,7 @@ export function matches(doc: unknown, filter: Filter): boolean {
     if (key === '$or') { if (!(cond as Filter[]).some(f => matches(doc, f))) return false; continue; }
     if (key === '$and') { if (!(cond as Filter[]).every(f => matches(doc, f))) return false; continue; }
     if (key === '$nor') { if ((cond as Filter[]).some(f => matches(doc, f))) return false; continue; }
-    if (key.startsWith('$')) throw new Error(`operador não suportado no armazenamento local: ${key}`);
+    if (key.startsWith('$')) throw new Error(`operator not supported by local storage: ${key}`);
     if (!matchValue(cond, valuesAt(doc, key))) return false;
   }
   return true;
@@ -139,7 +139,7 @@ const getPath = (doc: Doc, p: string) => valuesAt(doc, p)[0];
 function applyUpdate(doc: Doc, update: Record<string, unknown>, inserting: boolean): Doc {
   const out = clone(doc);
   if (!Object.keys(update).some(k => k.startsWith('$'))) {
-    // substituição inteira (replaceOne)
+    // full replacement (replaceOne)
     return { ...clone(update), _id: doc._id };
   }
   for (const [op, fields] of Object.entries(update)) {
@@ -157,13 +157,13 @@ function applyUpdate(doc: Doc, update: Record<string, unknown>, inserting: boole
         const sliced = spec.$slice === undefined ? arr : spec.$slice < 0 ? arr.slice(spec.$slice) : arr.slice(0, spec.$slice);
         setPath(out, k, sliced);
       } break;
-      default: throw new Error(`operador de escrita não suportado no armazenamento local: ${op}`);
+      default: throw new Error(`write operator not supported by local storage: ${op}`);
     }
   }
   return out;
 }
 
-/** Campos de igualdade do filtro que viram o documento novo num upsert. */
+/** Equality fields of the filter that become the new document in an upsert. */
 function seedFromFilter(filter: Filter): Doc {
   const doc: Doc = {};
   for (const [k, v] of Object.entries(filter)) {
@@ -182,7 +182,7 @@ function project(doc: Doc, projection: Record<string, unknown> | undefined): Doc
       const arr = getPath(out, k);
       if (Array.isArray(arr)) { const n = Number(v.$slice); setPath(out, k, n < 0 ? arr.slice(n) : arr.slice(0, n)); }
     } else if (v === 0 || v === false) unsetPath(out, k);
-    // inclusões: devolve o documento inteiro (um superconjunto do pedido é suficiente para o painel)
+    // inclusions: returns the whole document (a superset of what was asked is enough for the deck)
   }
   return out;
 }
@@ -215,7 +215,7 @@ class Cursor {
 interface Stmt { run(...a: unknown[]): unknown; all(...a: unknown[]): Array<Record<string, unknown>> }
 interface SqliteDb { exec(sql: string): void; prepare(sql: string): Stmt; close(): void }
 
-/** Carrega node:sqlite sem o aviso "experimental" no console (Node 22). */
+/** Loads node:sqlite without the "experimental" warning on the console (Node 22). */
 function openSqlite(file: string): SqliteDb {
   const require = createRequire(import.meta.url);
   const original = process.emitWarning;
@@ -240,7 +240,7 @@ export class SqliteCollection {
   private readonly deleteStmt: Stmt;
 
   constructor(private readonly db: SqliteDb, private readonly table: string) {
-    if (!/^[a-z_]+$/.test(table)) throw new Error(`nome de tabela inválido: ${table}`);
+    if (!/^[a-z_]+$/.test(table)) throw new Error(`invalid table name: ${table}`);
     db.exec(`CREATE TABLE IF NOT EXISTS "${table}" (id TEXT PRIMARY KEY, doc TEXT NOT NULL)`);
     this.upsertStmt = db.prepare(`INSERT INTO "${table}" (id, doc) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET doc = excluded.doc`);
     this.deleteStmt = db.prepare(`DELETE FROM "${table}" WHERE id = ?`);
@@ -261,7 +261,7 @@ export class SqliteCollection {
   }
 
   private matching(filter: Filter = {}): Doc[] {
-    // atalho para busca por _id
+    // shortcut for lookups by _id
     const id = filter._id;
     if (id !== undefined && !isPlain(id) && Object.keys(filter).length === 1) {
       const d = this.docs.get(idKey(id));
@@ -286,7 +286,7 @@ export class SqliteCollection {
     d._id ??= new ObjectId();
     if (this.docs.has(idKey(d._id))) throw Object.assign(new Error('E11000 duplicate key _id'), { code: 11000 });
     this.save(d);
-    if (doc._id === undefined) (doc as Doc)._id = d._id; // como o driver: o objeto de entrada ganha o _id
+    if (doc._id === undefined) (doc as Doc)._id = d._id; // like the driver: the input object gets the _id
     return { acknowledged: true, insertedId: d._id };
   }
 
@@ -352,7 +352,7 @@ export class SqliteCollection {
     return { acknowledged: true, deletedCount: ds.length };
   }
 
-  /** Índices não fazem falta no volume do painel; aceitos e ignorados. */
+  /** Indexes are not needed at the deck's volume; accepted and ignored. */
   async createIndexes(): Promise<string[]> { return []; }
 }
 
@@ -360,6 +360,28 @@ export class SqliteDatabase {
   private readonly db: SqliteDb;
   private readonly cols = new Map<string, SqliteCollection>();
   constructor(readonly file: string) { this.db = openSqlite(file); }
+
+  /**
+   * Renames old tables to their new names before any collection is opened. A new table that already
+   * exists but is empty is replaced; when both hold data, the old one is left alone and reported.
+   */
+  renameTables(renames: Readonly<Record<string, string>>): { renamed: string[]; conflicts: string[] } {
+    const out = { renamed: [] as string[], conflicts: [] as string[] };
+    const exists = (t: string) => this.db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`).all(t).length > 0;
+    const count = (t: string) => Number(this.db.prepare(`SELECT COUNT(*) AS n FROM "${t}"`).all()[0]?.n ?? 0);
+    for (const [from, to] of Object.entries(renames)) {
+      if (!/^[a-z_]+$/.test(from) || !/^[a-z_]+$/.test(to) || this.cols.has(from) || this.cols.has(to)) continue;
+      if (!exists(from)) continue;
+      if (exists(to)) {
+        if (count(to) > 0) { out.conflicts.push(`${from} → ${to}`); continue; }
+        this.db.exec(`DROP TABLE "${to}"`);
+      }
+      this.db.exec(`ALTER TABLE "${from}" RENAME TO "${to}"`);
+      out.renamed.push(`${from} → ${to}`);
+    }
+    return out;
+  }
+
   collection(name: string): SqliteCollection {
     let c = this.cols.get(name);
     if (!c) this.cols.set(name, c = new SqliteCollection(this.db, name));

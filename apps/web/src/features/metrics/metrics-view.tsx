@@ -1,6 +1,6 @@
-// Métricas do v2: tempo trabalhando x esperando você, custo e por tarefa.
-// Gráfico: barras empilhadas (2 séries, paleta validada), gap de 2px entre segmentos,
-// topo arredondado de 4px, tooltip por barra e alternância para tabela.
+// v2 metrics: time working vs. waiting on you, cost and per task.
+// Chart: stacked bars (2 series, validated palette), a 2px gap between segments,
+// 4px rounded top, a tooltip per bar and a table toggle.
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart3, Table2 } from 'lucide-react';
@@ -35,7 +35,7 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
   const gx = (W - L) / n;
   const bw = Math.min(36, gx * 0.6);
 
-  // Segmento com topo arredondado (só o segmento de cima de cada barra).
+  // Segment with a rounded top (only the top segment of each bar).
   const seg = (x: number, y0: number, y1: number, round: boolean, fill: string) => {
     const h = y0 - y1;
     if (h <= 0.5) return null;
@@ -50,7 +50,7 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
 
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-56 w-full" role="img" aria-label={t('Horas por dia: trabalhando e esperando você')} preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-56 w-full" role="img" aria-label={t('Hours per day: working and waiting on you')} preserveAspectRatio="none">
         {ticks.map(v => (
           <g key={v}>
             <line x1={L} x2={W} y1={y(v)} y2={y(v)} className="stroke-border" strokeWidth={1} />
@@ -78,8 +78,8 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
         <div className="pointer-events-none absolute top-2 rounded-lg border bg-popover px-2.5 py-1.5 text-xs shadow-md"
           style={{ left: `clamp(0px, calc(${((L + gx * hover + gx / 2) / W) * 100}% - 60px), calc(100% - 140px))` }}>
           <p className="font-medium">{fmtDay(hd.date, true)}</p>
-          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-1" /> {t('Trabalhando')}: <span className="text-foreground tabular-nums">{dur(hd.working)}</span></p>
-          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-2" /> {t('Esperando você')}: <span className="text-foreground tabular-nums">{dur(hd.waiting)}</span></p>
+          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-1" /> {t('Working')}: <span className="text-foreground tabular-nums">{dur(hd.working)}</span></p>
+          <p className="flex items-center gap-1.5 text-muted-foreground"><span className="size-2 rounded-sm bg-series-2" /> {t('Waiting on you')}: <span className="text-foreground tabular-nums">{dur(hd.waiting)}</span></p>
         </div>
       )}
     </div>
@@ -88,18 +88,18 @@ function StackedBars({ perDay }: { perDay: Metrics['perDay'] }) {
 
 type MetricsTab = 'agents' | 'team' | 'dora' | 'knowledge' | 'quality';
 
-/** Métricas: agentes (hooks), fluxo do time, DORA, concentração de conhecimento e qualidade da review por IA. */
+/** Metrics: agents (hooks), team flow, DORA, knowledge concentration and AI review quality. */
 export function MetricsView() {
   const [tab, setTab] = usePref<MetricsTab>('metrics.tab', 'agents');
   return (
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={v => setTab(v as MetricsTab)}>
         <TabsList>
-          <TabsTrigger value="agents">{t('Agentes')}</TabsTrigger>
-          <TabsTrigger value="team">{t('Time')}</TabsTrigger>
+          <TabsTrigger value="agents">{t('Agents')}</TabsTrigger>
+          <TabsTrigger value="team">{t('Team')}</TabsTrigger>
           <TabsTrigger value="dora">DORA</TabsTrigger>
-          <TabsTrigger value="knowledge">{t('Conhecimento')}</TabsTrigger>
-          <TabsTrigger value="quality">{t('Qualidade da IA')}</TabsTrigger>
+          <TabsTrigger value="knowledge">{t('Knowledge')}</TabsTrigger>
+          <TabsTrigger value="quality">{t('AI quality')}</TabsTrigger>
         </TabsList>
       </Tabs>
       {tab === 'agents' && <AgentMetrics />}
@@ -124,41 +124,41 @@ function AgentMetrics() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">{t('Período')}</span>
+        <span className="text-xs text-muted-foreground">{t('Period')}</span>
         <Tabs value={range} onValueChange={v => setRange(v as Range)}>
-          <TabsList>{RANGES.map(r => <TabsTrigger key={r} value={r}>{plural(Number(r), 'dia', 'dias')}</TabsTrigger>)}</TabsList>
+          <TabsList>{RANGES.map(r => <TabsTrigger key={r} value={r}>{plural(Number(r), 'day', 'days')}</TabsTrigger>)}</TabsList>
         </Tabs>
       </div>
 
       {q.isLoading && <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-24" />)}</div>}
       {q.error && <p className="text-sm text-danger">{(q.error as Error).message}</p>}
       {m && !m.sessions && (
-        <div className="rounded-xl border border-dashed"><EmptyState icon={BarChart3} title={t('Ainda sem dados')} description={t('As métricas contam a partir das sessões registradas pelos hooks.')} /></div>
+        <div className="rounded-xl border border-dashed"><EmptyState icon={BarChart3} title={t('No data yet')} description={t('Metrics count from the sessions recorded by the hooks.')} /></div>
       )}
       {m && m.sessions > 0 && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <Tile label={t('Agentes esperando você')} value={dur(m.waitingOnYou)} sub={t('{asking} pedindo · {review} prontos p/ revisão', { asking: dur(m.needsYou), review: dur(m.review) })} />
-            <Tile label={t('Tempo trabalhando')} value={dur(m.working)} />
-            <Tile label={t('Resposta mediana a pedidos')} value={dur(m.medianResponse)} sub={plural(m.asks, 'pedido', 'pedidos')} />
-            <Tile label={t('Custo estimado')} value={fmtCost(m.cost)} sub={`${fmtTok(m.tokens)} tokens`} />
-            <Tile label={t('Sessões')} value={String(m.sessions)} />
+            <Tile label={t('Agents waiting on you')} value={dur(m.waitingOnYou)} sub={t('{asking} asking · {review} ready for review', { asking: dur(m.needsYou), review: dur(m.review) })} />
+            <Tile label={t('Time working')} value={dur(m.working)} />
+            <Tile label={t('Median response to asks')} value={dur(m.medianResponse)} sub={plural(m.asks, 'ask', 'asks')} />
+            <Tile label={t('Estimated cost')} value={fmtCost(m.cost)} sub={`${fmtTok(m.tokens)} tokens`} />
+            <Tile label={t('Sessions')} value={String(m.sessions)} />
           </div>
 
           <section className="rounded-xl border bg-card p-4 shadow-xs">
             <div className="mb-3 flex items-center gap-3">
-              <h3 className="text-sm font-semibold">{t('Por dia')}</h3>
+              <h3 className="text-sm font-semibold">{t('Per day')}</h3>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-1" /> {t('Trabalhando')}</span>
-                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-2" /> {t('Esperando você')}</span>
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-1" /> {t('Working')}</span>
+                <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-series-2" /> {t('Waiting on you')}</span>
               </div>
               <Button size="xs" variant="ghost" className="ml-auto" onClick={() => setAsTable(v => !v)} aria-pressed={asTable}>
-                {asTable ? <BarChart3 /> : <Table2 />} {t(asTable ? 'Ver gráfico' : 'Ver tabela')}
+                {asTable ? <BarChart3 /> : <Table2 />} {t(asTable ? 'Show chart' : 'Show table')}
               </Button>
             </div>
             {asTable ? (
               <table className="w-full text-xs">
-                <thead className="text-muted-foreground"><tr className="border-b text-left"><th className="py-1.5 font-medium">{t('Dia')}</th><th className="text-right font-medium">{t('Trabalhando')}</th><th className="text-right font-medium">{t('Esperando você')}</th></tr></thead>
+                <thead className="text-muted-foreground"><tr className="border-b text-left"><th className="py-1.5 font-medium">{t('Day')}</th><th className="text-right font-medium">{t('Working')}</th><th className="text-right font-medium">{t('Waiting on you')}</th></tr></thead>
                 <tbody>{m.perDay.map(d => (
                   <tr key={d.date} className="border-b last:border-0"><td className="py-1.5">{fmtDay(d.date, true)}</td><td className="text-right tabular-nums">{dur(d.working)}</td><td className="text-right tabular-nums">{dur(d.waiting)}</td></tr>
                 ))}</tbody>
@@ -167,12 +167,12 @@ function AgentMetrics() {
           </section>
 
           <section className="overflow-hidden rounded-xl border bg-card shadow-xs">
-            <h3 className="border-b px-4 py-3 text-sm font-semibold">{t('Por tarefa')}</h3>
+            <h3 className="border-b px-4 py-3 text-sm font-semibold">{t('By task')}</h3>
             <div className="overflow-auto">
               <table className="w-full text-xs">
                 <thead className="text-muted-foreground">
                   <tr className="border-b text-left">
-                    {[k('Tarefa'), k('Sessões'), k('Trabalhando'), k('Esperando você'), k('Custo'), k('Tokens'), k('Última atividade')].map((h, i) => (
+                    {[k('Task'), k('Sessions'), k('Working'), k('Waiting on you'), k('Cost'), k('Tokens'), k('Last activity')].map((h, i) => (
                       <th key={h} className={`px-4 py-2 font-medium ${i ? 'text-right' : ''}`}>{t(h)}</th>
                     ))}
                   </tr>

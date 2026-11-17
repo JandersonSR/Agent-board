@@ -1,9 +1,9 @@
-// Filtros de PRs, reviews e fila: por pessoa, time e repositório, cada um com "mostrar só" (incluir)
-// e "ocultar" (excluir), mais atalhos para ocultar bots e os meus. Puro e testável.
+// Filters for PRs, reviews and the queue: by person, team and repository, each with "show only" (include)
+// and "hide" (exclude), plus shortcuts to hide bots and mine. Pure and testable.
 //
-// Itens com vários autores (ex.: uma issue de deploy com PRs de várias pessoas):
-// - incluir: basta UM autor/time/repo casar;
-// - ocultar: o item só some quando TODOS os autores/times/repos dele estão ocultos.
+// Items with several authors (e.g. a deploy issue with PRs from several people):
+// - include: ONE author/team/repo matching is enough;
+// - hide: the item only disappears when ALL its authors/teams/repos are hidden.
 import { useCallback, useState } from 'react';
 import { readPref, writePref } from './prefs';
 
@@ -20,7 +20,7 @@ export const EMPTY_FILTERS: Filters = {
 export interface Filterable {
   authors: Array<string | null | undefined>;
   repos: Array<string | null | undefined>;
-  /** Times explícitos do item (ex.: time editado na issue de deploy). */
+  /** The item's explicit teams (e.g. a team edited on the deploy issue). */
   teams?: Array<string | null | undefined>;
   text: string;
 }
@@ -34,7 +34,7 @@ export function isBot(login: string): boolean {
   return /\[bot\]$|^(dependabot|renovate|github-actions|snyk-bot|codecov)\b|-bot$/i.test(login.trim());
 }
 
-/** Times (slug) de cada login, a partir dos times da org. */
+/** Teams (slug) of each login, from the org's teams. */
 export function teamIndex(people: People | undefined): Map<string, string[]> {
   const idx = new Map<string, string[]>();
   for (const t of people?.teams ?? []) for (const m of t.members) idx.set(norm(m), [...(idx.get(norm(m)) ?? []), norm(t.slug)]);
@@ -55,19 +55,19 @@ export function matches(item: Filterable, f: Filters, people?: People, idx = tea
   let visible = authors;
   if (f.hideBots) visible = visible.filter(a => !isBot(a));
   if (f.hideMine && me) visible = visible.filter(a => a !== me);
-  // Todos os autores eram bots/eu: some.
+  // Every author was a bot/me: it disappears.
   if (authors.length && !visible.length) return false;
 
   if (!facetPass(visible, f.author)) return false;
 
-  // Time: o item "pertence" aos times dos autores visíveis + times explícitos.
+  // Team: the item "belongs" to the teams of its visible authors + explicit teams.
   const teamsByAuthor = visible.map(a => idx.get(a) ?? []);
   const itemTeams = clean([...(item.teams ?? []), ...teamsByAuthor.flat()]);
   const tInc = f.team.include.map(norm);
   if (tInc.length && !itemTeams.some(t => tInc.includes(t))) return false;
   const tExc = f.team.exclude.map(norm);
   if (tExc.length) {
-    // Oculta quando todo autor visível está num time oculto (e os times explícitos também).
+    // Hides when every visible author is in a hidden team (and the explicit teams too).
     const authorHidden = (ts: string[]) => ts.some(t => tExc.includes(t));
     const explicit = clean(item.teams ?? []);
     const allAuthorsHidden = teamsByAuthor.length > 0 && teamsByAuthor.every(authorHidden);
@@ -102,7 +102,7 @@ export function stateOf(f: Filters, key: FacetKey, value: string): FacetState {
   return 'none';
 }
 
-/** Define o estado de um valor (sai das duas listas e entra na escolhida). */
+/** Sets a value's state (leaves both lists and joins the chosen one). */
 export function setState(f: Filters, key: FacetKey, value: string, state: FacetState): Filters {
   const v = norm(value);
   const without = (xs: string[]) => xs.filter(x => norm(x) !== v);
@@ -112,10 +112,10 @@ export function setState(f: Filters, key: FacetKey, value: string, state: FacetS
   return { ...f, [key]: facet };
 }
 
-/** Ciclo do clique: nada → mostrar só → ocultar → nada. */
+/** Click cycle: nothing → show only → hide → nothing. */
 export const nextState = (s: FacetState): FacetState => (s === 'none' ? 'include' : s === 'include' ? 'exclude' : 'none');
 
-/** Valores presentes nos itens, com contagem, para montar os menus. */
+/** Values present in the items, with counts, to build the menus. */
 export function facetValues<T>(items: T[], pick: (x: T) => Array<string | null | undefined>): Array<{ value: string; count: number }> {
   const counts = new Map<string, { value: string; count: number }>();
   for (const it of items) {
@@ -129,7 +129,7 @@ export function facetValues<T>(items: T[], pick: (x: T) => Array<string | null |
   return [...counts.values()].sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
-/** Filtros salvos por tela (no navegador). */
+/** Saved filters per screen (in the browser). */
 export function useFilters(scope: string): [Filters, (f: Filters) => void] {
   const [value, setValue] = useState<Filters>(() => {
     try { return { ...EMPTY_FILTERS, ...(JSON.parse(readPref(`filters.${scope}`, '{}')) as Partial<Filters>) }; } catch { return EMPTY_FILTERS; }

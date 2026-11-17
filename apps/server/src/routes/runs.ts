@@ -1,11 +1,11 @@
-// Execuções de agentes (painel_sessoes): review de PR por LLM e, na sequência, tarefas.
+// Agent runs (deck_runs): LLM PR review and, after it, tasks.
 import type { FastifyInstance } from 'fastify';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
 import type { AgentService } from '../agents/service.js';
 
-const Id = z.object({ id: z.string().refine(ObjectId.isValid, 'id inválido') });
-const PrUrl = z.string().url().regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+\/?$/, 'URL de PR do GitHub');
+const Id = z.object({ id: z.string().refine(ObjectId.isValid, 'invalid id') });
+const PrUrl = z.string().url().regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+\/?$/, 'GitHub PR URL');
 
 const EvalCaseBody = z.object({
   name: z.string().trim().min(1).max(160),
@@ -16,17 +16,17 @@ const EvalCaseBody = z.object({
     line: z.number().int().min(1).max(1_000_000).optional(),
     keywords: z.array(z.string().trim().min(1).max(80)).max(10),
     note: z.string().trim().max(500).optional(),
-  }).refine(e => !!e.path || e.keywords.length > 0, 'informe o arquivo ou ao menos uma palavra-chave')).min(1).max(30),
+  }).refine(e => !!e.path || e.keywords.length > 0, 'give the file or at least one keyword')).min(1).max(30),
 }).strict();
 
 export async function runsRoutes(app: FastifyInstance, opts: { agents: AgentService }): Promise<void> {
   const { agents } = opts;
 
-  // Conjunto fixo de avaliação: PRs com problemas conhecidos para medir o que a IA deixa passar.
+  // Fixed evaluation set: PRs with known problems to measure what the AI misses.
   app.get('/api/evals', async () => agents.evalSummary());
   app.post('/api/evals', async (req) => agents.saveEvalCase(undefined, EvalCaseBody.parse(req.body)));
   app.put('/api/evals/:id', async (req) => agents.saveEvalCase(Id.parse(req.params).id, EvalCaseBody.parse(req.body)));
-  app.delete('/api/evals/:id', async (req, reply) => ((await agents.deleteEvalCase(Id.parse(req.params).id)) ? { ok: true } : reply.code(404).send({ error: 'não encontrado' })));
+  app.delete('/api/evals/:id', async (req, reply) => ((await agents.deleteEvalCase(Id.parse(req.params).id)) ? { ok: true } : reply.code(404).send({ error: 'not found' })));
   app.post('/api/evals/run', async (req) => agents.runEvals(z.object({ ids: z.array(z.string().refine(ObjectId.isValid)).max(100).optional() }).parse(req.body ?? {}).ids));
 
   app.post('/api/review/preview', async (req) => {
@@ -46,16 +46,16 @@ export async function runsRoutes(app: FastifyInstance, opts: { agents: AgentServ
 
   app.get('/api/runs/:id', async (req, reply) => {
     const r = await agents.get(Id.parse(req.params).id);
-    if (!r) return reply.code(404).send({ error: 'não encontrada' });
+    if (!r) return reply.code(404).send({ error: 'not found' });
     return { ...r, _id: String(r._id) };
   });
 
   app.post('/api/runs/:id/cancel', async (req, reply) => {
-    if (!agents.cancel(Id.parse(req.params).id)) return reply.code(409).send({ error: 'execução não está rodando' });
+    if (!agents.cancel(Id.parse(req.params).id)) return reply.code(409).send({ error: 'run is not running' });
     return { ok: true };
   });
 
-  // Julgamento dos achados (manter/descartar): base da medição de qualidade e filtro da review PENDING.
+  // Judging the findings (keep/discard): the basis of the quality measurement and the filter of the PENDING review.
   app.post('/api/runs/:id/feedback', async (req) => {
     const { decisions } = z.object({ decisions: z.array(z.enum(['accepted', 'rejected']).nullable()).max(60) }).parse(req.body);
     return { decisions: await agents.setFindingDecisions(Id.parse(req.params).id, decisions) };
@@ -67,7 +67,7 @@ export async function runsRoutes(app: FastifyInstance, opts: { agents: AgentServ
   });
 
   // ---------- Tarefas de ponta a ponta ----------
-  const IssueUrl = z.string().url().regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+\/?$/, 'URL de issue do GitHub');
+  const IssueUrl = z.string().url().regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/issues\/\d+\/?$/, 'GitHub issue URL');
 
   app.post('/api/task/preview', async (req) => agents.previewTask(z.object({ url: IssueUrl }).parse(req.body).url));
 
@@ -89,7 +89,7 @@ export async function runsRoutes(app: FastifyInstance, opts: { agents: AgentServ
     return reply.type('text/plain; charset=utf-8').send(await agents.taskPatch(Id.parse(req.params).id, file));
   });
 
-  // Ações que saem da máquina: só por clique, com confirmação na tela.
+  // Actions that leave the machine: only on click, with on-screen confirmation.
   app.post('/api/runs/:id/task-pr', async (req) => agents.openTaskPr(Id.parse(req.params).id));
   app.post('/api/runs/:id/pending-review', async (req) => agents.postPendingReview(Id.parse(req.params).id));
 }

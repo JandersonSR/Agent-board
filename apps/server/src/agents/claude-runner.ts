@@ -1,11 +1,11 @@
-// Executa o Claude Code em modo não interativo (claude -p, stream-json).
-// - Sem shell: argumentos em array, prompt pela entrada padrão (sem limite de linha de comando).
-// - Isolado: --setting-sources "" e --strict-mcp-config (só o MCP passado aqui). Isso evita carregar
-//   CLAUDE.md/plugins/hooks globais (de ~150k para ~4k tokens de contexto base) e mantém o login.
-// - ANTHROPIC_API_KEY é removida do ambiente: usa o login do Claude Code, nunca cobra a API por engano.
-// - Ferramentas limitadas por --tools/--allowedTools/--disallowedTools com --permission-mode dontAsk
-//   (o que não está liberado é negado sem perguntar).
-// - Tempo máximo: encerra a árvore de processos.
+// Runs Claude Code non-interactively (claude -p, stream-json).
+// - No shell: arguments as an array, prompt through standard input (no command-line length limit).
+// - Isolated: --setting-sources "" and --strict-mcp-config (only the MCP passed here). This avoids loading
+//   global CLAUDE.md/plugins/hooks (from ~150k down to ~4k tokens of base context) and keeps the login.
+// - ANTHROPIC_API_KEY is removed from the environment: it uses the Claude Code login and never bills the API by mistake.
+// - Tools limited by --tools/--allowedTools/--disallowedTools with --permission-mode dontAsk
+//   (anything not allowed is denied without asking).
+// - Time limit: kills the process tree.
 import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -13,13 +13,13 @@ export interface RunSpec {
   prompt: string;
   cwd: string;
   model: string;
-  tools: string[];            // ferramentas built-in disponíveis
+  tools: string[];            // built-in tools available
   allowedTools: string[];     // liberadas sem perguntar
   disallowedTools: string[];  // sempre negadas
   mcpConfig?: Record<string, unknown> | undefined;
   addDirs?: string[] | undefined;
   timeoutMs: number;
-  persistSession?: boolean;   // permite "continuar no terminal" depois
+  persistSession?: boolean;   // allows "continue in the terminal" later
 }
 
 export type RunEvent =
@@ -64,7 +64,7 @@ const short = (v: unknown, n = 300) => {
   return s.length > n ? `${s.slice(0, n)}…` : s;
 };
 
-/** Traduz uma linha do stream-json em eventos de log (pura, testável). */
+/** Turns a stream-json line into log events (pure, testable). */
 export function parseStreamLine(line: string): { events: RunEvent[]; result?: Record<string, unknown> } {
   let j: Record<string, unknown>;
   try { j = JSON.parse(line) as Record<string, unknown>; } catch { return { events: [] }; }
@@ -147,7 +147,7 @@ export function runClaude(spec: RunSpec, onEvent: (e: RunEvent) => void, bin = '
     child.stderr!.on('data', (t: string) => { if (t.trim()) onEvent({ type: 'stderr', text: short(t.trim(), 500) }); });
     child.on('error', (err) => {
       clearTimeout(timer);
-      resolve({ ok: false, timedOut, cancelled, resultText: '', error: `não foi possível iniciar o claude: ${err.message}` });
+      resolve({ ok: false, timedOut, cancelled, resultText: '', error: `could not start claude: ${err.message}` });
     });
     child.on('close', (code) => {
       clearTimeout(timer);
@@ -157,7 +157,7 @@ export function runClaude(spec: RunSpec, onEvent: (e: RunEvent) => void, bin = '
         ok: !timedOut && !cancelled && !isError && code === 0,
         timedOut, cancelled, resultText, sessionId,
         usage: final ? usageOf(final) : undefined,
-        error: timedOut ? 'tempo máximo atingido' : cancelled ? 'cancelado' : isError ? (resultText || `claude saiu com código ${code}`) : undefined,
+        error: timedOut ? 'time limit reached' : cancelled ? 'cancelado' : isError ? (resultText || `claude exited with code ${code}`) : undefined,
       });
     });
     child.stdin!.end(spec.prompt, 'utf8');

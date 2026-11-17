@@ -1,16 +1,16 @@
-// Status de deploy do PR (mesmo fluxo do painel de PRs anterior), derivado do GitHub,
-// e o histórico/tempo em cada status.
+// PR deploy status (same flow as the previous PR board), derived from GitHub,
+// and the history/time in each status.
 
 export const STATUSES = ['review_queue', 'reviewing', 'rcs', 're_review', 'waiting_approves', 'merged', 'production'] as const;
 export type DeployStatus = (typeof STATUSES)[number];
 
-/** Status finais: já entregue (merged) ou já em produção. Não contam tempo e saem da lista "abertos". */
+/** Final statuses: already delivered (merged) or already in production. They do not count time and leave the "open" list. */
 export const DONE_STATUSES: readonly DeployStatus[] = ['merged', 'production'];
 export const isDone = (s: DeployStatus | undefined | null): boolean => !!s && DONE_STATUSES.includes(s);
 
 /**
- * Branch de produção? Padrões separados por vírgula, com * no fim como curinga ("production*", "jobs").
- * Merge numa delas = já em produção.
+ * Production branch? Comma-separated patterns, with a trailing * as a wildcard ("production*", "jobs").
+ * A merge into one of them = already in production.
  */
 export function prodBranchMatcher(patterns: string[]): (base: string | undefined) => boolean {
   const res = patterns.map(p => new RegExp(`^${p.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*')}$`, 'i'));
@@ -18,41 +18,41 @@ export function prodBranchMatcher(patterns: string[]): (base: string | undefined
 }
 
 export const STATUS_LABEL: Record<DeployStatus, string> = {
-  review_queue: 'Fila de review',
-  reviewing: 'Em review',
-  rcs: 'RCs (mudanças pedidas)',
+  review_queue: 'Review queue',
+  reviewing: 'In review',
+  rcs: 'RCs (changes requested)',
   re_review: 'Re-review',
-  waiting_approves: 'Aguardando aprovações',
+  waiting_approves: 'Waiting for approvals',
   merged: 'Merged',
-  production: 'Em produção',
+  production: 'In production',
 };
 
 export interface GhPrState {
   state: 'OPEN' | 'CLOSED' | 'MERGED';
   reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
-  /** Total de reviews/comentários de review já feitos (qualquer estado). */
+  /** Total reviews/review comments already made (any state). */
   reviewCount: number;
-  /** Último review com mudanças pedidas (ISO). */
+  /** Last review requesting changes (ISO). */
   lastChangesRequestedAt?: string | null | undefined;
-  /** Último commit do PR (ISO). */
+  /** Last commit on the PR (ISO). */
   lastCommitAt?: string | null | undefined;
-  /** Último pedido de review (ISO). */
+  /** Last review request (ISO). */
   lastReviewRequestedAt?: string | null | undefined;
-  /** Mergeado numa branch de produção (ver prodBranchMatcher). */
+  /** Merged into a production branch (see prodBranchMatcher). */
   intoProduction?: boolean | undefined;
 }
 
 const after = (a: string | null | undefined, b: string | null | undefined) => !!a && !!b && Date.parse(a) > Date.parse(b);
 
 /**
- * - merged numa branch de produção → production
+ * - merged into a production branch → production
  * - merged → merged
- * - mudanças pedidas e, depois delas, commit novo ou review pedido de novo → re_review
- * - mudanças pedidas → rcs
- * - aprovado (ainda aberto: falta aprovação extra, checks ou o merge) → waiting_approves
- * - já tem review mas sem decisão → reviewing
+ * - changes requested and, after that, a new commit or a new review request → re_review
+ * - changes requested → rcs
+ * - approved (still open: missing an extra approval, checks or the merge) → waiting_approves
+ * - already reviewed but no decision → reviewing
  * - nenhum review → review_queue
- * PR fechado sem merge devolve null (sai do acompanhamento).
+ * A PR closed without merge returns null (leaves tracking).
  */
 export function deriveStatus(pr: GhPrState): DeployStatus | null {
   if (pr.state === 'MERGED') return pr.intoProduction ? 'production' : 'merged';
@@ -67,8 +67,8 @@ export function deriveStatus(pr: GhPrState): DeployStatus | null {
 }
 
 /**
- * Status do grupo (issue) = o PR menos avançado ainda aberto. Todos entregues: production se algum já
- * está em produção (ex.: PR na main + PR na production), senão merged.
+ * Group (issue) status = the least advanced PR still open. All delivered: production if any is
+ * already in production (e.g. a PR on main + a PR on production), otherwise merged.
  */
 export function groupStatus(statuses: DeployStatus[]): DeployStatus | null {
   if (!statuses.length) return null;
@@ -82,7 +82,7 @@ export type StatusStats = Partial<Record<Exclude<DeployStatus, 'merged' | 'produ
 
 export interface Tracked { status: DeployStatus; statusHistory?: StatusHistoryEntry[]; statusStats?: StatusStats }
 
-/** Aplica uma transição (idempotente se o status não mudou) e atualiza o tempo por status. */
+/** Applies a transition (idempotent if the status did not change) and updates the time per status. */
 export function enterStatus<T extends Tracked>(doc: T, next: DeployStatus, at: Date = new Date()): T {
   if (doc.status === next && doc.statusHistory?.length) return doc;
   const history = [...(doc.statusHistory ?? [])];
@@ -101,10 +101,10 @@ export function enterStatus<T extends Tracked>(doc: T, next: DeployStatus, at: D
 
 // ---------- Ajuste manual ----------
 /**
- * Status escolhido à mão vale enquanto o GitHub continuar no mesmo estado em que estava quando
- * foi marcado ("basis"). Se o derivado mudar (novo review, aprovação, merge), o ajuste cai sozinho.
- * "production" marcado à mão sobre um PR merged vale até o fim (o GitHub não sabe quando subiu para
- * produção); "production" vindo do GitHub é final e derruba qualquer ajuste.
+ * A manually chosen status holds while GitHub stays in the state it was in when it
+ * was set ("basis"). If the derived status changes (new review, approval, merge), the override drops by itself.
+ * A manual "production" on a merged PR holds until the end (GitHub does not know when it went to
+ * production); a "production" from GitHub is final and drops any override.
  */
 export interface StatusOverride { status: DeployStatus; at: string; basis: DeployStatus }
 

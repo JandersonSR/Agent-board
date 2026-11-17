@@ -1,4 +1,4 @@
-// Preferências por navegador (tema, densidade, editor). O storage pode falhar (modo privado): sempre try/catch.
+// Per-browser preferences (theme, density, editor). Storage may fail (private mode): always try/catch.
 import { useCallback, useState } from 'react';
 
 const KEY = 'ab3.';

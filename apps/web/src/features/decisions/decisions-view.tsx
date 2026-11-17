@@ -1,5 +1,5 @@
-// Registro de decisões do time: design docs, RFCs e ADRs, com prazo para decidir.
-// Os ADRs dos repositórios são importados dos clones locais (título e status vêm do arquivo).
+// The team's decision log: design docs, RFCs and ADRs, with a decide-by date.
+// ADRs are imported from the local clones of the repositories (title and status come from the file).
 import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, FileDown, Landmark, Loader2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -21,8 +21,8 @@ import { usePref } from '@/lib/prefs';
 import { cn } from '@/lib/utils';
 
 const STATUS: Record<DecisionStatus, { label: string; tone: Tone }> = {
-  proposed: { label: k('proposta'), tone: 'info' }, discussing: { label: k('em discussão'), tone: 'warning' },
-  decided: { label: k('decidida'), tone: 'success' }, rejected: { label: k('rejeitada'), tone: 'neutral' }, superseded: { label: k('substituída'), tone: 'neutral' },
+  proposed: { label: k('proposed'), tone: 'info' }, discussing: { label: k('in discussion'), tone: 'warning' },
+  decided: { label: k('decided'), tone: 'success' }, rejected: { label: k('rejected'), tone: 'neutral' }, superseded: { label: k('superseded'), tone: 'neutral' },
 };
 const KIND: Record<DecisionKind, string> = { adr: 'ADR', design_doc: k('Design doc'), rfc: 'RFC' };
 const OPEN: DecisionStatus[] = ['proposed', 'discussing'];
@@ -57,15 +57,15 @@ function DecisionDialog({ decision, open, onOpenChange }: { decision: Decision |
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{t(decision ? 'Editar decisão' : 'Nova decisão')}</DialogTitle>
+          <DialogTitle>{t(decision ? 'Edit decision' : 'New decision')}</DialogTitle>
           <DialogDescription>
-            {fromRepo ? t('ADR importado de {repo}: título e status vêm do arquivo. Dono, prazo e contexto ficam no painel.', { repo: decision!.repo ?? '' })
-              : t('Uma decisão aberta precisa de dono e prazo. Sem prazo, ela fica parada e vira débito.')}
+            {fromRepo ? t('ADR imported from {repo}: title and status come from the file. Owner, deadline and context live in the board.', { repo: decision!.repo ?? '' })
+              : t('An open decision needs an owner and a deadline. Without a deadline it stalls and becomes debt.')}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-3 sm:grid-cols-6">
-          <Field label={k('Título')} className="sm:col-span-6"><Input value={d.title ?? ''} onChange={e => up({ title: e.target.value })} disabled={fromRepo} maxLength={300} /></Field>
-          <Field label={k('Tipo')} className="sm:col-span-2">
+          <Field label={k('Title')} className="sm:col-span-6"><Input value={d.title ?? ''} onChange={e => up({ title: e.target.value })} disabled={fromRepo} maxLength={300} /></Field>
+          <Field label={k('Type')} className="sm:col-span-2">
             <Select value={d.kind} onValueChange={v => up({ kind: v as DecisionKind })} disabled={fromRepo}>
               <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>{(Object.keys(KIND) as DecisionKind[]).map(x => <SelectItem key={x} value={x}>{t(KIND[x])}</SelectItem>)}</SelectContent>
@@ -77,21 +77,21 @@ function DecisionDialog({ decision, open, onOpenChange }: { decision: Decision |
               <SelectContent>{DECISION_STATUSES.map(s => <SelectItem key={s} value={s}>{t(STATUS[s].label)}</SelectItem>)}</SelectContent>
             </Select>
           </Field>
-          <Field label={k('Decidir até')} className="sm:col-span-2"><Input type="date" value={d.decideBy ?? ''} onChange={e => up({ decideBy: e.target.value })} /></Field>
-          <Field label={k('Dono')} className="sm:col-span-2"><Input value={d.owner ?? ''} onChange={e => up({ owner: e.target.value })} maxLength={80} /></Field>
-          <Field label={k('Quem decide (separados por vírgula)')} className="sm:col-span-4">
+          <Field label={k('Decide by')} className="sm:col-span-2"><Input type="date" value={d.decideBy ?? ''} onChange={e => up({ decideBy: e.target.value })} /></Field>
+          <Field label={k('Owner|decision')} className="sm:col-span-2"><Input value={d.owner ?? ''} onChange={e => up({ owner: e.target.value })} maxLength={80} /></Field>
+          <Field label={k('Deciders (comma separated)')} className="sm:col-span-4">
             <Input value={(d.deciders ?? []).join(', ')} onChange={e => up({ deciders: e.target.value.split(',').map(x => x.trim()).filter(Boolean) })} />
           </Field>
-          <Field label={k('Link do documento')} className="sm:col-span-6"><Input value={d.url ?? ''} onChange={e => up({ url: e.target.value })} placeholder="https://" /></Field>
-          <Field label={k('Contexto (o problema e as opções)')} className="sm:col-span-3"><Textarea value={d.context ?? ''} onChange={e => up({ context: e.target.value })} rows={4} maxLength={4000} /></Field>
-          <Field label={k('Decisão e consequências')} className="sm:col-span-3"><Textarea value={d.decision ?? ''} onChange={e => up({ decision: e.target.value })} rows={4} maxLength={4000} /></Field>
+          <Field label={k('Document link')} className="sm:col-span-6"><Input value={d.url ?? ''} onChange={e => up({ url: e.target.value })} placeholder="https://" /></Field>
+          <Field label={k('Context (the problem and the options)')} className="sm:col-span-3"><Textarea value={d.context ?? ''} onChange={e => up({ context: e.target.value })} rows={4} maxLength={4000} /></Field>
+          <Field label={k('Decision and consequences')} className="sm:col-span-3"><Textarea value={d.decision ?? ''} onChange={e => up({ decision: e.target.value })} rows={4} maxLength={4000} /></Field>
         </div>
         <DialogFooter className="sm:justify-between">
-          {decision ? <Button variant="ghost" className="text-danger" onClick={() => del.mutate(decision._id, { onSuccess: () => onOpenChange(false) })}><Trash2 /> {t('Apagar')}</Button> : <span />}
+          {decision ? <Button variant="ghost" className="text-danger" onClick={() => del.mutate(decision._id, { onSuccess: () => onOpenChange(false) })}><Trash2 /> {t('Delete')}</Button> : <span />}
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancelar')}</Button>
+            <Button variant="ghost" onClick={() => onOpenChange(false)}>{t('Cancel')}</Button>
             <Button disabled={!d.title?.trim() || save.isPending} onClick={() => save.mutate({ ...(decision ? { id: decision._id } : {}), body: body() }, { onSuccess: () => onOpenChange(false) })}>
-              {save.isPending && <Loader2 className="animate-spin" />} {t('Salvar')}
+              {save.isPending && <Loader2 className="animate-spin" />} {t('Save')}
             </Button>
           </div>
         </DialogFooter>
@@ -118,7 +118,7 @@ export function DecisionsView() {
   }, [q.data, filter, search]);
 
   if (q.data && !q.data.configured) {
-    return <div className="rounded-xl border border-dashed"><EmptyState icon={Landmark} title={t('MongoDB não configurado')} description={t('O registro de decisões fica numa coleção própria do painel no MongoDB.')} /></div>;
+    return <div className="rounded-xl border border-dashed"><EmptyState icon={Landmark} title={t('MongoDB not configured')} description={t('The decision log is stored in the board\'s own MongoDB collection.')} /></div>;
   }
 
   return (
@@ -126,38 +126,38 @@ export function DecisionsView() {
       <div className="flex flex-wrap items-center gap-2">
         <Tabs value={filter} onValueChange={v => setFilter(v as Filter)}>
           <TabsList>
-            <TabsTrigger value="open">{t('Abertas')}{a ? ` (${a.open})` : ''}</TabsTrigger>
-            <TabsTrigger value="decided">{t('Encerradas')}</TabsTrigger>
-            <TabsTrigger value="all">{t('Todas')}</TabsTrigger>
+            <TabsTrigger value="open">{t('Open|decisions')}{a ? ` (${a.open})` : ''}</TabsTrigger>
+            <TabsTrigger value="decided">{t('Closed|decisions')}</TabsTrigger>
+            <TabsTrigger value="all">{t('All|decisions')}</TabsTrigger>
           </TabsList>
         </Tabs>
         <div className="relative">
           <Search className="absolute top-2 left-2 size-4 text-muted-foreground" />
-          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('Buscar título, dono ou repositório')} className="h-8 w-64 pl-8 text-xs" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder={t('Search title, owner or repository')} className="h-8 w-64 pl-8 text-xs" />
         </div>
-        {a && a.overdue > 0 && <Pill tone="danger">{t('{n} com prazo vencido', { n: a.overdue })}</Pill>}
-        {a && a.dueSoon > 0 && <Pill tone="warning">{t('{n} vencem em 7 dias', { n: a.dueSoon })}</Pill>}
-        {a && a.stale > 0 && <Pill tone="warning">{t('{n} paradas há mais de 3 semanas', { n: a.stale })}</Pill>}
+        {a && a.overdue > 0 && <Pill tone="danger">{t('{n} past deadline', { n: a.overdue })}</Pill>}
+        {a && a.dueSoon > 0 && <Pill tone="warning">{t('{n} due in 7 days', { n: a.dueSoon })}</Pill>}
+        {a && a.stale > 0 && <Pill tone="warning">{t('{n} stalled for over 3 weeks', { n: a.stale })}</Pill>}
         <div className="ml-auto flex gap-2">
           <Button size="sm" variant="outline" onClick={() => imp.mutate()} disabled={imp.isPending}>
-            {imp.isPending ? <Loader2 className="animate-spin" /> : <FileDown />} {t('Importar ADRs dos repositórios')}
+            {imp.isPending ? <Loader2 className="animate-spin" /> : <FileDown />} {t('Import ADRs from repositories')}
           </Button>
-          <Button size="sm" onClick={() => setEditing(null)}><Plus /> {t('Nova decisão')}</Button>
+          <Button size="sm" onClick={() => setEditing(null)}><Plus /> {t('New decision')}</Button>
         </div>
       </div>
 
       <section className="overflow-hidden rounded-xl border bg-card shadow-xs">
         {q.isLoading && <div className="space-y-2 p-3">{Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-10" />)}</div>}
         {q.data && !items.length && (
-          <EmptyState icon={Landmark} title={t(filter === 'open' ? 'Nenhuma decisão aberta' : 'Nenhuma decisão aqui')}
-            description={t('Registre design docs e RFCs em discussão, com dono e prazo, ou importe os ADRs que já estão nos repositórios.')} />
+          <EmptyState icon={Landmark} title={t(filter === 'open' ? 'No open decisions' : 'No decisions here')}
+            description={t('Log design docs and RFCs under discussion, with owner and deadline, or import the ADRs already in your repositories.')} />
         )}
         {items.length > 0 && (
           <div className="overflow-auto">
             <table className="w-full text-xs">
               <thead className="text-muted-foreground"><tr className="border-b text-left">
-                <th className="px-4 py-2 font-medium">{t('Decisão')}</th><th className="px-3 font-medium">{t('Tipo')}</th><th className="px-3 font-medium">{t('Status')}</th>
-                <th className="px-3 font-medium">{t('Dono')}</th><th className="px-3 font-medium">{t('Prazo')}</th><th className="px-3 font-medium">{t('Origem')}</th><th className="w-16" />
+                <th className="px-4 py-2 font-medium">{t('Decision')}</th><th className="px-3 font-medium">{t('Type')}</th><th className="px-3 font-medium">{t('Status')}</th>
+                <th className="px-3 font-medium">{t('Owner|decision')}</th><th className="px-3 font-medium">{t('Deadline')}</th><th className="px-3 font-medium">{t('Source')}</th><th className="w-16" />
               </tr></thead>
               <tbody>
                 {items.map(d => {
@@ -169,12 +169,12 @@ export function DecisionsView() {
                       <td className="px-3"><Pill tone={STATUS[d.status].tone}>{t(STATUS[d.status].label)}</Pill></td>
                       <td className="px-3">{d.owner ?? <span className="text-muted-foreground">—</span>}</td>
                       <td className={cn('px-3 tabular-nums', overdue && 'font-medium text-danger')}>
-                        {d.decideBy ? fmtDay(d.decideBy, true) : d.decidedAt ? <span className="text-muted-foreground">{t('decidida {date}', { date: fmtDay(d.decidedAt, true) })}</span> : d.date ? <span className="text-muted-foreground">{fmtDay(d.date, true)}</span> : '—'}
+                        {d.decideBy ? fmtDay(d.decideBy, true) : d.decidedAt ? <span className="text-muted-foreground">{t('decided {date}', { date: fmtDay(d.decidedAt, true) })}</span> : d.date ? <span className="text-muted-foreground">{fmtDay(d.date, true)}</span> : '—'}
                       </td>
                       <td className="px-3">{d.source === 'repo' ? <Mono className="text-[11px]" title={d.path}>{d.repo}</Mono> : <span className="text-muted-foreground">{t('manual')}</span>}</td>
                       <td className="px-2 text-right">
-                        {d.url && <Button size="icon-xs" variant="ghost" onClick={() => window.open(d.url, '_blank', 'noopener')} aria-label={t('Abrir documento')}><ExternalLink /></Button>}
-                        <Button size="icon-xs" variant="ghost" onClick={() => setEditing(d)} aria-label={t('Editar')}><Pencil /></Button>
+                        {d.url && <Button size="icon-xs" variant="ghost" onClick={() => window.open(d.url, '_blank', 'noopener')} aria-label={t('Open document')}><ExternalLink /></Button>}
+                        <Button size="icon-xs" variant="ghost" onClick={() => setEditing(d)} aria-label={t('Edit')}><Pencil /></Button>
                       </td>
                     </tr>
                   );
@@ -184,7 +184,7 @@ export function DecisionsView() {
           </div>
         )}
       </section>
-      <p className="text-[11px] text-muted-foreground">{t('A importação lê só arquivos .md em pastas de ADR (docs/adr, docs/decisions…) dos clones locais. Nada é escrito nos repositórios.')}</p>
+      <p className="text-[11px] text-muted-foreground">{t('The import only reads .md files in ADR folders (docs/adr, docs/decisions…) of your local clones. Nothing is written to the repositories.')}</p>
       <DecisionDialog decision={editing ?? null} open={editing !== undefined} onOpenChange={o => { if (!o) setEditing(undefined); }} />
     </div>
   );

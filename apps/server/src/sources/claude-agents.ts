@@ -1,6 +1,6 @@
-// Sessões em segundo plano do agent view do Claude Code (`claude agents`, v2.1.139+).
-// Só usa a interface pública: `claude agents --json --all`, `claude logs <id>` e `claude stop <id>`.
-// Nada de ler ~/.claude/jobs (a documentação diz que não é estável).
+// Background sessions from Claude Code's agent view (`claude agents`, v2.1.139+).
+// Only uses the public interface: `claude agents --json --all`, `claude logs <id>` and `claude stop <id>`.
+// Never reads ~/.claude/jobs (the docs say it is not stable).
 import { z } from 'zod';
 import { execCmd, type ExecResult } from '../util/exec.js';
 
@@ -22,28 +22,28 @@ export type BgListing =
   | { available: true; sessions: BgSessionT[] }
   | { available: false; reason: string };
 
-/** IDs curtos do agent view: só letras, números e hífen, sem começar por hífen (vira argumento, nunca opção). */
+/** Short agent view IDs: only letters, digits and hyphens, not starting with a hyphen (becomes an argument, never an option). */
 export const BG_ID = /^[a-z0-9][a-z0-9-]{3,39}$/i;
 
-/** Interpreta a saída de `claude agents --json --all`. Saída que não é JSON = versão sem agent view. */
+/** Parses the output of `claude agents --json --all`. Output that is not JSON = a version without agent view. */
 export function parseBgListing(r: Pick<ExecResult, 'ok' | 'stdout' | 'stderr'>): BgListing {
   if (!r.ok && !r.stdout.trim()) {
     const msg = r.stderr.trim().split('\n')[0] ?? '';
-    return { available: false, reason: /not found|ENOENT|não é reconhecido|not recognized/i.test(msg) ? 'Claude Code não encontrado' : msg || 'falha ao rodar claude agents' };
+    return { available: false, reason: /not found|ENOENT|não é reconhecido|not recognized/i.test(msg) ? 'Claude Code not found' : msg || 'failed to run claude agents' };
   }
   const text = r.stdout.trim();
-  if (!text.startsWith('[')) return { available: false, reason: 'agent view indisponível: atualize o Claude Code (v2.1.139 ou mais novo)' };
+  if (!text.startsWith('[')) return { available: false, reason: 'agent view unavailable: update Claude Code (v2.1.139 or newer)' };
   let raw: unknown;
-  try { raw = JSON.parse(text); } catch { return { available: false, reason: 'saída inesperada de claude agents --json' }; }
+  try { raw = JSON.parse(text); } catch { return { available: false, reason: 'unexpected output from claude agents --json' }; }
   const arr = z.array(z.unknown()).safeParse(raw);
-  if (!arr.success) return { available: false, reason: 'saída inesperada de claude agents --json' };
+  if (!arr.success) return { available: false, reason: 'unexpected output from claude agents --json' };
   const sessions = arr.data.map(x => BgSession.safeParse(x)).filter(p => p.success).map(p => p.data!)
     .filter(s => s.kind === 'background' && !!s.id && BG_ID.test(s.id))
     .sort((a, b) => order(a) - order(b) || b.startedAt - a.startedAt);
   return { available: true, sessions };
 }
 
-/** Quem precisa de você primeiro, depois quem trabalha, depois o resto. */
+/** Whoever needs you first, then whoever is working, then the rest. */
 function order(s: BgSessionT): number {
   return s.state === 'blocked' ? 0 : s.state === 'working' ? 1 : s.state === 'done' ? 2 : 3;
 }
@@ -54,7 +54,7 @@ export interface ClaudeAgentsPort {
   stop(id: string): Promise<void>;
 }
 
-/** Implementação real, com cache curto para não abrir um processo a cada requisição. */
+/** Real implementation, with a short cache so it does not spawn a process on every request. */
 export class ClaudeAgents implements ClaudeAgentsPort {
   private cache: { at: number; value: BgListing } | undefined;
   constructor(private readonly bin = 'claude', private readonly run = execCmd) {}
@@ -67,13 +67,13 @@ export class ClaudeAgents implements ClaudeAgentsPort {
   }
 
   private check(id: string): void {
-    if (!BG_ID.test(id)) throw Object.assign(new Error('id de sessão inválido'), { statusCode: 400 });
+    if (!BG_ID.test(id)) throw Object.assign(new Error('invalid session id'), { statusCode: 400 });
   }
 
   async logs(id: string): Promise<string> {
     this.check(id);
     const r = await this.run(this.bin, ['logs', id], { timeoutMs: 15_000 });
-    if (!r.ok) throw Object.assign(new Error(r.stderr.trim().split('\n')[0] || 'falha ao ler os logs'), { statusCode: 502 });
+    if (!r.ok) throw Object.assign(new Error(r.stderr.trim().split('\n')[0] || 'failed to read the logs'), { statusCode: 502 });
     return r.stdout.slice(-60_000);
   }
 
@@ -81,11 +81,11 @@ export class ClaudeAgents implements ClaudeAgentsPort {
     this.check(id);
     const r = await this.run(this.bin, ['stop', id], { timeoutMs: 15_000 });
     this.cache = undefined;
-    if (!r.ok) throw Object.assign(new Error(r.stderr.trim().split('\n')[0] || 'falha ao parar a sessão'), { statusCode: 502 });
+    if (!r.ok) throw Object.assign(new Error(r.stderr.trim().split('\n')[0] || 'failed to stop the session'), { statusCode: 502 });
   }
 }
 
-/** Sessões fictícias para o modo demonstração. */
+/** Fictitious sessions for demo mode. */
 export class DemoClaudeAgents implements ClaudeAgentsPort {
   private sessions: BgSessionT[];
   constructor(now = Date.now()) {
@@ -99,7 +99,7 @@ export class DemoClaudeAgents implements ClaudeAgentsPort {
   async list(): Promise<BgListing> { return { available: true, sessions: [...this.sessions] }; }
   async logs(id: string): Promise<string> {
     const s = this.sessions.find(x => x.id === id);
-    if (!s) throw Object.assign(new Error('sessão não encontrada'), { statusCode: 404 });
+    if (!s) throw Object.assign(new Error('session not found'), { statusCode: 404 });
     return `● ${s.name}\n  Read src/simulation/installments.ts\n  Bash npm test\n  ✓ 212 passed\n${s.state === 'blocked' ? '? Allow Bash(npm run migrate)?' : ''}`;
   }
   async stop(id: string): Promise<void> {

@@ -1,9 +1,9 @@
-// Reviews pendentes: tamanho do PR e idade em dias úteis, do mais antigo para o mais novo.
+// Pending reviews: PR size and age in business days, oldest first.
 import { businessDays } from './time.js';
 
 export type PrSize = 'XS' | 'S' | 'M' | 'L' | 'XL';
 
-/** Faixas por linhas alteradas (adições + remoções). 400+ é o limite de "PR grande" dos avisos. */
+/** Bands by changed lines (additions + deletions). 400+ is the "large PR" threshold of the warnings. */
 export function prSize(additions: number, deletions: number): PrSize {
   const n = additions + deletions;
   if (n < 10) return 'XS';
@@ -16,7 +16,7 @@ export function prSize(additions: number, deletions: number): PrSize {
 export interface ReviewInput {
   url: string;
   createdAt: string;
-  /** Quando o review foi pedido a mim (se conhecido). Senão, a criação do PR. */
+  /** When the review was requested from me (if known). Otherwise, the PR creation. */
   requestedAt?: string | undefined;
   additions: number;
   deletions: number;

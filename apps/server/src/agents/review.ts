@@ -1,6 +1,7 @@
-// Review de PR por agente: prompt (com a skill de review do kit), resultado estruturado e
-// a montagem da review PENDING no GitHub (só com clique do Tech Lead; nunca aprova).
+// Agent PR review: prompt (with the kit's review skill), structured result and
+// building the PENDING review on GitHub (only on the Tech Lead's click; never approves).
 import { z } from 'zod';
+import { answerLanguage, pick, type ContentLang } from '../domain/lang.js';
 
 export const Severity = z.enum(['blocker', 'high', 'medium', 'low', 'note']);
 
@@ -23,38 +24,39 @@ export const ReviewResult = z.object({
 export type ReviewResultT = z.infer<typeof ReviewResult>;
 
 /**
- * Versão do modelo de prompt desta execução. Mude ao alterar buildReviewPrompt ou JSON_CONTRACT:
- * a qualidade (precisão dos achados) é comparada por versão.
+ * Prompt template version for this run. Bump it when changing buildReviewPrompt or JSON_CONTRACT:
+ * quality (finding precision) is compared by version.
  */
-export const REVIEW_PROMPT_VERSION = 'r1';
+export const REVIEW_PROMPT_VERSION = 'r2';
 
 const JSON_CONTRACT = `{
   "verdict": "approve" | "request_changes" | "comment",
   "readyForProd": true | false,
   "confidence": 0-100,
-  "summary": "resumo curto em português",
+  "summary": "short summary",
   "risks": ["..."],
   "blockers": ["..."],
-  "findings": [{ "severity": "blocker|high|medium|low|note", "path": "arquivo no PR", "line": 123, "title": "...", "body": "...", "suggestion": "código sugerido (opcional)" }]
+  "findings": [{ "severity": "blocker|high|medium|low|note", "path": "file in the PR", "line": 123, "title": "...", "body": "...", "suggestion": "suggested code (optional)" }]
 }`;
 
-export function buildReviewPrompt(opts: { prUrl: string; skill?: string | undefined; featContext?: string | undefined; extra?: string | undefined }): string {
+export function buildReviewPrompt(opts: { prUrl: string; skill?: string | undefined; featContext?: string | undefined; extra?: string | undefined; lang?: ContentLang | undefined }): string {
   return [
-    opts.skill ? `# Skill de review do time (siga o método e as severidades)\n\n${opts.skill}` : '',
-    opts.featContext ? `# Contexto de features (RAG)\n\n${opts.featContext}` : '',
-    `# Tarefa\n\nRevise o PR ${opts.prUrl}.`,
-    `Regras desta execução (têm prioridade sobre a skill):`,
-    `- Modo não interativo: não faça perguntas; decida com o que tiver e registre incertezas em "risks".`,
-    `- Use apenas leitura: gh pr view, gh pr diff, gh pr checks e as ferramentas do feat-map.`,
-    `- NÃO poste nada no GitHub (sem review, comentário, aprovação). O Tech Lead decide depois.`,
-    `- "line" é o número da linha no arquivo NOVO (lado direito do diff) e precisa estar dentro de um trecho alterado.`,
-    `- Não copie dados pessoais (CPF, dados bancários, dados de clientes) para a resposta.`,
-    opts.extra ? `\nObservações do Tech Lead:\n${opts.extra}` : '',
-    `\nAo terminar, responda APENAS com um bloco \`\`\`json no formato:\n${JSON_CONTRACT}`,
+    opts.skill ? `# The team's review skill (follow its method and severities)\n\n${opts.skill}` : '',
+    opts.featContext ? `# Feature context (RAG)\n\n${opts.featContext}` : '',
+    `# Task\n\nReview the PR ${opts.prUrl}.`,
+    `Rules for this run (they take precedence over the skill):`,
+    `- Non-interactive mode: do not ask questions; decide with what you have and record uncertainties in "risks".`,
+    `- Read-only: gh pr view, gh pr diff, gh pr checks and the feat-map tools.`,
+    `- Do NOT post anything on GitHub (no review, comment or approval). The Tech Lead decides later.`,
+    `- "line" is the line number in the NEW file (right side of the diff) and must be inside a changed hunk.`,
+    `- Do not copy personal data (national IDs, bank details, customer data) into the answer.`,
+    answerLanguage(opts.lang ?? 'en'),
+    opts.extra ? `\nTech Lead notes:\n${opts.extra}` : '',
+    `\nWhen you finish, answer ONLY with a \`\`\`json block in this format:\n${JSON_CONTRACT}`,
   ].filter(Boolean).join('\n\n');
 }
 
-/** Extrai o último bloco JSON válido da resposta do agente (do fim para o começo). */
+/** Extracts the last valid JSON block from the agent's answer (from the end backwards). */
 export function parseJsonBlock<T>(text: string, schema: z.ZodType<T>): { ok: true; value: T } | { ok: false; error: string } {
   const blocks = [...text.matchAll(/```(?:json)?\s*([\s\S]*?)```/g)].map(m => m[1]!);
   const candidates = blocks.length ? blocks.reverse() : [text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)];
@@ -64,14 +66,14 @@ export function parseJsonBlock<T>(text: string, schema: z.ZodType<T>): { ok: tru
       if (parsed.success) return { ok: true, value: parsed.data };
     } catch { /* tenta o próximo */ }
   }
-  return { ok: false, error: 'o agente não devolveu o JSON esperado' };
+  return { ok: false, error: 'the agent did not return the expected JSON' };
 }
 
 export const parseReviewResult = (text: string) => parseJsonBlock(text, ReviewResult);
 
 // ---------- Review PENDING ----------
 
-/** Linhas do arquivo novo (lado direito) presentes nos trechos do patch: onde o GitHub aceita comentário. */
+/** Lines of the new file (right side) present in the patch hunks: where GitHub accepts a comment. */
 export function commentableLines(patch: string | undefined): Set<number> {
   const out = new Set<number>();
   if (!patch) return out;
@@ -80,7 +82,7 @@ export function commentableLines(patch: string | undefined): Set<number> {
     const h = l.match(/^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
     if (h) { line = Number(h[1]); continue; }
     if (!line) continue;
-    if (l.startsWith('-')) continue;           // linha removida: não existe no arquivo novo
+    if (l.startsWith('-')) continue;           // removed line: does not exist in the new file
     if (l.startsWith('\\')) continue;          // "\ No newline at end of file"
     out.add(line);                              // adicionada (+) ou contexto ( )
     line++;
@@ -92,8 +94,9 @@ const SEV_LABEL: Record<z.infer<typeof Severity>, string> = { blocker: '🔴 blo
 
 export interface PendingReview { body: string; comments: Array<{ path: string; line: number; side: 'RIGHT'; body: string }>; unanchored: number }
 
-/** Monta a review PENDING: achados com linha válida viram comentário na linha; os demais vão no corpo. */
-export function buildPendingReview(result: ReviewResultT, files: Array<{ filename: string; patch?: string | undefined }>): PendingReview {
+/** Builds the PENDING review: findings with a valid line become line comments; the rest go in the body. */
+export function buildPendingReview(result: ReviewResultT, files: Array<{ filename: string; patch?: string | undefined }>, lang: ContentLang = 'en'): PendingReview {
+  const L = (en: string, pt: string) => pick(lang, en, pt);
   const lines = new Map(files.map(f => [f.filename, commentableLines(f.patch)]));
   const comments: PendingReview['comments'] = [];
   const loose: string[] = [];
@@ -103,11 +106,11 @@ export function buildPendingReview(result: ReviewResultT, files: Array<{ filenam
     else loose.push(`- ${SEV_LABEL[f.severity]} ${f.path ? `\`${f.path}${f.line ? `:${f.line}` : ''}\` ` : ''}— **${f.title}**: ${f.body}`);
   }
   const body = [
-    `**Pré-review automática (agente)** — confiança ${result.confidence}% · pronto para produção: ${result.readyForProd ? 'SIM' : 'NÃO'}`,
+    `**${L('Automatic pre-review (agent)', 'Pré-review automática (agente)')}** — ${L('confidence', 'confiança')} ${result.confidence}% · ${L('ready for production', 'pronto para produção')}: ${result.readyForProd ? L('YES', 'SIM') : L('NO', 'NÃO')}`,
     result.summary,
-    result.blockers.length ? `**Bloqueadores**\n${result.blockers.map(b => `- ${b}`).join('\n')}` : '',
-    result.risks.length ? `**Riscos**\n${result.risks.map(r => `- ${r}`).join('\n')}` : '',
-    loose.length ? `**Outros achados**\n${loose.join('\n')}` : '',
+    result.blockers.length ? `**${L('Blockers', 'Bloqueadores')}**\n${result.blockers.map(b => `- ${b}`).join('\n')}` : '',
+    result.risks.length ? `**${L('Risks', 'Riscos')}**\n${result.risks.map(r => `- ${r}`).join('\n')}` : '',
+    loose.length ? `**${L('Other findings', 'Outros achados')}**\n${loose.join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
   return { body, comments, unanchored: loose.length };
 }

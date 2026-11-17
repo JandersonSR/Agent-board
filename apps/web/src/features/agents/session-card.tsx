@@ -24,9 +24,9 @@ import { isStale } from './session-meta';
 
 const enc = encodeURIComponent;
 
-async function copy(text: string, label = k('Copiado')) {
+async function copy(text: string, label = k('Copied')) {
   try { await navigator.clipboard.writeText(text); toast.success(t(label), { description: text.length > 80 ? `${text.slice(0, 80)}…` : text }); }
-  catch { toast.error(t('Não foi possível copiar'), { description: text }); }
+  catch { toast.error(t('Could not copy'), { description: text }); }
 }
 
 const stateTone: Record<string, Tone> = { needs_you: 'danger', review: 'warning', working: 'info', idle: 'neutral', ended: 'neutral' };
@@ -39,28 +39,28 @@ function ApprovalBox({ session, approval }: { session: AgentSession; approval: A
       api.post(`/api/sessions/${enc(session.id)}/decision`, {
         requestId: approval.requestId, behavior, ...(behavior === 'deny' && reason ? { message: reason } : {}),
       }),
-    onSuccess: (_r, b) => toast.success(t(b === 'allow' ? 'Permitido' : 'Negado'), { description: agentText(approval.summary) }),
-    onError: (e: Error) => toast.error(t('Resposta não enviada'), { description: e.message }),
+    onSuccess: (_r, b) => toast.success(t(b === 'allow' ? 'Allowed' : 'Denied'), { description: agentText(approval.summary) }),
+    onError: (e: Error) => toast.error(t('Answer not sent'), { description: e.message }),
   });
   return (
     <div className="space-y-2 rounded-lg border border-danger/30 bg-danger-soft/60 p-2.5">
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-danger">
-        <ShieldAlert className="size-3.5" /> {t('Pedido de permissão')} · {ago(approval.at)}
+        <ShieldAlert className="size-3.5" /> {t('Permission request')} · {ago(approval.at)}
       </div>
       <p className="font-mono text-[12px] leading-snug break-words">{agentText(approval.summary)}</p>
       <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground" onClick={() => setShowDetail(v => !v)}>
-        {t(showDetail ? 'Ocultar detalhes' : 'Ver detalhes')}
+        {t(showDetail ? 'Hide details' : 'Show details')}
       </button>
       {showDetail && <pre className="max-h-40 overflow-auto rounded bg-background/70 p-2 font-mono text-[11px]">{approval.detail}</pre>}
       {approval.remote ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <Button size="xs" disabled={decide.isPending} onClick={() => decide.mutate('allow')}><Check /> {t('Permitir')}</Button>
-          <Button size="xs" variant="outline" disabled={decide.isPending} onClick={() => decide.mutate('deny')}><X /> {t('Negar')}</Button>
-          <Input value={reason} onChange={e => setReason(e.target.value)} placeholder={t('Motivo (o agente lê)')} maxLength={500}
-            className="h-6 min-w-32 flex-1 bg-background/70 text-xs" aria-label={t('Motivo da negação')} />
+          <Button size="xs" disabled={decide.isPending} onClick={() => decide.mutate('allow')}><Check /> {t('Allow')}</Button>
+          <Button size="xs" variant="outline" disabled={decide.isPending} onClick={() => decide.mutate('deny')}><X /> {t('Deny')}</Button>
+          <Input value={reason} onChange={e => setReason(e.target.value)} placeholder={t('Reason (the agent reads it)')} maxLength={500}
+            className="h-6 min-w-32 flex-1 bg-background/70 text-xs" aria-label={t('Reason for denying')} />
         </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground">{t('Responda no terminal: o painel não estava aberto quando o pedido chegou.')}</p>
+        <p className="text-[11px] text-muted-foreground">{t('Answer in the terminal: the board was not open when the request arrived.')}</p>
       )}
     </div>
   );
@@ -70,7 +70,7 @@ export const SessionCard = memo(function SessionCard({ session: s, editor, flash
   const [reviewOpen, setReviewOpen] = useState(false);
   const dismiss = useMutation({
     mutationFn: () => api.post(`/api/sessions/${enc(s.id)}/dismiss`),
-    onError: (e: Error) => toast.error(t('Não foi possível dispensar'), { description: e.message }),
+    onError: (e: Error) => toast.error(t('Could not dismiss'), { description: e.message }),
   });
 
   const stale = isStale(s);
@@ -91,7 +91,7 @@ export const SessionCard = memo(function SessionCard({ session: s, editor, flash
         s.state === 'review' && 'border-warning/40',
         flash && 'animate-in fade-in-0 zoom-in-95 ring-2 ring-ring',
       )}
-      aria-label={`${s.project ?? t('sessão')}: ${title ?? ''}`}
+      aria-label={`${s.project ?? t('session')}: ${title ?? ''}`}
     >
       <div className="flex items-center gap-1.5">
         <span className="truncate text-[13px] font-semibold">{s.project ?? '—'}</span>
@@ -100,7 +100,7 @@ export const SessionCard = memo(function SessionCard({ session: s, editor, flash
         {mode && <Pill tone={mode === 'bypassPermissions' ? 'danger' : 'neutral'}>{mode}</Pill>}
         <Tooltip>
           <TooltipTrigger asChild><span className="ml-auto shrink-0 text-[11px] text-muted-foreground tabular-nums">{ago(s.updatedAt)}</span></TooltipTrigger>
-          <TooltipContent>{t('Última atividade: {date}', { date: new Date(s.updatedAt).toLocaleString(locale()) })}</TooltipContent>
+          <TooltipContent>{t('Last activity: {date}', { date: new Date(s.updatedAt).toLocaleString(locale()) })}</TooltipContent>
         </Tooltip>
       </div>
 
@@ -128,7 +128,7 @@ export const SessionCard = memo(function SessionCard({ session: s, editor, flash
       )}
       {stale && (
         <div className="flex items-center gap-1.5 rounded-md bg-warning-soft px-2 py-1 text-xs text-warning">
-          <AlertTriangle className="size-3.5" /> {t('Sem atividade há {time}. Travou?', { time: ago(s.updatedAt) })}
+          <AlertTriangle className="size-3.5" /> {t('No activity for {time}. Stuck?', { time: ago(s.updatedAt) })}
         </div>
       )}
       {s.notice && <p className="rounded-md bg-info-soft px-2 py-1 text-xs text-info">{s.notice}</p>}
@@ -137,10 +137,10 @@ export const SessionCard = memo(function SessionCard({ session: s, editor, flash
         <Collapsible>
           <div className="space-y-1">
             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-              <span className="tabular-nums">{t('{done}/{total} passos', { done, total: todos.length })}</span>
+              <span className="tabular-nums">{t('{done}/{total} steps', { done, total: todos.length })}</span>
               {current && <span className="truncate font-medium text-foreground">{current.active || current.text}</span>}
               <CollapsibleTrigger asChild>
-                <Button size="icon-xs" variant="ghost" className="ml-auto" aria-label={t('Ver passos')}><ChevronDown /></Button>
+                <Button size="icon-xs" variant="ghost" className="ml-auto" aria-label={t('Show steps')}><ChevronDown /></Button>
               </CollapsibleTrigger>
             </div>
             <Progress value={(done / todos.length) * 100} className="h-1" />
@@ -160,7 +160,7 @@ export const SessionCard = memo(function SessionCard({ session: s, editor, flash
       {u && u.turns > 0 && (
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground tabular-nums">
-            <span className={cn(ctxPct >= 80 && 'font-medium text-warning')}>{t('contexto {pct}%', { pct: ctxPct })}</span>
+            <span className={cn(ctxPct >= 80 && 'font-medium text-warning')}>{t('context {pct}%', { pct: ctxPct })}</span>
             <span>{fmtTok(u.total)} tok · {fmtCost(u.cost)}</span>
             {u.model && <span className="ml-auto truncate">{u.model.replace(/^claude-/, '')}</span>}
           </div>
@@ -172,31 +172,31 @@ export const SessionCard = memo(function SessionCard({ session: s, editor, flash
 
       <div className="flex items-center gap-1 pt-0.5">
         <div className="flex min-w-0 flex-1 flex-wrap gap-x-2 text-[11px] text-muted-foreground">
-          <span>{plural(s.toolCount ?? 0, 'ação', 'ações')}</span>
-          {!!s.files?.length && <span>{plural(s.files.length, 'arquivo', 'arquivos')}</span>}
+          <span>{plural(s.toolCount ?? 0, 'action', 'actions')}</span>
+          {!!s.files?.length && <span>{plural(s.files.length, 'file', 'files')}</span>}
           {!!s.subagents && <span><Bot className="mr-0.5 inline size-3" />{s.subagents}</span>}
-          {!!s.compactions && <span>{plural(s.compactions, 'compactação', 'compactações')}</span>}
+          {!!s.compactions && <span>{plural(s.compactions, 'compaction', 'compactions')}</span>}
           {s.checkpoint && <span className="text-warning" title={s.checkpoint}>checkpoint</span>}
         </div>
         {s.cwd && (
           <Button size="xs" variant={reviewOpen ? 'secondary' : 'ghost'} onClick={() => setReviewOpen(v => !v)} aria-pressed={reviewOpen}>
-            <GitCompareArrows /> {t(reviewOpen ? 'Ocultar' : 'Mudanças')}
+            <GitCompareArrows /> {t(reviewOpen ? 'Hide' : 'Changes')}
           </Button>
         )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button size="icon-xs" variant="ghost" aria-label={t('Mais ações')}><MoreHorizontal /></Button>
+            <Button size="icon-xs" variant="ghost" aria-label={t('More actions')}><MoreHorizontal /></Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {s.cwd && <DropdownMenuItem onSelect={() => void copy(resumeCmd, k('Comando de retomada copiado'))}><Terminal /> {t(s.tool === 'cursor' ? 'Copiar "abrir no Cursor"' : 'Copiar retomada')}</DropdownMenuItem>}
-            {s.cwd && <DropdownMenuItem onSelect={() => void copy(s.cwd!, k('Pasta copiada'))}><FolderOpen /> {t('Copiar pasta')}</DropdownMenuItem>}
-            <DropdownMenuItem onSelect={() => void copy(s.id, k('ID copiado'))}><Copy /> {t('Copiar ID')}</DropdownMenuItem>
+            {s.cwd && <DropdownMenuItem onSelect={() => void copy(resumeCmd, k('Resume command copied'))}><Terminal /> {t(s.tool === 'cursor' ? 'Copy "open in Cursor"' : 'Copy resume')}</DropdownMenuItem>}
+            {s.cwd && <DropdownMenuItem onSelect={() => void copy(s.cwd!, k('Folder copied'))}><FolderOpen /> {t('Copy folder')}</DropdownMenuItem>}
+            <DropdownMenuItem onSelect={() => void copy(s.id, k('ID copied'))}><Copy /> {t('Copy ID')}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={() => dismiss.mutate()}><X /> {t('Dispensar')}</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => dismiss.mutate()}><X /> {t('Dismiss')}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <span className="sr-only">{t('Estado: {state}', { state: s.state })}</span>
+      <span className="sr-only">{t('State: {state}', { state: s.state })}</span>
       <span aria-hidden className={cn('absolute top-3 -left-px h-5 w-0.5 rounded-r', {
         'bg-danger': stateTone[s.state] === 'danger', 'bg-warning': stateTone[s.state] === 'warning', 'bg-info': stateTone[s.state] === 'info',
       })} />

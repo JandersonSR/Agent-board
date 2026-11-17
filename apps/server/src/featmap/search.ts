@@ -1,5 +1,5 @@
-// Busca de features relevantes para um item (texto + repo alvo), com orçamento de tokens.
-// Lexical e determinística de propósito: rápida, explicável ("casou em: título, repos") e testável.
+// Finds the features relevant to an item (text + target repo), within a token budget.
+// Lexical and deterministic on purpose: fast, explainable ("matched on: title, repos") and testable.
 import type { FeatHit, FeatPack } from './types.js';
 
 const STOP = new Set([
@@ -31,20 +31,20 @@ function fieldTokens(p: FeatPack): Record<Field, Set<string>> {
   };
 }
 
-/** Normaliza "core", "REPO-CORE", "beta-worker" para comparar com pack.repos. */
+/** Normalizes "core", "REPO-CORE", "beta-worker" to compare with pack.repos. */
 const repoKey = (s: string) => s.toUpperCase().replace(/^REPO-/, '').replace(/[^A-Z0-9]+/g, '-');
 
-/** Glob simples (* e ?) sem diferenciar maiúsculas. */
+/** Simple glob (* and ?), case-insensitive. */
 export function globMatch(pattern: string, value: string): boolean {
   const re = new RegExp(`^${pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, 'i');
   return re.test(value);
 }
 
 /**
- * Quais RAGs valem para um repo alvo:
- * - RAGs com rota só valem para repos que casam com a rota;
- * - se o repo casa com alguma rota, usa só esses RAGs;
- * - senão, usa os RAGs sem rota. Sem repo: todos.
+ * Which RAGs apply to a target repo:
+ * - RAGs with a route only apply to repos matching the route;
+ * - if the repo matches some route, only those RAGs are used;
+ * - otherwise, the RAGs without a route are used. No repo: all of them.
  */
 export function mapsForRepo(all: string[], routes: Array<{ name: string; patterns: string[] }>, repo?: string): string[] {
   if (!repo) return all;
@@ -75,13 +75,13 @@ export function searchPacks(packs: FeatPack[], query: string, opts: SearchOption
         }
       }
     }
-    // O repo alvo só reforça um pack que já casou com o texto; sozinho não basta.
+    // The target repo only boosts a pack that already matched the text; on its own it is not enough.
     if (score === 0) continue;
     if (target && p.repos.some(r => repoKey(r) === target)) { score += 3; matched.add('repo alvo'); }
     hits.push({ pack: p, score, matched: [...matched] });
   }
   hits.sort((a, b) => b.score - a.score || a.pack.tokens - b.pack.tokens);
-  // Descarta cauda fraca: abaixo de 35% do melhor (mínimo 3 pontos).
+  // Drops the weak tail: below 35% of the best (minimum 3 points).
   const floor = Math.max(3, (hits[0]?.score ?? 0) * 0.35);
   const strong = hits.filter(h => h.score >= floor);
 

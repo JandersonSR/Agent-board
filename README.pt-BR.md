@@ -173,7 +173,7 @@ O painel lê o Discord por um bot privado com permissões **só de leitura**. El
 
 Por padrão o painel guarda os dados num arquivo SQLite local (`~/.agent-board/data.db`, ou `AGENT_BOARD_DB`). Sem servidor e sem instalar nada. Preencha `MONGO_URI` (ou `MONGO_DATABASE_*`) para usar MongoDB, por exemplo para compartilhar os dados entre máquinas.
 
-O painel só escreve nas próprias coleções, `painel_resumos`, `painel_sessoes`, `painel_prs`, `painel_incidentes`, `painel_decisoes`, `painel_iniciativas` e `painel_avaliacoes`, e o código impõe isso com uma lista permitida. Com MongoDB, use um banco e um usuário só do painel.
+O painel só escreve nas próprias coleções, `deck_summaries`, `deck_runs`, `deck_prs`, `deck_incidents`, `deck_decisions`, `deck_initiatives` e `deck_evals`, e o código impõe isso com uma lista permitida. Com MongoDB, use um banco e um usuário só do painel.
 
 ### RAGs de features e skills
 
@@ -277,7 +277,7 @@ A tela **Infra** (`G S`) mostra seus servidores e apps, os alertas disparados e 
 - **Incidente a partir do alerta:** alerta crítico num recurso de produção (nome que casa com `INFRA_PROD_RE`, padrão `prod|production|prd`) abre um incidente SEV2 com o alerta e o deploy suspeito na linha do tempo, no máximo 5 por hora (`INFRA_AUTO_INCIDENT=off` desliga). Quando o alerta some, o incidente fica **mitigado**; resolver e escrever o postmortem continua com você. Qualquer outro alerta vira incidente com um clique.
 - **DORA real:** deploys de produção bem-sucedidos do Heroku e do DigitalOcean substituem as datas das issues na frequência de deploy, e o tempo de recuperação conta até a mitigação.
 - **Bloco Atenção** em Hoje: alertas críticos, avisos e recursos fora do ar.
-- **Linha do tempo** de mudanças de estado, alertas e deploys de 24 horas, 7 ou 30 dias (guardada em `painel_eventos`).
+- **Linha do tempo** de mudanças de estado, alertas e deploys de 24 horas, 7 ou 30 dias (guardada em `deck_events`).
 
 Se um provedor não responder, o último estado conhecido é mantido e o erro aparece no chip dele; uma leitura que falhou nunca resolve alertas. Os textos gerados seguem `INFRA_LANG` (`pt-BR` ou `en`).
 
@@ -323,7 +323,7 @@ Variáveis de ambiente reais têm prioridade sobre o `.env`. Reinicie o servidor
 
 A interface existe em **português (Brasil)** e **inglês**. Na primeira visita, ela segue o idioma do navegador. Troque quando quiser pelo botão **PT/EN** no topo, pelo atalho `L` ou em **Configuração → Idioma**.
 
-Textos escritos por pessoas e ferramentas (títulos de issues, mensagens da daily, respostas dos agentes) ficam no idioma original.
+Textos escritos por pessoas e ferramentas (títulos de issues, mensagens da daily) ficam no idioma original. Textos que o painel escreve sozinho — respostas dos agentes (reviews, planos), o corpo da review PENDING e do PR em rascunho no GitHub, títulos de alertas e linhas do tempo de incidentes — seguem `CONTENT_LANG` (`en` por padrão, ou `pt-BR`).
 
 
 ---
@@ -353,7 +353,7 @@ tldeck/
 └── .env.example
 ```
 
-**Texto novo na interface:** escreva o texto em português dentro de `t('…')` (ou `k('…')` em constantes) e adicione a versão em inglês em `apps/web/src/lib/i18n-en.ts`. Um teste falha se algum texto ficar sem tradução ou se as `{variáveis}` forem diferentes.
+**Texto novo na interface:** escreva o texto em inglês dentro de `t('…')` (ou `k('…')` em constantes) e adicione a versão em português em `apps/web/src/lib/i18n-pt.ts`. Quando dois textos são iguais em inglês mas não em português, use um sufixo de contexto: `t('Open|decisions')` mostra "Open". Um teste falha se algum texto ficar sem tradução ou se as `{variáveis}` forem diferentes.
 
 O servidor anterior, de arquivo único, continua disponível como `npm run start:legacy` até ser removido.
 

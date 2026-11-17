@@ -1,18 +1,18 @@
-// Daily do time: interpreta o formato do time e resume o dia.
-// Formato esperado (com tolerância a variações):
+// Team daily: parses the team's format and summarizes the day.
+// Expected format (tolerant to variations):
 //   Bom dia @equipe
 //   ## Ontem - <dia> (YYYY-MM-DD)   -> itens
 //   ## Hoje - <dia> (YYYY-MM-DD)    -> itens
-//   ## Bloqueios                     -> "- nenhum" ou "- #123 descrição (desde 09:30) — depende de @pessoa"
+//   ## Bloqueios                     -> "- nenhum" or "- #123 description (desde 09:30) — depende de @person"
 //   Confiança: N/5
-// Sem as seções explícitas, bloqueios são detectados por palavras-chave (fallback).
+// Without explicit sections, blockers are detected by keywords (fallback).
 
 export interface DailyBlocker {
   text: string;
   issue?: string | undefined;
   since?: string | undefined;     // "HH:MM" como escrito
   dependsOn?: string | undefined; // "@pessoa"
-  inferred: boolean;              // true = veio de palavra-chave, não da seção
+  inferred: boolean;              // true = came from a keyword, not from the section
 }
 
 export interface ParsedDaily {
@@ -29,11 +29,11 @@ const NONE = /^(nenhum|nenhuma|nada|n\/a|-|—|sem bloqueios?)\.?$/i;
 const SECTION_WORD = /^(ontem|sexta(?:-feira)?|hoje|bloqueios?|impedimentos?)\b/i;
 
 /**
- * Uma linha é cabeçalho de seção quando:
- *  - começa com "#" ("## Hoje - segunda-feira (2026-11-16)"), ou
- *  - está em negrito ("**Hoje**"), ou
- *  - é um rótulo curto seguido de ":" ("Ontem:", "Hoje (16/11):", "Bloqueios: nenhum").
- * Assim "Hoje vou corrigir o bug" (item sem marcador) não vira cabeçalho.
+ * A line is a section header when:
+ *  - it starts with "#" ("## Hoje - segunda-feira (2026-11-16)"), or
+ *  - it is bold ("**Hoje**"), or
+ *  - it is a short label followed by ":" ("Ontem:", "Hoje (16/11):", "Bloqueios: nenhum").
+ * That way "Hoje vou corrigir o bug" (an item without a bullet) does not become a header.
  */
 function sectionOf(line: string): 'yesterday' | 'today' | 'blockers' | null {
   const t = line.trim();
@@ -73,7 +73,7 @@ export function parseDaily(content: string): ParsedDaily {
     if (sec) {
       section = sec;
       if (sec === 'blockers') explicitBlockers = true;
-      // "Bloqueios: nenhum" na mesma linha
+      // "Bloqueios: nenhum" on the same line
       const inline = trimmed.split(':').slice(1).join(':').trim();
       if (sec === 'blockers' && inline && !NONE.test(inline)) out.blockers.push(parseBlockerLine(inline));
       continue;
@@ -94,7 +94,7 @@ export function parseDaily(content: string): ParsedDaily {
   return out;
 }
 
-// ---------- Resumo do dia ----------
+// ---------- Day summary ----------
 
 export interface DailyMessage { id: string; authorId: string; content: string; timestamp: string; url?: string | undefined }
 export interface TeamMember { id: string; name: string }
@@ -106,12 +106,12 @@ export interface PersonDaily {
   messageUrl?: string | undefined;
   parsed?: ParsedDaily | undefined;
   lowConfidence: boolean;
-  /** Mudanças em relação à daily anterior da mesma pessoa. */
+  /** Changes compared with the same person's previous daily. */
   changes: { newBlockers: DailyBlocker[]; resolvedBlockers: DailyBlocker[]; confidenceDelta?: number | undefined };
 }
 
 export interface DailySummary {
-  day: string; // YYYY-MM-DD (fuso do time)
+  day: string; // YYYY-MM-DD (team time zone)
   people: PersonDaily[];
   missing: TeamMember[];
   lowConfidence: PersonDaily[];
@@ -121,13 +121,13 @@ export interface DailySummary {
 
 const blockerKey = (b: DailyBlocker) => (b.issue ? `#${b.issue}` : b.text.toLowerCase().replace(/\s+/g, ' ').slice(0, 60));
 
-/** Dia local (YYYY-MM-DD) para um timestamp, dado o offset do fuso em minutos (BRT = -180). */
+/** Local day (YYYY-MM-DD) for a timestamp, given the time zone offset in minutes (BRT = -180). */
 export const localDay = (iso: string | number, tzOffsetMin: number) =>
   new Date((typeof iso === 'number' ? iso : Date.parse(iso)) + tzOffsetMin * 60_000).toISOString().slice(0, 10);
 
 /**
- * Junta as mensagens do canal da daily: para cada pessoa do time, a última daily de hoje
- * e a última de um dia anterior (para calcular o que mudou).
+ * Groups the daily channel messages: for each team member, today's latest daily
+ * and the latest one from an earlier day (to work out what changed).
  */
 export function summarizeDaily(messages: DailyMessage[], team: TeamMember[], now: number, tzOffsetMin = -180): DailySummary {
   const today = localDay(now, tzOffsetMin);

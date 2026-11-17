@@ -1,11 +1,11 @@
-// CRUD simples sobre uma coleção PRÓPRIA do painel (a allowlist de mongo.ts vale aqui também).
+// Simple CRUD over one of the deck's OWN collections (the allowlist in store.ts applies here too).
 import { ObjectId, type Document, type Filter, type Sort } from 'mongodb';
-import type { OwnCollection, PainelStore } from './mongo.js';
+import type { OwnCollection, DeckStore } from './store.js';
 
 export const isId = (id: string) => ObjectId.isValid(id) && String(new ObjectId(id)) === id.toLowerCase();
 
 export class DocRepo<T extends Document> {
-  constructor(private readonly store: PainelStore, private readonly name: OwnCollection) {}
+  constructor(private readonly store: DeckStore, private readonly name: OwnCollection) {}
   get col() { return this.store.collection<Document>(this.name); }
 
   async list(filter: Filter<T> = {}, sort: Sort = { updatedAt: -1 }, limit = 500): Promise<Array<T & { _id: ObjectId }>> {
@@ -31,7 +31,7 @@ export class DocRepo<T extends Document> {
   }
 }
 
-/** Mascara campos de texto (string ou lista de strings) de um objeto raso. */
+/** Masks the text fields (string or list of strings) of a flat object. */
 export function maskFields<T extends Record<string, unknown>>(obj: T, keys: Array<keyof T>, mask: (s: string) => string): T {
   const out = { ...obj };
   for (const k of keys) {

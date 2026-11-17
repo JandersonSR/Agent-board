@@ -1,8 +1,8 @@
-// Bloqueios abertos do time: quem está travado, há quanto tempo e em qual tarefa.
-// Fontes: (1) seção "Bloqueios" das dailies — um bloqueio está aberto enquanto aparece na
-// daily mais recente da pessoa; "desde" = primeira daily consecutiva em que apareceu (ou o
-// "(desde HH:MM)" escrito); (2) mensagens nos canais observados com palavras de bloqueio,
-// fechadas quando o autor escreve depois uma mensagem de resolução.
+// The team's open blockers: who is stuck, for how long and on which task.
+// Sources: (1) the "Blockers" section of the dailies — a blocker is open while it shows up in the
+// person's latest daily; "since" = the first consecutive daily where it appeared (or the
+// "(since HH:MM)" written); (2) messages in the watched channels with blocker words,
+// closed when the author later writes a resolution message.
 import { localDay, parseDaily, type DailyBlocker, type DailyMessage, type TeamMember } from './daily.js';
 
 export interface OpenBlocker {
@@ -22,7 +22,7 @@ export interface OpenBlocker {
 const keyOf = (b: Pick<DailyBlocker, 'issue' | 'text'>) =>
   b.issue ? `#${b.issue}` : b.text.toLowerCase().replace(/[^\p{L}\p{N} ]/gu, '').replace(/\s+/g, ' ').slice(0, 50);
 
-/** Converte "HH:MM" escrito no dia local da mensagem para ISO (fuso do time). */
+/** Converts a written "HH:MM" on the message's local day to ISO (team time zone). */
 function sinceFromText(hhmm: string, messageIso: string, tzOffsetMin: number): string | undefined {
   const m = hhmm.match(/^(\d{1,2}):(\d{2})$/);
   if (!m) return undefined;
@@ -44,7 +44,7 @@ export function blockersFromDailies(messages: DailyMessage[], team: TeamMember[]
 
     for (const b of latest.d.blockers) {
       const key = keyOf(b);
-      // Volta no histórico enquanto a pessoa continuou reportando o mesmo bloqueio.
+      // Walks back through the history while the person kept reporting the same blocker.
       let first = latest;
       for (let i = dailies.length - 2; i >= 0; i--) {
         const prev = dailies[i]!;
@@ -85,7 +85,7 @@ export function blockersFromChannels(messages: ChannelMessage[], team: TeamMembe
   return out;
 }
 
-/** Junta as fontes, remove duplicados (mesma pessoa + mesma issue) e ordena do mais antigo. */
+/** Merges the sources, removes duplicates (same person + same issue) and sorts from the oldest. */
 export function mergeBlockers(...lists: OpenBlocker[][]): OpenBlocker[] {
   const seen = new Map<string, OpenBlocker>();
   for (const b of lists.flat()) {

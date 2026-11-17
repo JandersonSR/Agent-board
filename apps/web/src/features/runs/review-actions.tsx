@@ -1,4 +1,4 @@
-// Ações de review por LLM num PR: em segundo plano (com prévia do prompt), terminal ou Cursor.
+// LLM review actions on a PR: in the background (with a prompt preview), terminal or Cursor.
 import { useState } from 'react';
 import { Bot, Loader2, MousePointerClick, ShieldCheck, Sparkles, SquareTerminal } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,46 +29,46 @@ export function ReviewActions({ url, title, onStarted }: { url: string; title: s
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="icon-xs" variant="ghost" aria-label={t('Review por IA de {title}', { title })} onClick={e => e.stopPropagation()}><Sparkles /></Button>
+          <Button size="icon-xs" variant="ghost" aria-label={t('AI review of {title}', { title })} onClick={e => e.stopPropagation()}><Sparkles /></Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-60" onClick={e => e.stopPropagation()}>
-          <DropdownMenuLabel className="text-xs">{t('Review por IA')}</DropdownMenuLabel>
-          <DropdownMenuItem onSelect={openPreview}><Bot /> {t('Revisar com Claude (segundo plano)')}</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => terminal.mutate(url)}><SquareTerminal /> {t('Abrir no terminal (Claude)')}</DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => cursor.mutate(url)}><MousePointerClick /> {t('Abrir no Cursor')}</DropdownMenuItem>
+          <DropdownMenuLabel className="text-xs">{t('AI review')}</DropdownMenuLabel>
+          <DropdownMenuItem onSelect={openPreview}><Bot /> {t('Review with Claude (background)')}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => terminal.mutate(url)}><SquareTerminal /> {t('Open in terminal (Claude)')}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => cursor.mutate(url)}><MousePointerClick /> {t('Open in Cursor')}</DropdownMenuItem>
           <DropdownMenuSeparator />
-          <p className="px-2 pb-1 text-[11px] text-muted-foreground">{t('Nada é postado no GitHub sem o seu clique.')}</p>
+          <p className="px-2 pb-1 text-[11px] text-muted-foreground">{t('Nothing is posted to GitHub without your click.')}</p>
         </DropdownMenuContent>
       </DropdownMenu>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Bot className="size-4" /> {t('Review com Claude')}</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Bot className="size-4" /> {t('Review with Claude')}</DialogTitle>
             <DialogDescription>
-              <Mono>{url.replace('https://github.com/', '')}</Mono> · {t('o agente só lê o PR (gh pr view/diff) e o feat-map; não posta nada.')}
+              <Mono>{url.replace('https://github.com/', '')}</Mono> · {t('the agent only reads the PR (gh pr view/diff) and the feat-map; it posts nothing.')}
             </DialogDescription>
           </DialogHeader>
           {preview.isPending ? (
-            <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t('Montando o prompt (skill + features do RAG)…')}</div>
+            <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t('Building the prompt (skill + RAG features)…')}</div>
           ) : preview.error ? (
             <p className="text-sm text-danger">{(preview.error as Error).message}</p>
           ) : (
             <div className="flex min-h-0 flex-1 flex-col gap-2">
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <ShieldCheck className="size-3.5 text-success" />
-                <span>{preview.data?.masked ? t('{n} dado(s) mascarado(s)', { n: preview.data.masked }) : t('nenhum dado pessoal detectado')}</span>
+                <span>{preview.data?.masked ? t('{n} item(s) masked', { n: preview.data.masked }) : t('no personal data detected')}</span>
                 {preview.data?.features.length ? <><span className="text-muted-foreground">· {t('features:')}</span>{preview.data.features.map(f => <Pill key={f} tone="info">{f}</Pill>)}</> : null}
               </div>
-              <Textarea value={prompt} onChange={e => setPrompt(e.target.value)} aria-label={t('Prompt da review')}
+              <Textarea value={prompt} onChange={e => setPrompt(e.target.value)} aria-label={t('Review prompt')}
                 className="min-h-72 flex-1 resize-none font-mono text-[11px] leading-relaxed" />
-              <p className="text-[11px] text-muted-foreground">{t('Você pode editar. O texto passa de novo pelo mascaramento antes de ir ao modelo.')}</p>
+              <p className="text-[11px] text-muted-foreground">{t('You can edit it. The text is masked again before it goes to the model.')}</p>
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setOpen(false)}>{t('Cancelar')}</Button>
+            <Button variant="ghost" onClick={() => setOpen(false)}>{t('Cancel')}</Button>
             <Button disabled={!prompt || start.isPending} onClick={() => start.mutate({ url, title, prompt })}>
-              {start.isPending ? <Loader2 className="animate-spin" /> : <Bot />} {t('Rodar review')}
+              {start.isPending ? <Loader2 className="animate-spin" /> : <Bot />} {t('Run review')}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -12,15 +12,15 @@ import type { CheckState, Health } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { FeatMapsPanel } from './featmaps-panel';
 
-// O servidor devolve os textos das integrações no idioma pedido.
+// The server returns the integration texts in the language asked for.
 export const useHealth = () => useQuery({ queryKey: ['health', getLang()], queryFn: () => api.get<Health>(`/api/health?lang=${getLang()}`), refetchInterval: 60_000 });
 
-// label é chave de tradução (texto em português).
+// label is a translation key (English text).
 const stateIcon: Record<CheckState, { icon: typeof CheckCircle2; cls: string; label: string }> = {
   ok: { icon: CheckCircle2, cls: 'text-success', label: k('OK') },
-  warn: { icon: TriangleAlert, cls: 'text-warning', label: k('Atenção') },
-  off: { icon: MinusCircle, cls: 'text-muted-foreground', label: k('Não configurado') },
-  error: { icon: XCircle, cls: 'text-danger', label: k('Erro') },
+  warn: { icon: TriangleAlert, cls: 'text-warning', label: k('Attention') },
+  off: { icon: MinusCircle, cls: 'text-muted-foreground', label: k('Not configured') },
+  error: { icon: XCircle, cls: 'text-danger', label: k('Error') },
 };
 
 export interface PrefsProps {
@@ -58,15 +58,15 @@ export function SettingsView(p: PrefsProps) {
       <div className="space-y-4">
       <section className="rounded-xl border bg-card shadow-xs">
         <header className="flex items-center gap-2 border-b px-4 py-3">
-          <h2 className="text-sm font-semibold">{t('Integrações')}</h2>
-          <span className="text-xs text-muted-foreground">{t('segredos nunca são exibidos')}</span>
+          <h2 className="text-sm font-semibold">{t('Integrations')}</h2>
+          <span className="text-xs text-muted-foreground">{t('secrets are never shown')}</span>
           <Button size="xs" variant="ghost" className="ml-auto" disabled={refreshing}
             onClick={() => void qc.fetchQuery({ queryKey: ['health', getLang()], queryFn: () => api.get<Health>(`/api/health?fresh=1&lang=${getLang()}`) })}>
-            {refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />} {t('Verificar de novo')}
+            {refreshing ? <Loader2 className="animate-spin" /> : <RefreshCw />} {t('Check again')}
           </Button>
         </header>
         <ul className="divide-y">
-          {health.isLoading && <li className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t('Verificando…')}</li>}
+          {health.isLoading && <li className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> {t('Checking…')}</li>}
           {health.data?.checks.map(c => {
             const s = stateIcon[c.state];
             return (
@@ -87,59 +87,59 @@ export function SettingsView(p: PrefsProps) {
 
       <div className="space-y-4">
         <section className="rounded-xl border bg-card px-4 shadow-xs">
-          <h2 className="border-b py-3 text-sm font-semibold">{t('Preferências')}</h2>
+          <h2 className="border-b py-3 text-sm font-semibold">{t('Preferences')}</h2>
           <div className="divide-y">
-            <Row label={k('Idioma')} hint={k('Português ou inglês. Atalho: L.')}>
+            <Row label={k('Language')} hint={k('Portuguese or English. Shortcut: L.')}>
               <Select value={p.lang} onValueChange={v => p.setLang(v as Lang)}>
                 <SelectTrigger size="sm" className="w-44"><SelectValue /></SelectTrigger>
                 <SelectContent>{LANGS.map(l => <SelectItem key={l.id} value={l.id}>{l.label}</SelectItem>)}</SelectContent>
               </Select>
             </Row>
-            <Row label={k('Tema')}>
+            <Row label={k('Theme')}>
               <Select value={p.theme} onValueChange={v => p.setTheme(v as ThemePref)}>
                 <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="system">{t('Sistema')}</SelectItem><SelectItem value="light">{t('Claro')}</SelectItem><SelectItem value="dark">{t('Escuro')}</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="system">{t('System')}</SelectItem><SelectItem value="light">{t('Light')}</SelectItem><SelectItem value="dark">{t('Dark')}</SelectItem></SelectContent>
               </Select>
             </Row>
-            <Row label={k('Densidade')} hint={k('Compacta mostra mais linhas por bloco.')}>
+            <Row label={k('Density')} hint={k('Compact shows more rows per block.')}>
               <Select value={p.density} onValueChange={v => p.setDensity(v as Density)}>
                 <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="comfortable">{t('Confortável')}</SelectItem><SelectItem value="compact">{t('Compacta')}</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="comfortable">{t('Comfortable')}</SelectItem><SelectItem value="compact">{t('Compact')}</SelectItem></SelectContent>
               </Select>
             </Row>
-            <Row label={k('Editor')} hint={k('Usado nos links de arquivo do diff.')}>
+            <Row label={k('Editor')} hint={k('Used for file links in the diff.')}>
               <Select value={p.editor} onValueChange={p.setEditor}>
                 <SelectTrigger size="sm" className="w-36"><SelectValue /></SelectTrigger>
                 <SelectContent><SelectItem value="cursor">Cursor</SelectItem><SelectItem value="vscode">VS Code</SelectItem></SelectContent>
               </Select>
             </Row>
-            <Row label={k('Notificações no desktop')} hint={k('Quando um agente precisa de você ou fica pronto para revisar.')}>
-              <Switch checked={p.notify} onCheckedChange={v => void requestNotify(v)} aria-label={t('Notificações no desktop')} />
+            <Row label={k('Desktop notifications')} hint={k('When an agent needs you or is ready for review.')}>
+              <Switch checked={p.notify} onCheckedChange={v => void requestNotify(v)} aria-label={t('Desktop notifications')} />
             </Row>
           </div>
         </section>
 
         {health.data && (
           <section className="rounded-xl border bg-card px-4 py-3 shadow-xs">
-            <h2 className="flex items-center gap-2 text-sm font-semibold"><Gauge className="size-4 text-muted-foreground" /> {t('Limites de custo')}</h2>
+            <h2 className="flex items-center gap-2 text-sm font-semibold"><Gauge className="size-4 text-muted-foreground" /> {t('Cost limits')}</h2>
             <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-              <dt className="text-muted-foreground">{t('Sessões simultâneas')}</dt><dd className="text-right tabular-nums">{health.data.limits.maxConcurrent}</dd>
-              <dt className="text-muted-foreground">{t('Tempo máximo por sessão')}</dt><dd className="text-right tabular-nums">{health.data.limits.timeoutMin} min</dd>
-              <dt className="text-muted-foreground">{t('Execuções por dia')}</dt><dd className="text-right tabular-nums">{health.data.limits.maxDailyRuns}</dd>
-              <dt className="text-muted-foreground">{t('Atualização automática')}</dt><dd className="text-right tabular-nums">{health.data.limits.pollIntervalMin} min</dd>
+              <dt className="text-muted-foreground">{t('Concurrent sessions')}</dt><dd className="text-right tabular-nums">{health.data.limits.maxConcurrent}</dd>
+              <dt className="text-muted-foreground">{t('Max time per session')}</dt><dd className="text-right tabular-nums">{health.data.limits.timeoutMin} min</dd>
+              <dt className="text-muted-foreground">{t('Runs per day')}</dt><dd className="text-right tabular-nums">{health.data.limits.maxDailyRuns}</dd>
+              <dt className="text-muted-foreground">{t('Auto refresh')}</dt><dd className="text-right tabular-nums">{health.data.limits.pollIntervalMin} min</dd>
             </dl>
-            <p className="mt-2 text-[11px] text-muted-foreground">{t('Altere no')} <Mono className="text-[11px]">.env</Mono> {t('e reinicie o servidor.')}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">{t('Change it in')} <Mono className="text-[11px]">.env</Mono> {t('and restart the server.')}</p>
           </section>
         )}
 
         <section className="rounded-xl border bg-card px-4 py-3 shadow-xs">
-          <h2 className="flex items-center gap-2 text-sm font-semibold"><CircleDashed className="size-4 text-muted-foreground" /> {t('Bot do Discord (somente leitura)')}</h2>
+          <h2 className="flex items-center gap-2 text-sm font-semibold"><CircleDashed className="size-4 text-muted-foreground" /> {t('Discord bot (read-only)')}</h2>
           <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs leading-relaxed text-muted-foreground">
             <li>Developer Portal → <b className="text-foreground">New Application</b>.</li>
-            <li>{t('Aba Bot:')} <b className="text-foreground">Reset Token</b> → <Mono className="text-[11px]">DISCORD_BOT_TOKEN</Mono>; {t('ative')} <b className="text-foreground">Message Content Intent</b>; {t('desative Public Bot.')}</li>
-            <li>OAuth2 → URL Generator: scope <Mono className="text-[11px]">bot</Mono>, {t('permissões')} <b className="text-foreground">{t('só')}</b> View Channels + Read Message History.</li>
-            <li>{t('Um admin abre a URL e adiciona o bot ao servidor.')}</li>
-            <li>{t('Modo desenvolvedor → Copiar ID dos canais e do seu usuário →')} <Mono className="text-[11px]">.env</Mono>.</li>
+            <li>{t('Bot tab:')} <b className="text-foreground">Reset Token</b> → <Mono className="text-[11px]">DISCORD_BOT_TOKEN</Mono>; {t('turn on')} <b className="text-foreground">Message Content Intent</b>; {t('turn off Public Bot.')}</li>
+            <li>OAuth2 → URL Generator: scope <Mono className="text-[11px]">bot</Mono>, {t('permissions')} <b className="text-foreground">{t('only')}</b> View Channels + Read Message History.</li>
+            <li>{t('An admin opens the URL and adds the bot to the server.')}</li>
+            <li>{t('Developer mode → Copy the channel IDs and your user ID →')} <Mono className="text-[11px]">.env</Mono>.</li>
           </ol>
         </section>
       </div>

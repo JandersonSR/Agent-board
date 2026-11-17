@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Painel local: lê as sessões gravadas pelo hook e empurra mudanças para o navegador via SSE.
+// Local deck: reads the sessions the hook writes and pushes changes to the browser over SSE.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -10,18 +10,18 @@ const { launch } = require('./lib/launch');
 const { computeMetrics } = require('./lib/metrics');
 
 const PORT = Number(process.env.AGENT_BOARD_PORT || 9999);
-const HOST = '127.0.0.1'; // só na sua máquina: o estado inclui caminhos e prompts
+const HOST = '127.0.0.1'; // only on your machine: the state includes paths and prompts
 const PAGE = path.join(__dirname, 'public', 'index.html');
 const APPROVAL_WAIT = Number(process.env.AGENT_BOARD_APPROVAL_WAIT || 120);
 
 fs.mkdirSync(store.SESSIONS, { recursive: true });
 
 const readSessions = () => store.readDir(store.SESSIONS).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-// Sessão com pasta existente (um worktree removido não deve virar "spawn git ENOENT").
+// Session with an existing folder (a removed worktree must not become "spawn git ENOENT").
 function findSession(id) {
   const s = store.readJson(store.sessionFile(id)) || store.readJson(path.join(store.HISTORY, store.safeId(id) + '.json'));
-  if (!s || !s.cwd) throw Object.assign(new Error('sessão sem pasta'), { status: 404 });
-  if (!fs.existsSync(s.cwd)) throw Object.assign(new Error(`pasta não existe mais: ${s.cwd}`), { status: 404 });
+  if (!s || !s.cwd) throw Object.assign(new Error('session without a folder'), { status: 404 });
+  if (!fs.existsSync(s.cwd)) throw Object.assign(new Error(`folder no longer exists: ${s.cwd}`), { status: 404 });
   return s;
 }
 
@@ -39,14 +39,14 @@ const schedule = () => { clearTimeout(timer); timer = setTimeout(() => broadcast
 try { fs.watch(store.SESSIONS, schedule); } catch { /* sem watch: o polling abaixo cobre */ }
 setInterval(() => broadcast(), 3000);
 
-// Batimento: o hook só espera aprovação pelo painel quando há uma aba aberta.
+// Heartbeat: the hook only waits for approval on the deck when a tab is open.
 const heartbeat = () => {
   try { store.writeJson(path.join(store.ROOT, 'server.json'), { pid: process.pid, port: PORT, clients: clients.size, at: Date.now() }); } catch {}
 };
 setInterval(heartbeat, 5000);
 setInterval(() => { for (const res of clients) res.write(': ping\n\n'); }, 25000);
 
-// Dispensar não apaga: arquiva em history/ para as métricas.
+// Dismissing does not delete: it archives into history/ for the metrics.
 function archive(id) {
   const file = store.sessionFile(id);
   const s = store.readJson(file);
@@ -63,14 +63,14 @@ function readBody(req) {
   return new Promise((resolve, reject) => {
     let size = 0; const chunks = [];
     req.on('data', c => { size += c.length; if (size > 64 * 1024) { reject(new Error('corpo grande demais')); req.destroy(); } else chunks.push(c); });
-    req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); } catch { reject(new Error('JSON inválido')); } });
+    req.on('end', () => { try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); } catch { reject(new Error('invalid JSON')); } });
     req.on('error', reject);
   });
 }
 
-// Proteções para um servidor em localhost:
-// - Host fixo bloqueia DNS rebinding (um site se passando por localhost);
-// - escritas exigem o cabeçalho X-Agent-Board, que nenhum outro site consegue enviar sem preflight CORS.
+// Protections for a server on localhost:
+// - A fixed Host blocks DNS rebinding (a site posing as localhost);
+// - writes require the X-Agent-Board header, which no other website can send without a CORS preflight.
 const LOCAL_HOST = new RegExp(`^(127\\.0\\.0\\.1|localhost):${PORT}$`);
 const LOCAL_ORIGIN = new RegExp(`^http://(127\\.0\\.0\\.1|localhost):${PORT}$`);
 function allowed(req) {
@@ -101,7 +101,7 @@ const routes = [
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/diff$/, async (req, res, id) => {
     const s = findSession(id);
-    send(res, 200, (await gitlib.diffSummary(s.cwd)) || { error: 'não é um repositório git' });
+    send(res, 200, (await gitlib.diffSummary(s.cwd)) || { error: 'not a git repository' });
   }],
   ['GET', /^\/api\/sessions\/([\w-]+)\/patch$/, async (req, res, id, url) => {
     const s = findSession(id);
@@ -126,8 +126,8 @@ const routes = [
     const { requestId, behavior, message } = await readBody(req);
     const s = store.readJson(store.sessionFile(id));
     const pending = s && (s.approvals || []).find(a => a.requestId === requestId && a.remote);
-    if (!pending) return send(res, 409, { error: 'pedido já respondido ou expirado' });
-    if (!['allow', 'deny'].includes(behavior)) return send(res, 400, { error: 'behavior inválido' });
+    if (!pending) return send(res, 409, { error: 'request already answered or expired' });
+    if (!['allow', 'deny'].includes(behavior)) return send(res, 400, { error: 'invalid behavior' });
     store.writeJson(store.decisionFile(id, requestId),
       { requestId, behavior, message: message ? String(message).slice(0, 500) : undefined, at: Date.now() });
     send(res, 200, { ok: true });
@@ -140,7 +140,7 @@ const routes = [
     }));
   }],
   ['GET', /^\/api\/repos$/, (req, res) => {
-    // Pastas recentes, para sugerir no formulário de nova tarefa.
+    // Recent folders, to suggest in the new task form.
     const all = [...readSessions(), ...store.readDir(store.HISTORY)].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     send(res, 200, [...new Set(all.map(s => s.cwd).filter(Boolean))].slice(0, 30));
   }],
@@ -152,7 +152,7 @@ const routes = [
 ];
 
 const server = http.createServer(async (req, res) => {
-  if (!allowed(req)) return send(res, 403, { error: 'origem não permitida' });
+  if (!allowed(req)) return send(res, 403, { error: 'origin not allowed' });
   const url = new URL(req.url, `http://${req.headers.host}`);
   for (const [method, re, handler] of routes) {
     const m = req.method === method && url.pathname.match(re);
@@ -164,6 +164,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Painel de agentes em http://localhost:${PORT}`);
-  console.log(`Lendo sessões de ${store.SESSIONS}`);
+  console.log(`Agents board at http://localhost:${PORT}`);
+  console.log(`Reading sessions from ${store.SESSIONS}`);
 });

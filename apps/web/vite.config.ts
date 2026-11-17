@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig(({ mode }) => {
-  // Lê as portas do .env da raiz (o mesmo do servidor).
+  // Reads the ports from the root .env (the same as the server).
   const env = loadEnv(mode, path.resolve(__dirname, '../..'), 'AGENT_BOARD_');
   const apiPort = Number(env.AGENT_BOARD_PORT || 9999);
   const webPort = Number(env.AGENT_BOARD_WEB_DEV_PORT || 5173);
@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
         '/events': { target, changeOrigin: true },
       },
     },
-    // App local servido de 127.0.0.1: um bundle único (~170 kB gzip) é aceitável.
+    // A local app served from 127.0.0.1: a single bundle (~170 kB gzip) is acceptable.
     build: { chunkSizeWarningLimit: 800 },
     test: { environment: 'node', include: ['src/**/*.test.ts'] },
   };
