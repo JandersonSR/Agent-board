@@ -62,7 +62,7 @@ jobs:
       - run: npx -w apps/server vitest run src/integration.test.ts src/store
 
   e2e:
-    name: Interface ponta a ponta (Playwright)
+    name: End-to-end interface (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
