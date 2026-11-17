@@ -19,7 +19,7 @@ export interface FiringAlert {
 export interface InfraView {
   configured: boolean; demo: boolean; pollSec: number; lastPoll?: string;
   rules: { cpuWarn: number; cpuCrit: number; memCrit: number; sustainMin: number; autoIncident: 'critical' | 'off' };
-  providers: Array<{ id: string; label: string; ok: boolean | null; lastPoll?: string; error?: string }>;
+  providers: Array<{ id: string; label: string; ok: boolean | null; lastPoll?: string; error?: string; warning?: string }>;
   resources: InfraResourceView[]; firing: FiringAlert[];
   summary: { ok: number; warn: number; down: number; critical: number; warning: number };
 }

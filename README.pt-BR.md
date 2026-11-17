@@ -265,7 +265,7 @@ A tela **Infra** (`G S`) mostra seus servidores e apps, os alertas disparados e 
 
 | Provedor | O que lê | Acesso só de leitura |
 | --- | --- | --- |
-| **DigitalOcean** | Droplets (estado, CPU e memória pela API de monitoramento), apps do App Platform e seus deployments | Token pessoal com escopo **read** (`DIGITALOCEAN_TOKEN`). `DIGITALOCEAN_TAG` limita aos droplets com uma tag |
+| **DigitalOcean** | Droplets (estado, CPU e memória pela API de monitoramento), apps do App Platform e seus deployments | Token pessoal com escopo **read** (`DIGITALOCEAN_TOKEN`). `DIGITALOCEAN_TAG` limita aos droplets com uma tag. Token com escopo customizado também serve: só com `app:read` os apps são lidos e o provedor aparece como *parcial* (droplets pedem `droplet:read`, CPU/memória pedem `monitoring:read`) |
 | **Heroku** | Apps, estado dos dynos (no ar, travado, subindo) e releases | `HEROKU_API_KEY` de uma conta com acesso de visualização; liste os apps em `HEROKU_APPS` |
 | **Azure** | Resource Health (disponível, degradado, indisponível) e alertas disparados do Azure Monitor da assinatura | Service principal com o papel **Monitoring Reader**: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SUBSCRIPTION_ID` |
 | **Grafana** | Alertas disparados do Grafana Alerting (vale também para alertas sobre dados do Prometheus, Loki ou Datadog) | Token de service account com papel **Viewer**: `GRAFANA_URL`, `GRAFANA_TOKEN` |

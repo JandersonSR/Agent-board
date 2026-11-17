@@ -265,7 +265,7 @@ The **Infra** screen (`G S`) shows your servers and apps, the alerts that are fi
 
 | Provider | What it reads | Read-only access |
 | --- | --- | --- |
-| **DigitalOcean** | Droplets (status, CPU and memory from the monitoring API), App Platform apps and their deployments | A personal access token with **read** scope (`DIGITALOCEAN_TOKEN`). `DIGITALOCEAN_TAG` limits it to droplets with a tag |
+| **DigitalOcean** | Droplets (status, CPU and memory from the monitoring API), App Platform apps and their deployments | A personal access token with **read** scope (`DIGITALOCEAN_TOKEN`). `DIGITALOCEAN_TAG` limits it to droplets with a tag. A custom-scope token works too: with only `app:read` the apps are read and the provider shows *partial* (droplets need `droplet:read`, CPU/memory need `monitoring:read`) |
 | **Heroku** | Apps, dyno state (up, crashed, starting) and releases | `HEROKU_API_KEY` from an account with view access; list the apps in `HEROKU_APPS` |
 | **Azure** | Resource Health (available, degraded, unavailable) and fired Azure Monitor alerts for the subscription | A service principal with the **Monitoring Reader** role: `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_SUBSCRIPTION_ID` |
 | **Grafana** | Firing alerts from Grafana Alerting (also works for alerts fed by Prometheus, Loki or Datadog data sources) | A service account token with the **Viewer** role: `GRAFANA_URL`, `GRAFANA_TOKEN` |

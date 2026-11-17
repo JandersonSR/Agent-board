@@ -271,6 +271,7 @@ export const EN: Record<string, string> = {
   'rodando': 'running',
   'concluída': 'done',
   'falhou': 'failed',
+  'parcial': 'partial',
   'tempo esgotado': 'timed out',
   'cancelada': 'cancelled',
   'Tarefa': 'Task',

@@ -45,8 +45,9 @@ describe('InfraService', () => {
     expect(svc.view().firing.filter(f => f.fingerprint.startsWith('limit:'))).toHaveLength(1);
     expect(svc.view().providers[0]).toMatchObject({ ok: false, error: 'heroku: tempo esgotado' });
 
-    set({ resources: [api(30)], alerts: [], deploys: [deploy] });
+    set({ resources: [api(30)], alerts: [], deploys: [deploy], warnings: ['droplets: token sem escopo droplet:read'] });
     await svc.pollOnce(T0 + 9 * MIN);
+    expect(svc.view().providers[0]).toMatchObject({ ok: true, error: undefined, warning: 'droplets: token sem escopo droplet:read' }); // leitura parcial
     expect(svc.view().firing).toHaveLength(0);
     const after = await store.collection('painel_incidentes').findOne({});
     expect(after).toMatchObject({ status: 'mitigated' });

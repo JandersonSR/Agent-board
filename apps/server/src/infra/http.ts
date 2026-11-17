@@ -7,6 +7,9 @@ export class InfraHttpError extends Error {
   constructor(message: string, readonly status: number | undefined) { super(message); }
 }
 
+/** 401/403: o token não tem escopo para esse recurso (ou expirou). */
+export const isScopeError = (e: unknown): e is InfraHttpError => e instanceof InfraHttpError && (e.status === 401 || e.status === 403);
+
 export async function getJson<T>(fetcher: Fetcher, url: string, headers: Record<string, string>, schema: z.ZodType<T>, timeoutMs = 15_000): Promise<T> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);

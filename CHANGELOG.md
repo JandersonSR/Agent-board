@@ -10,6 +10,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/). Versions follow
 - **DORA with real deploys:** production deploys from the providers drive deploy frequency, and time to restore counts until mitigation.
 - Infra items in the Attention block and an Infra check in Settings.
 
+### Fixed
+- **DigitalOcean with a custom-scope token:** a part the token cannot read (e.g. droplets with an `app:read`-only token) no longer fails the whole provider. The rest is read and the provider shows *partial* with the missing scope; it only fails when nothing is readable.
+
 ## [0.4.0] - 2026-11-16
 
 ### Changed

@@ -13,7 +13,7 @@ import type { InfraProvider, InfraProviderId, InfraResource, InfraSnapshot } fro
 
 type Mask = (s: string) => { text: string };
 export interface MetricPoint { at: number; cpu?: number | undefined; memory?: number | undefined }
-export interface ProviderState { id: InfraProviderId; label: string; ok: boolean | null; lastPoll?: string | undefined; error?: string | undefined }
+export interface ProviderState { id: InfraProviderId; label: string; ok: boolean | null; lastPoll?: string | undefined; error?: string | undefined; warning?: string | undefined }
 export interface FiringView extends FiringAlert { incidentId?: string | undefined; suspect?: { title: string; at: string; version?: string | undefined } | undefined }
 
 const HISTORY = 120;
@@ -84,9 +84,10 @@ export class InfraService {
       ps.lastPoll = new Date(now).toISOString();
       if (r.status === 'fulfilled') {
         ps.ok = true; ps.error = undefined;
+        ps.warning = r.value.warnings?.length ? this.mask(r.value.warnings.join(' · ')).text : undefined;
         merged.resources.push(...r.value.resources); merged.alerts.push(...r.value.alerts); merged.deploys.push(...r.value.deploys);
       } else {
-        ps.ok = false; ps.error = this.mask((r.reason as Error).message).text;
+        ps.ok = false; ps.error = this.mask((r.reason as Error).message).text; ps.warning = undefined;
         failed.add(this.providers[i]!.id);
         this.log.warn({ provider: ps.id, error: ps.error }, 'falha ao ler a infra');
         merged.resources.push(...this.resources.filter(x => x.provider === ps.id)); // mantém o último estado conhecido

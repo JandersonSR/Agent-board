@@ -48,6 +48,25 @@ describe('DigitalOcean', () => {
     expect(calls.every(c => (c.init?.headers as Record<string, string>).Authorization === 'Bearer t0k')).toBe(true);
     expect(calls.some(c => c.url.includes('host_id=2'))).toBe(false); // desligado: sem métricas
   });
+
+  it('token só com app:read: droplets sem escopo viram aviso e os apps são lidos', async () => {
+    const f: Fetcher = async (url) => {
+      if (/\/v2\/droplets/.test(url)) return json({ id: 'forbidden', message: 'You are not authorized to perform this operation' }, 403);
+      if (/\/v2\/apps\/a1\/deployments/.test(url)) return json({ deployments: [] });
+      if (/\/v2\/apps/.test(url)) return json({ apps: [{ id: 'a1', spec: { name: 'web-prod' }, active_deployment: { id: 'd1', phase: 'ACTIVE' } }] });
+      return json({}, 404);
+    };
+    const snap = await digitalOceanProvider({ token: 't0k', fetcher: f }).poll(0);
+    expect(snap.resources.map(r => r.name)).toEqual(['web-prod']);
+    expect(snap.warnings).toEqual(['droplets: token sem escopo droplet:read']);
+  });
+
+  it('nenhuma parte acessível (token inválido) ou erro que não é de escopo: falha', async () => {
+    const forbidden: Fetcher = async () => json({ id: 'unauthorized' }, 401);
+    await expect(digitalOceanProvider({ token: 'x', fetcher: forbidden }).poll(0)).rejects.toThrow(/sem permissão/);
+    const limited: Fetcher = async (url) => (/\/v2\/droplets/.test(url) ? json({}, 429) : json({ apps: [] }));
+    await expect(digitalOceanProvider({ token: 'x', fetcher: limited }).poll(0)).rejects.toThrow(/limite/);
+  });
 });
 
 describe('Heroku', () => {
